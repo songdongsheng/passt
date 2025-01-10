@@ -23,4 +23,4 @@ check	[ "__PASTA_BIN__" = "__WD__/pasta" ]
 
 test	Podman system test with bats
 
-host	PODMAN="__PODMAN__" CONTAINERS_HELPER_BINARY_DIR="__WD__" bats test/podman/test/system/505-networking-pasta.bats
+host	PODMAN="__PODMAN__" CONTAINERS_HELPER_BINARY_DIR="__WD__" taskset -c 1 bats test/podman/test/system/505-networking-pasta.bats
