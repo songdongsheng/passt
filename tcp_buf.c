@@ -359,6 +359,9 @@ int tcp_buf_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 			return -errno;
 		}
 
+		if (already_sent) /* No new data and EAGAIN: set EPOLLET */
+			conn_flag(c, conn, STALLED);
+
 		return 0;
 	}
 

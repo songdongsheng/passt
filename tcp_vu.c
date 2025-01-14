@@ -399,6 +399,10 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 			tcp_rst(c, conn);
 			return len;
 		}
+
+		if (already_sent) /* No new data and EAGAIN: set EPOLLET */
+			conn_flag(c, conn, STALLED);
+
 		return 0;
 	}
 
