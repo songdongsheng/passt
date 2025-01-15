@@ -18,6 +18,8 @@
 #include "pcap.h"
 #include "vu_common.h"
 
+#define VU_MAX_TX_BUFFER_NB	2
+
 /**
  * vu_packet_check_range() - Check if a given memory zone is contained in
  * 			     a mapped guest memory region
@@ -168,10 +170,15 @@ static void vu_handle_tx(struct vu_dev *vdev, int index,
 
 	count = 0;
 	out_sg_count = 0;
-	while (count < VIRTQUEUE_MAX_SIZE) {
+	while (count < VIRTQUEUE_MAX_SIZE &&
+	       out_sg_count + VU_MAX_TX_BUFFER_NB <= VIRTQUEUE_MAX_SIZE) {
 		int ret;
 
-		vu_set_element(&elem[count], &out_sg[out_sg_count], NULL);
+		elem[count].out_num = VU_MAX_TX_BUFFER_NB;
+		elem[count].out_sg = &out_sg[out_sg_count];
+		elem[count].in_num = 0;
+		elem[count].in_sg = NULL;
+
 		ret = vu_queue_pop(vdev, vq, &elem[count]);
 		if (ret < 0)
 			break;
@@ -181,11 +188,20 @@ static void vu_handle_tx(struct vu_dev *vdev, int index,
 			warn("virtio-net transmit queue contains no out buffers");
 			break;
 		}
-		ASSERT(elem[count].out_num == 1);
+		if (elem[count].out_num == 1) {
+			tap_add_packet(vdev->context,
+				       elem[count].out_sg[0].iov_len - hdrlen,
+				       (char *)elem[count].out_sg[0].iov_base +
+				        hdrlen);
+		} else {
+			/* vnet header can be in a separate iovec */
+			ASSERT(elem[count].out_num == 2);
+			ASSERT(elem[count].out_sg[0].iov_len == (size_t)hdrlen);
+			tap_add_packet(vdev->context,
+				       elem[count].out_sg[1].iov_len,
+				       (char *)elem[count].out_sg[1].iov_base);
+		}
 
-		tap_add_packet(vdev->context,
-			       elem[count].out_sg[0].iov_len - hdrlen,
-			       (char *)elem[count].out_sg[0].iov_base + hdrlen);
 		count++;
 	}
 	tap_handler(vdev->context, now);
