@@ -437,7 +437,7 @@ static uint32_t tcp_conn_epoll_events(uint8_t events, uint8_t conn_flags)
 			return EPOLLET;
 
 		if (conn_flags & STALLED)
-			return EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET;
+			return EPOLLIN | EPOLLRDHUP | EPOLLET;
 
 		return EPOLLIN | EPOLLRDHUP;
 	}
