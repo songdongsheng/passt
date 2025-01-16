@@ -2200,8 +2200,10 @@ void tcp_sock_handler(const struct ctx *c, union epoll_ref ref,
 		if (events & EPOLLIN)
 			tcp_data_from_sock(c, conn);
 
-		if (events & EPOLLOUT)
-			tcp_update_seqack_wnd(c, conn, false, NULL);
+		if (events & EPOLLOUT) {
+			if (tcp_update_seqack_wnd(c, conn, false, NULL))
+				tcp_send_flag(c, conn, ACK);
+		}
 
 		return;
 	}
