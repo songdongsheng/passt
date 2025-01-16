@@ -77,6 +77,7 @@ struct tcp_tap_conn {
 #define ACTIVE_CLOSE		BIT(2)
 #define ACK_TO_TAP_DUE		BIT(3)
 #define ACK_FROM_TAP_DUE	BIT(4)
+#define ACK_FROM_TAP_BLOCKS	BIT(5)
 
 #define SNDBUF_BITS		24
 	unsigned int	sndbuf		:SNDBUF_BITS;

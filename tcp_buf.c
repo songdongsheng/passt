@@ -309,6 +309,7 @@ int tcp_buf_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 	}
 
 	if (!wnd_scaled || already_sent >= wnd_scaled) {
+		conn_flag(c, conn, ACK_FROM_TAP_BLOCKS);
 		conn_flag(c, conn, STALLED);
 		conn_flag(c, conn, ACK_FROM_TAP_DUE);
 		return 0;
@@ -387,6 +388,7 @@ int tcp_buf_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 		return 0;
 	}
 
+	conn_flag(c, conn, ~ACK_FROM_TAP_BLOCKS);
 	conn_flag(c, conn, ~STALLED);
 
 	send_bufs = DIV_ROUND_UP(len, mss);

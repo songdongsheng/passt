@@ -345,7 +345,7 @@ static const char *tcp_state_str[] __attribute((__unused__)) = {
 
 static const char *tcp_flag_str[] __attribute((__unused__)) = {
 	"STALLED", "LOCAL", "ACTIVE_CLOSE", "ACK_TO_TAP_DUE",
-	"ACK_FROM_TAP_DUE",
+	"ACK_FROM_TAP_DUE", "ACK_FROM_TAP_BLOCKS",
 };
 
 /* Listening sockets, used for automatic port forwarding in pasta mode only */
@@ -436,8 +436,12 @@ static uint32_t tcp_conn_epoll_events(uint8_t events, uint8_t conn_flags)
 		if (events & TAP_FIN_SENT)
 			return EPOLLET;
 
-		if (conn_flags & STALLED)
+		if (conn_flags & STALLED) {
+			if (conn_flags & ACK_FROM_TAP_BLOCKS)
+				return EPOLLRDHUP | EPOLLET;
+
 			return EPOLLIN | EPOLLRDHUP | EPOLLET;
+		}
 
 		return EPOLLIN | EPOLLRDHUP;
 	}
