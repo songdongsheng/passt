@@ -757,6 +757,19 @@ static void tcp_sock_set_bufsize(const struct ctx *c, int s)
 }
 
 /**
+ * tcp_sock_set_nodelay() - Set TCP_NODELAY option (disable Nagle's algorithm)
+ * @s:		Socket, can be -1 to avoid check in the caller
+ */
+static void tcp_sock_set_nodelay(int s)
+{
+	if (s == -1)
+		return;
+
+	if (setsockopt(s, SOL_TCP, TCP_NODELAY, &((int){ 1 }), sizeof(int)))
+		debug("TCP: failed to set TCP_NODELAY on socket %i", s);
+}
+
+/**
  * tcp_update_csum() - Calculate TCP checksum
  * @psum:	Unfolded partial checksum of the IPv4 or IPv6 pseudo-header
  * @th:		TCP header (updated)
@@ -1285,6 +1298,7 @@ static int tcp_conn_new_sock(const struct ctx *c, sa_family_t af)
 		return -errno;
 
 	tcp_sock_set_bufsize(c, s);
+	tcp_sock_set_nodelay(s);
 
 	return s;
 }
@@ -2058,6 +2072,7 @@ void tcp_listen_handler(const struct ctx *c, union epoll_ref ref,
 		goto cancel;
 
 	tcp_sock_set_bufsize(c, s);
+	tcp_sock_set_nodelay(s);
 
 	/* FIXME: When listening port has a specific bound address, record that
 	 * as our address
