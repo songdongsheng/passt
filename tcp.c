@@ -2057,6 +2057,8 @@ void tcp_listen_handler(const struct ctx *c, union epoll_ref ref,
 	if (s < 0)
 		goto cancel;
 
+	tcp_sock_set_bufsize(c, s);
+
 	/* FIXME: When listening port has a specific bound address, record that
 	 * as our address
 	 */
@@ -2260,7 +2262,6 @@ static int tcp_sock_init_one(const struct ctx *c, const union inany_addr *addr,
 	if (s < 0)
 		return s;
 
-	tcp_sock_set_bufsize(c, s);
 	return s;
 }
 
@@ -2317,9 +2318,7 @@ static void tcp_ns_sock_init4(const struct ctx *c, in_port_t port)
 
 	s = pif_sock_l4(c, EPOLL_TYPE_TCP_LISTEN, PIF_SPLICE, &inany_loopback4,
 			NULL, port, tref.u32);
-	if (s >= 0)
-		tcp_sock_set_bufsize(c, s);
-	else
+	if (s < 0)
 		s = -1;
 
 	if (c->tcp.fwd_out.mode == FWD_AUTO)
@@ -2343,9 +2342,7 @@ static void tcp_ns_sock_init6(const struct ctx *c, in_port_t port)
 
 	s = pif_sock_l4(c, EPOLL_TYPE_TCP_LISTEN, PIF_SPLICE, &inany_loopback6,
 			NULL, port, tref.u32);
-	if (s >= 0)
-		tcp_sock_set_bufsize(c, s);
-	else
+	if (s < 0)
 		s = -1;
 
 	if (c->tcp.fwd_out.mode == FWD_AUTO)
