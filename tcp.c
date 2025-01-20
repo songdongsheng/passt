@@ -1147,7 +1147,7 @@ int tcp_prepare_flags(const struct ctx *c, struct tcp_tap_conn *conn,
 
 		*opts = TCP_SYN_OPTS(mss, conn->ws_to_tap);
 		*optlen = sizeof(*opts);
-	} else if (!(flags & RST)) {
+	} else {
 		flags |= ACK;
 	}
 
