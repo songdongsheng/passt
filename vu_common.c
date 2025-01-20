@@ -195,8 +195,12 @@ static void vu_handle_tx(struct vu_dev *vdev, int index,
 				        hdrlen);
 		} else {
 			/* vnet header can be in a separate iovec */
-			ASSERT(elem[count].out_num == 2);
-			ASSERT(elem[count].out_sg[0].iov_len == (size_t)hdrlen);
+			if (elem[count].out_num != 2)
+				debug("virtio-net transmit queue contains more than one buffer ([%d]: %u)",
+				      count, elem[count].out_num);
+			if (elem[count].out_sg[0].iov_len != (size_t)hdrlen)
+				debug("virtio-net transmit queue entry not aligned on hdrlen ([%d]: %d != %zu)",
+				count, hdrlen, elem[count].out_sg[0].iov_len);
 			tap_add_packet(vdev->context,
 				       elem[count].out_sg[1].iov_len,
 				       (char *)elem[count].out_sg[1].iov_base);
