@@ -289,10 +289,11 @@ static ssize_t tcp_vu_sock_recv(const struct ctx *c,
  * @iov_cnt:		Number of entries in @iov
  * @check:		Checksum, if already known
  * @no_tcp_csum:	Do not set TCP checksum
+ * @push:		Set PSH flag, last segment in a batch
  */
 static void tcp_vu_prepare(const struct ctx *c, struct tcp_tap_conn *conn,
 			   struct iovec *iov, size_t iov_cnt,
-			   const uint16_t **check, bool no_tcp_csum)
+			   const uint16_t **check, bool no_tcp_csum, bool push)
 {
 	const struct flowside *toside = TAPFLOW(conn);
 	bool v6 = !(inany_v4(&toside->eaddr) && inany_v4(&toside->oaddr));
@@ -334,6 +335,7 @@ static void tcp_vu_prepare(const struct ctx *c, struct tcp_tap_conn *conn,
 	memset(th, 0, sizeof(*th));
 	th->doff = sizeof(*th) / 4;
 	th->ack = 1;
+	th->psh = push;
 
 	tcp_fill_headers(conn, NULL, ip4h, ip6h, th, &payload,
 			 *check, conn->seq_to_tap, no_tcp_csum);
@@ -443,6 +445,7 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 		struct iovec *iov = &elem[head[i]].in_sg[0];
 		int buf_cnt = head[i + 1] - head[i];
 		ssize_t dlen = iov_size(iov, buf_cnt) - hdrlen;
+		bool push = i == head_cnt - 1;
 
 		vu_set_vnethdr(vdev, iov->iov_base, buf_cnt);
 
@@ -451,7 +454,7 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 			check = NULL;
 		previous_dlen = dlen;
 
-		tcp_vu_prepare(c, conn, iov, buf_cnt, &check, !*c->pcap);
+		tcp_vu_prepare(c, conn, iov, buf_cnt, &check, !*c->pcap, push);
 
 		if (*c->pcap) {
 			pcap_iov(iov, buf_cnt,

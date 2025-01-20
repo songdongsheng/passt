@@ -239,9 +239,10 @@ int tcp_buf_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
  * @dlen:	TCP payload length
  * @no_csum:	Don't compute IPv4 checksum, use the one from previous buffer
  * @seq:	Sequence number to be sent
+ * @push:	Set PSH flag, last segment in a batch
  */
 static void tcp_data_to_tap(const struct ctx *c, struct tcp_tap_conn *conn,
-			    ssize_t dlen, int no_csum, uint32_t seq)
+			    ssize_t dlen, int no_csum, uint32_t seq, bool push)
 {
 	struct tcp_payload_t *payload;
 	const uint16_t *check = NULL;
@@ -268,6 +269,7 @@ static void tcp_data_to_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 	payload->th.th_x2 = 0;
 	payload->th.th_flags = 0;
 	payload->th.ack = 1;
+	payload->th.psh = push;
 	iov[TCP_IOV_PAYLOAD].iov_len = dlen + sizeof(struct tcphdr);
 	tcp_l2_buf_fill_headers(conn, iov, check, seq, false);
 	if (++tcp_payload_used > TCP_FRAMES_MEM - 1)
@@ -402,11 +404,14 @@ int tcp_buf_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 	seq = conn->seq_to_tap;
 	for (i = 0; i < send_bufs; i++) {
 		int no_csum = i && i != send_bufs - 1 && tcp_payload_used;
+		bool push = false;
 
-		if (i == send_bufs - 1)
+		if (i == send_bufs - 1) {
 			dlen = last_len;
+			push = true;
+		}
 
-		tcp_data_to_tap(c, conn, dlen, no_csum, seq);
+		tcp_data_to_tap(c, conn, dlen, no_csum, seq, push);
 		seq += dlen;
 	}
 
