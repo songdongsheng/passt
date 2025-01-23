@@ -297,6 +297,10 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 		if (!thisifi)
 			continue; /* No interface for this route */
 
+		/* Skip 'lo': we should test IFF_LOOPBACK, but keep it simple */
+		if (thisifi == 1)
+			continue;
+
 		/* Skip routes to link-local addresses */
 		if (af == AF_INET && dst &&
 		    IN4_IS_PREFIX_LINKLOCAL(dst, rtm->rtm_dst_len))
