@@ -914,7 +914,8 @@ static bool vu_get_protocol_features_exec(struct vu_dev *vdev,
 {
 	uint64_t features = 1ULL << VHOST_USER_PROTOCOL_F_REPLY_ACK |
 			    1ULL << VHOST_USER_PROTOCOL_F_LOG_SHMFD |
-			    1ULL << VHOST_USER_PROTOCOL_F_DEVICE_STATE;
+			    1ULL << VHOST_USER_PROTOCOL_F_DEVICE_STATE |
+			    1ULL << VHOST_USER_PROTOCOL_F_RARP;
 
 	(void)vdev;
 	vmsg_set_reply_u64(msg, features);
@@ -978,6 +979,32 @@ static bool vu_set_vring_enable_exec(struct vu_dev *vdev,
 		die("Invalid vring_enable index: %u", idx);
 
 	vdev->vq[idx].enable = enable;
+	return false;
+}
+
+/**
+ * vu_set_send_rarp_exec() - vhost-user specification says: "Broadcast a fake
+ * 			     RARP to notify the migration is terminated",
+ * 			     but passt doesn't need to update any ARP table,
+ * 			     so do nothing to silence QEMU bogus error message
+ * @vdev:	vhost-user device
+ * @vmsg:	vhost-user message
+ *
+ * Return: False as no reply is requested
+ */
+static bool vu_send_rarp_exec(struct vu_dev *vdev,
+			      struct vhost_user_msg *msg)
+{
+	char macstr[ETH_ADDRSTRLEN];
+
+	(void)vdev;
+
+	/* ignore the command */
+
+	debug("Ignore command VHOST_USER_SEND_RARP for %s",
+	      eth_ntop((unsigned char *)&msg->payload.u64, macstr,
+		       sizeof(macstr)));
+
 	return false;
 }
 
@@ -1177,6 +1204,7 @@ static bool (*vu_handle[VHOST_USER_MAX])(struct vu_dev *vdev,
 	[VHOST_USER_SET_VRING_CALL]	   = vu_set_vring_call_exec,
 	[VHOST_USER_SET_VRING_ERR]	   = vu_set_vring_err_exec,
 	[VHOST_USER_SET_VRING_ENABLE]	   = vu_set_vring_enable_exec,
+	[VHOST_USER_SEND_RARP]		   = vu_send_rarp_exec,
 	[VHOST_USER_SET_DEVICE_STATE_FD]   = vu_set_device_state_fd_exec,
 	[VHOST_USER_CHECK_DEVICE_STATE]    = vu_check_device_state_exec,
 };
