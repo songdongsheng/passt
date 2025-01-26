@@ -203,6 +203,8 @@ int fls(unsigned long x);
 int write_file(const char *path, const char *buf);
 int write_all_buf(int fd, const void *buf, size_t len);
 int write_remainder(int fd, const struct iovec *iov, size_t iovcnt, size_t skip);
+int read_all_buf(int fd, void *buf, size_t len);
+int read_remainder(int fd, const struct iovec *iov, size_t cnt, size_t skip);
 void close_open_files(int argc, char **argv);
 bool snprintf_check(char *str, size_t size, const char *format, ...);
 

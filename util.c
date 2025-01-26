@@ -606,6 +606,90 @@ int write_remainder(int fd, const struct iovec *iov, size_t iovcnt, size_t skip)
 	return 0;
 }
 
+/**
+ * read_all_buf() - Fill a whole buffer from a file descriptor
+ * @fd:		File descriptor
+ * @buf:	Pointer to base of buffer
+ * @len:	Length of buffer
+ *
+ * Return: 0 on success, -1 on error (with errno set)
+ *
+ * #syscalls read
+ */
+int read_all_buf(int fd, void *buf, size_t len)
+{
+	size_t left = len;
+	char *p = buf;
+
+	while (left) {
+		ssize_t rc;
+
+		ASSERT(left <= len);
+
+		do
+			rc = read(fd, p, left);
+		while ((rc < 0) && errno == EINTR);
+
+		if (rc < 0)
+			return -1;
+
+		if (rc == 0) {
+			errno = ENODATA;
+			return -1;
+		}
+
+		p += rc;
+		left -= rc;
+	}
+	return 0;
+}
+
+/**
+ * read_remainder() - Read the tail of an IO vector from a file descriptor
+ * @fd:		File descriptor
+ * @iov:	IO vector
+ * @cnt:	Number of entries in @iov
+ * @skip:	Number of bytes of the vector to skip reading
+ *
+ * Return: 0 on success, -1 on error (with errno set)
+ *
+ * Note: mode-specific seccomp profiles need to enable readv() to use this.
+ */
+/* cppcheck-suppress unusedFunction */
+int read_remainder(int fd, const struct iovec *iov, size_t cnt, size_t skip)
+{
+	size_t i = 0, offset;
+
+	while ((i += iov_skip_bytes(iov + i, cnt - i, skip, &offset)) < cnt) {
+		ssize_t rc;
+
+		if (offset) {
+			ASSERT(offset < iov[i].iov_len);
+			/* Read the remainder of the partially read buffer */
+			if (read_all_buf(fd, (char *)iov[i].iov_base + offset,
+					 iov[i].iov_len - offset) < 0)
+				return -1;
+			i++;
+		}
+
+		if (cnt == i)
+			break;
+
+		/* Fill as many of the remaining buffers as we can */
+		rc = readv(fd, &iov[i], cnt - i);
+		if (rc < 0)
+			return -1;
+
+		if (rc == 0) {
+			errno = ENODATA;
+			return -1;
+		}
+
+		skip = rc;
+	}
+	return 0;
+}
+
 /** sockaddr_ntop() - Convert a socket address to text format
  * @sa:		Socket address
  * @dst:	output buffer, minimum SOCKADDR_STRLEN bytes
