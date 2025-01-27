@@ -42,9 +42,10 @@ PASST_SRCS = arch.c arp.c checksum.c conf.c dhcp.c dhcpv6.c flow.c fwd.c \
 	tcp_buf.c tcp_splice.c tcp_vu.c udp.c udp_flow.c udp_vu.c util.c \
 	vhost_user.c virtio.c vu_common.c
 QRAP_SRCS = qrap.c
-SRCS = $(PASST_SRCS) $(QRAP_SRCS)
+PASST_REPAIR_SRCS = passt-repair.c
+SRCS = $(PASST_SRCS) $(QRAP_SRCS) $(PASST_REPAIR_SRCS)
 
-MANPAGES = passt.1 pasta.1 qrap.1
+MANPAGES = passt.1 pasta.1 qrap.1 passt-repair.1
 
 PASST_HEADERS = arch.h arp.h checksum.h conf.h dhcp.h dhcpv6.h flow.h fwd.h \
 	flow_table.h icmp.h icmp_flow.h inany.h iov.h ip.h isolation.h \
@@ -72,9 +73,9 @@ mandir		?= $(datarootdir)/man
 man1dir		?= $(mandir)/man1
 
 ifeq ($(TARGET_ARCH),x86_64)
-BIN := passt passt.avx2 pasta pasta.avx2 qrap
+BIN := passt passt.avx2 pasta pasta.avx2 qrap passt-repair
 else
-BIN := passt pasta qrap
+BIN := passt pasta qrap passt-repair
 endif
 
 all: $(BIN) $(MANPAGES) docs
@@ -83,7 +84,10 @@ static: FLAGS += -static -DGLIBC_NO_STATIC_NSS
 static: clean all
 
 seccomp.h: seccomp.sh $(PASST_SRCS) $(PASST_HEADERS)
-	@ EXTRA_SYSCALLS="$(EXTRA_SYSCALLS)" ARCH="$(TARGET_ARCH)" CC="$(CC)" ./seccomp.sh $(PASST_SRCS) $(PASST_HEADERS)
+	@ EXTRA_SYSCALLS="$(EXTRA_SYSCALLS)" ARCH="$(TARGET_ARCH)" CC="$(CC)" ./seccomp.sh seccomp.h $(PASST_SRCS) $(PASST_HEADERS)
+
+seccomp_repair.h: seccomp.sh $(PASST_REPAIR_SRCS)
+	@ ARCH="$(TARGET_ARCH)" CC="$(CC)" ./seccomp.sh seccomp_repair.h $(PASST_REPAIR_SRCS)
 
 passt: $(PASST_SRCS) $(HEADERS)
 	$(CC) $(FLAGS) $(CFLAGS) $(CPPFLAGS) $(PASST_SRCS) -o passt $(LDFLAGS)
@@ -100,6 +104,9 @@ pasta.avx2 pasta.1 pasta: pasta%: passt%
 
 qrap: $(QRAP_SRCS) passt.h
 	$(CC) $(FLAGS) $(CFLAGS) $(CPPFLAGS) -DARCH=\"$(TARGET_ARCH)\" $(QRAP_SRCS) -o qrap $(LDFLAGS)
+
+passt-repair: $(PASST_REPAIR_SRCS) seccomp_repair.h
+	$(CC) $(FLAGS) $(CFLAGS) $(CPPFLAGS) $(PASST_REPAIR_SRCS) -o passt-repair $(LDFLAGS)
 
 valgrind: EXTRA_SYSCALLS += rt_sigprocmask rt_sigtimedwait rt_sigaction	\
 			    rt_sigreturn getpid gettid kill clock_gettime mmap \

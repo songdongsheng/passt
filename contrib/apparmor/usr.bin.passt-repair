@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# PASST - Plug A Simple Socket Transport
+#  for qemu/UNIX domain socket mode
+#
+# PASTA - Pack A Subtle Tap Abstraction
+#  for network namespace/tap device mode
+#
+# contrib/apparmor/usr.bin.passt-repair - AppArmor profile for passt-repair(1)
+#
+# Copyright (c) 2025 Red Hat GmbH
+# Author: Stefano Brivio <sbrivio@redhat.com>
+
+abi <abi/3.0>,
+
+#include <tunables/global>
+
+profile passt-repair /usr/bin/passt-repair {
+  #include <abstractions/base>
+  /** rw,			# passt's ".repair" socket might be anywhere
+  unix (connect, receive, send) type=stream,
+
+  capability dac_override,	# connect to passt's socket as root
+  capability net_admin,		# currently needed for TCP_REPAIR socket option
+  capability net_raw,		# what TCP_REPAIR should require instead
+
+  network unix stream,		# connect and use UNIX domain socket
+  network inet stream,		# use TCP sockets
+}

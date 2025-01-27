@@ -14,8 +14,10 @@
 # Author: Stefano Brivio <sbrivio@redhat.com>
 
 TMP="$(mktemp)"
-IN="$@"
 OUT="$(mktemp)"
+OUT_FINAL="${1}"
+shift
+IN="$@"
 
 [ -z "${ARCH}" ] && ARCH="$(uname -m)"
 [ -z "${CC}" ] && CC="cc"
@@ -268,4 +270,4 @@ for __p in ${__profiles}; do
 	gen_profile "${__p}" ${__calls}
 done
 
-mv "${OUT}" seccomp.h
+mv "${OUT}" "${OUT_FINAL}"

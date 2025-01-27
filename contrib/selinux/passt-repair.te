@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# PASST - Plug A Simple Socket Transport
+#  for qemu/UNIX domain socket mode
+#
+# contrib/selinux/passt-repair.te - SELinux: Type Enforcement for passt-repair
+#
+# Copyright (c) 2025 Red Hat GmbH
+# Author: Stefano Brivio <sbrivio@redhat.com>
+
+policy_module(passt-repair, 0.1)
+
+require {
+	type unconfined_t;
+	type passt_t;
+	role unconfined_r;
+	class process transition;
+
+	class file { read execute execute_no_trans entrypoint open map };
+	class capability { dac_override net_admin net_raw };
+	class chr_file { append open getattr read write ioctl };
+
+	class unix_stream_socket { create connect sendto };
+	class sock_file { read write };
+
+	class tcp_socket { read setopt write };
+
+	type console_device_t;
+	type user_devpts_t;
+	type user_tmp_t;
+}
+
+type passt_repair_t;
+domain_type(passt_repair_t);
+type passt_repair_exec_t;
+files_type(passt_repair_exec_t);
+
+role unconfined_r types passt_repair_t;
+
+allow passt_repair_t passt_repair_exec_t:file { read execute execute_no_trans entrypoint open map };
+type_transition unconfined_t passt_repair_exec_t:process passt_repair_t;
+allow unconfined_t passt_repair_t:process transition;
+
+allow passt_repair_t self:capability { dac_override net_admin net_raw };
+
+allow passt_repair_t console_device_t:chr_file { append open getattr read write ioctl };
+allow passt_repair_t user_devpts_t:chr_file { append open getattr read write ioctl };
+
+allow passt_repair_t unconfined_t:unix_stream_socket { connectto read write };
+allow passt_repair_t passt_t:unix_stream_socket { connectto read write };
+allow passt_repair_t user_tmp_t:unix_stream_socket { connectto read write };
+
+allow passt_repair_t unconfined_t:sock_file { read write };
+allow passt_repair_t passt_t:sock_file { read write };
+allow passt_repair_t user_tmp_t:sock_file { read write };
+
+allow passt_repair_t unconfined_t:tcp_socket { read setopt write };
+allow passt_repair_t passt_t:tcp_socket { read setopt write };

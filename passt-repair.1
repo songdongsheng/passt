@@ -1,0 +1,70 @@
+.\" SPDX-License-Identifier: GPL-2.0-or-later
+.\" Copyright (c) 2025 Red Hat GmbH
+.\" Author: Stefano Brivio <sbrivio@redhat.com>
+.TH passt-repair 1
+
+.SH NAME
+.B passt-repair
+\- Helper setting TCP_REPAIR socket options for \fBpasst\fR(1)
+
+.SH SYNOPSIS
+.B passt-repair
+\fIPATH\fR
+
+.SH DESCRIPTION
+
+.B passt-repair
+is a privileged helper setting and clearing repair mode on TCP sockets on behalf
+of \fBpasst\fR(1), as instructed via single-byte commands over a UNIX domain
+socket, specified by \fIPATH\fR.
+
+It can be used to migrate TCP connections between guests without granting
+additional capabilities to \fBpasst\fR(1) itself: to migrate TCP connections,
+\fBpasst\fR(1) leverages repair mode, which needs the \fBCAP_NET_ADMIN\fR
+capability (see \fBcapabilities\fR(7)) to be set or cleared.
+
+.SH PROTOCOL
+
+\fBpasst-repair\fR(1) connects to \fBpasst\fR(1) using the socket specified via
+\fI--repair-path\fR option in \fBpasst\fR(1) itself. By default, the name is the
+same as the UNIX domain socket used for guest communication, suffixed by
+\fI.repair\fR.
+
+The messages consist of one 8-bit signed integer that can be \fITCP_REPAIR_ON\fR
+(1), \fITCP_REPAIR_OFF\fR (2), or \fITCP_REPAIR_OFF_WP\fR (-1), as defined by
+the Linux kernel user API, and one to SCM_MAX_FD (253) sockets as SCM_RIGHTS
+(see \fBunix\fR(7)) ancillary message, sent by the server, \fBpasst\fR(1).
+
+The client, \fBpasst-repair\fR(1), replies with the same byte (and no ancillary
+message) to indicate success, and closes the connection on failure.
+
+The server closes the connection on error or completion.
+
+.SH NOTES
+
+\fBpasst-repair\fR(1) can be granted the \fBCAP_NET_ADMIN\fR capability
+(preferred, as it limits privileges to the strictly necessary ones), or it can
+be run as root.
+
+.SH AUTHOR
+
+Stefano Brivio <sbrivio@redhat.com>.
+
+.SH REPORTING BUGS
+
+Please report issues on the bug tracker at https://bugs.passt.top/, or
+send a message to the passt-user@passt.top mailing list, see
+https://lists.passt.top/.
+
+.SH COPYRIGHT
+
+Copyright (c) 2025 Red Hat GmbH.
+
+\fBpasst-repair\fR is free software: you can redistribute them and/or modify
+them under the terms of the GNU General Public License as published by the Free
+Software Foundation, either version 2 of the License, or (at your option) any
+later version. 
+
+.SH SEE ALSO
+
+\fBpasst\fR(1), \fBqemu\fR(1), \fBcapabilities\fR(7), \fBunix\fR(7).

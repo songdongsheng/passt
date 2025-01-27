@@ -108,9 +108,11 @@ fi
 %{_bindir}/passt
 %{_bindir}/pasta
 %{_bindir}/qrap
+%{_bindir}/passt-repair
 %{_mandir}/man1/passt.1*
 %{_mandir}/man1/pasta.1*
 %{_mandir}/man1/qrap.1*
+%{_mandir}/man1/passt-repair.1*
 %ifarch x86_64
 %{_bindir}/passt.avx2
 %{_mandir}/man1/passt.avx2.1*
