@@ -52,7 +52,7 @@ void udp_flow_close(const struct ctx *c, struct udp_flow *uflow)
 
 	if (uflow->s[TGTSIDE] >= 0) {
 		/* But the flow specific one needs to be removed */
-		epoll_ctl(c->epollfd, EPOLL_CTL_DEL, uflow->s[TGTSIDE], NULL);
+		epoll_del(c, uflow->s[TGTSIDE]);
 		close(uflow->s[TGTSIDE]);
 		uflow->s[TGTSIDE] = -1;
 	}

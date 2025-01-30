@@ -163,17 +163,6 @@ static void vmsg_close_fds(const struct vhost_user_msg *vmsg)
 }
 
 /**
- * vu_remove_watch() - Remove a file descriptor from our passt epoll
- * 		       file descriptor
- * @vdev:	vhost-user device
- * @fd:		file descriptor to remove
- */
-static void vu_remove_watch(const struct vu_dev *vdev, int fd)
-{
-	epoll_ctl(vdev->context->epollfd, EPOLL_CTL_DEL, fd, NULL);
-}
-
-/**
  * vmsg_set_reply_u64() - Set reply payload.u64 and clear request flags
  * 			  and fd_num
  * @vmsg:	vhost-user message
@@ -748,7 +737,7 @@ static bool vu_get_vring_base_exec(struct vu_dev *vdev,
 		vdev->vq[idx].call_fd = -1;
 	}
 	if (vdev->vq[idx].kick_fd != -1) {
-		vu_remove_watch(vdev, vdev->vq[idx].kick_fd);
+		epoll_del(vdev->context, vdev->vq[idx].kick_fd);
 		close(vdev->vq[idx].kick_fd);
 		vdev->vq[idx].kick_fd = -1;
 	}
@@ -816,7 +805,7 @@ static bool vu_set_vring_kick_exec(struct vu_dev *vdev,
 	vu_check_queue_msg_file(msg);
 
 	if (vdev->vq[idx].kick_fd != -1) {
-		vu_remove_watch(vdev, vdev->vq[idx].kick_fd);
+		epoll_del(vdev->context, vdev->vq[idx].kick_fd);
 		close(vdev->vq[idx].kick_fd);
 		vdev->vq[idx].kick_fd = -1;
 	}
@@ -1063,7 +1052,7 @@ static bool vu_set_device_state_fd_exec(struct vu_dev *vdev,
 		die("Invalide device_state_fd direction: %d", direction);
 
 	if (vdev->device_state_fd != -1) {
-		vu_remove_watch(vdev, vdev->device_state_fd);
+		epoll_del(vdev->context, vdev->device_state_fd);
 		close(vdev->device_state_fd);
 	}
 
@@ -1145,7 +1134,7 @@ void vu_cleanup(struct vu_dev *vdev)
 			vq->err_fd = -1;
 		}
 		if (vq->kick_fd != -1) {
-			vu_remove_watch(vdev, vq->kick_fd);
+			epoll_del(vdev->context, vq->kick_fd);
 			close(vq->kick_fd);
 			vq->kick_fd = -1;
 		}
@@ -1169,7 +1158,7 @@ void vu_cleanup(struct vu_dev *vdev)
 	vu_close_log(vdev);
 
 	if (vdev->device_state_fd != -1) {
-		vu_remove_watch(vdev, vdev->device_state_fd);
+		epoll_del(vdev->context, vdev->device_state_fd);
 		close(vdev->device_state_fd);
 		vdev->device_state_fd = -1;
 		vdev->device_state_result = -1;

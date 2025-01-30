@@ -325,8 +325,7 @@ void vu_migrate(struct vu_dev *vdev, uint32_t events)
 		/* value to be returned by VHOST_USER_CHECK_DEVICE_STATE */
 		vdev->device_state_result = ret == -1 ? -1 : 0;
 		/* Closing the file descriptor signals the end of transfer */
-		epoll_ctl(vdev->context->epollfd, EPOLL_CTL_DEL,
-			  vdev->device_state_fd, NULL);
+		epoll_del(vdev->context, vdev->device_state_fd);
 		close(vdev->device_state_fd);
 		vdev->device_state_fd = -1;
 	} else if (events & EPOLLIN) {
@@ -346,8 +345,7 @@ void vu_migrate(struct vu_dev *vdev, uint32_t events)
 		debug("Closing migration channel");
 
 		/* The end of file signals the end of the transfer. */
-		epoll_ctl(vdev->context->epollfd, EPOLL_CTL_DEL,
-			  vdev->device_state_fd, NULL);
+		epoll_del(vdev->context, vdev->device_state_fd);
 		close(vdev->device_state_fd);
 		vdev->device_state_fd = -1;
 	}

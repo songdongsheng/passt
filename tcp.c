@@ -468,9 +468,9 @@ static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 
 	if (conn->events == CLOSED) {
 		if (conn->in_epoll)
-			epoll_ctl(c->epollfd, EPOLL_CTL_DEL, conn->sock, NULL);
+			epoll_del(c, conn->sock);
 		if (conn->timer != -1)
-			epoll_ctl(c->epollfd, EPOLL_CTL_DEL, conn->timer, NULL);
+			epoll_del(c, conn->timer);
 		return 0;
 	}
 

@@ -150,7 +150,7 @@ unexpected:
 static void icmp_ping_close(const struct ctx *c,
 			    const struct icmp_ping_flow *pingf)
 {
-	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, pingf->sock, NULL);
+	epoll_del(c, pingf->sock);
 	close(pingf->sock);
 	flow_hash_remove(c, FLOW_SIDX(pingf, INISIDE));
 }

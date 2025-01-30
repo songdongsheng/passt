@@ -837,3 +837,13 @@ void raw_random(void *buf, size_t buflen)
 	if (random_read < buflen)
 		die("Unexpected EOF on random data source");
 }
+
+/**
+ * epoll_del() - Remove a file descriptor from our passt epoll
+ * @c:		Execution context
+ * @fd:		File descriptor to remove
+ */
+void epoll_del(const struct ctx *c, int fd)
+{
+	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, fd, NULL);
+}
