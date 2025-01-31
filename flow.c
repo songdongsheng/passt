@@ -414,8 +414,8 @@ const struct flowside *flow_initiate_sa(union flow *flow, uint8_t pif,
  *
  * Return: pointer to the target flowside information
  */
-const struct flowside *flow_target(const struct ctx *c, union flow *flow,
-				   uint8_t proto)
+struct flowside *flow_target(const struct ctx *c, union flow *flow,
+			     uint8_t proto)
 {
 	char estr[INANY_ADDRSTRLEN], fstr[INANY_ADDRSTRLEN];
 	struct flow_common *f = &flow->f;

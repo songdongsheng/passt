@@ -1415,6 +1415,8 @@ static void tcp_bind_outbound(const struct ctx *c,
  * @opts:	Pointer to start of options
  * @optlen:	Bytes in options: caller MUST ensure available length
  * @now:	Current timestamp
+ *
+ * #syscalls:vu getsockname
  */
 static void tcp_conn_from_tap(const struct ctx *c, sa_family_t af,
 			      const void *saddr, const void *daddr,
@@ -1423,9 +1425,10 @@ static void tcp_conn_from_tap(const struct ctx *c, sa_family_t af,
 {
 	in_port_t srcport = ntohs(th->source);
 	in_port_t dstport = ntohs(th->dest);
-	const struct flowside *ini, *tgt;
+	const struct flowside *ini;
 	struct tcp_tap_conn *conn;
 	union sockaddr_inany sa;
+	struct flowside *tgt;
 	union flow *flow;
 	int s = -1, mss;
 	uint64_t hash;
@@ -1530,6 +1533,29 @@ static void tcp_conn_from_tap(const struct ctx *c, sa_family_t af,
 	}
 
 	tcp_epoll_ctl(c, conn);
+
+	if (c->mode == MODE_VU) { /* To rebind to same oport after migration */
+		if (af == AF_INET) {
+			struct sockaddr_in s_in;
+
+			sl = sizeof(s_in);
+			if (!getsockname(s, (struct sockaddr *)&s_in, &sl)) {
+				/* NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage) */
+				tgt->oport = ntohs(s_in.sin_port);
+				tgt->oaddr = inany_from_v4(s_in.sin_addr);
+			}
+		} else {
+			struct sockaddr_in6 s_in6;
+
+			sl = sizeof(s_in6);
+			if (!getsockname(s, (struct sockaddr *)&s_in6, &sl)) {
+				/* NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage) */
+				tgt->oport = ntohs(s_in6.sin6_port);
+				tgt->oaddr.a6 = s_in6.sin6_addr;
+			}
+		}
+	}
+
 	FLOW_ACTIVATE(conn);
 	return;
 
