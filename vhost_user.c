@@ -640,8 +640,8 @@ static bool vu_set_vring_num_exec(struct vu_dev *vdev,
 	unsigned int idx = msg->payload.state.index;
 	unsigned int num = msg->payload.state.num;
 
-	debug("State.index: %u", idx);
-	debug("State.num:   %u", num);
+	trace("State.index: %u", idx);
+	trace("State.num:   %u", num);
 	vdev->vq[idx].vring.num = num;
 
 	return false;

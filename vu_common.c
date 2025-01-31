@@ -238,7 +238,7 @@ void vu_kick_cb(struct vu_dev *vdev, union epoll_ref ref,
 	if (rc == -1)
 		die_perror("vhost-user kick eventfd_read()");
 
-	debug("vhost-user: got kick_data: %016"PRIx64" idx: %d",
+	trace("vhost-user: got kick_data: %016"PRIx64" idx: %d",
 	      kick_data, ref.queue);
 	if (VHOST_USER_IS_QUEUE_TX(ref.queue))
 		vu_handle_tx(vdev, ref.queue, now);
@@ -262,7 +262,7 @@ int vu_send_single(const struct ctx *c, const void *buf, size_t size)
 	int elem_cnt;
 	int i;
 
-	debug("vu_send_single size %zu", size);
+	trace("vu_send_single size %zu", size);
 
 	if (!vu_queue_enabled(vq) || !vu_queue_started(vq)) {
 		debug("Got packet, but RX virtqueue not usable yet");
@@ -294,7 +294,7 @@ int vu_send_single(const struct ctx *c, const void *buf, size_t size)
 
 	vu_flush(vdev, vq, elem, elem_cnt);
 
-	debug("vhost-user sent %zu", total);
+	trace("vhost-user sent %zu", total);
 
 	return total;
 err:
