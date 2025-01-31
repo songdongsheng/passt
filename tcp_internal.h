@@ -38,9 +38,13 @@
 #define OPT_SACK	5
 #define OPT_TS		8
 
-#define TAPSIDE(conn_)	((conn_)->f.pif[1] == PIF_TAP)
-#define TAPFLOW(conn_)	(&((conn_)->f.side[TAPSIDE(conn_)]))
-#define TAP_SIDX(conn_)	(FLOW_SIDX((conn_), TAPSIDE(conn_)))
+#define TAPSIDE(conn_)		((conn_)->f.pif[1] == PIF_TAP)
+#define TAPFLOW(conn_)		(&((conn_)->f.side[TAPSIDE(conn_)]))
+#define TAP_SIDX(conn_)		(FLOW_SIDX((conn_), TAPSIDE(conn_)))
+
+#define HOSTSIDE(conn_)		((conn_)->f.pif[1] == PIF_HOST)
+#define HOSTFLOW(conn_)		(&((conn_)->f.side[HOSTSIDE(conn_)]))
+#define HOST_SIDX(conn_)	(FLOW_SIDX((conn_), TAPSIDE(conn_)))
 
 #define CONN_V4(conn)		(!!inany_v4(&TAPFLOW(conn)->oaddr))
 #define CONN_V6(conn)		(!CONN_V4(conn))
