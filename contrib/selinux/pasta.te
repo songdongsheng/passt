@@ -171,7 +171,7 @@ allow pasta_t init_t:lnk_file read;
 allow pasta_t init_t:unix_stream_socket connectto;
 allow pasta_t init_t:dbus send_msg;
 allow pasta_t init_t:system status;
-allow pasta_t unconfined_t:dir search;
+allow pasta_t unconfined_t:dir { read search };
 allow pasta_t unconfined_t:file read;
 allow pasta_t unconfined_t:lnk_file read;
 allow pasta_t self:process { setpgid setcap };
@@ -191,8 +191,6 @@ allow pasta_t tun_tap_device_t:chr_file { ioctl open read write };
 allow pasta_t sysctl_net_t:dir search;
 allow pasta_t sysctl_net_t:file { open read write };
 allow pasta_t kernel_t:system module_request;
-
-allow pasta_t nsfs_t:file read;
 
 allow pasta_t proc_t:dir mounton;
 allow pasta_t proc_t:filesystem mount;
