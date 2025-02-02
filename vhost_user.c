@@ -419,7 +419,7 @@ static bool map_ring(struct vu_dev *vdev, struct vu_virtq *vq)
  *
  * Return: False as no reply is requested
  *
- * #syscalls:vu mmap munmap
+ * #syscalls:vu mmap|mmap2 munmap
  */
 static bool vu_set_mem_table_exec(struct vu_dev *vdev,
 				  struct vhost_user_msg *msg)
