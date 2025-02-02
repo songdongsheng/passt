@@ -1,0 +1,51 @@
+<!---
+SPDX-License-Identifier: GPL-2.0-or-later
+Copyright (c) 2025 Red Hat GmbH
+Author: Stefano Brivio <sbrivio@redhat.com>
+-->
+
+Migration
+=========
+
+These test programs show a migration of a TCP connection from one process to
+another using the TCP_REPAIR socket option.
+
+The two processes are a mock of the matching implementation in passt(1), and run
+unprivileged, so they rely on the passt-repair helper to connect to them and set
+or clear TCP_REPAIR on the connection socket, transferred to the helper using
+SCM_RIGHTS.
+
+The passt-repair helper needs to have the CAP_NET_ADMIN capability, or run as
+root.
+
+Example of usage
+----------------
+
+* Start the test server
+
+        $ nc -l 9999
+
+* Start the source side of the TCP client (mock of the source instance of passt)
+
+        $ ./source 127.0.0.1 9999 9998 /tmp/repair.sock
+
+* The client sends a test string, and waits for a connection from passt-repair
+
+        # passt-repair /tmp/repair.sock
+
+* The socket is now in repair mode, and `source` dumps sequences, then exits
+
+        sending sequence: 3244673313
+        receiving sequence: 2250449386
+
+* Continue the connection on the target side, restarting from those sequences
+
+        $ ./target 127.0.0.1 9999 9998 /tmp/repair.sock 3244673313 2250449386
+
+* The target side now waits for a connection from passt-repair
+
+        # passt-repair /tmp/repair.sock
+
+* The target side asks passt-repair to switch the socket to repair mode, sets up
+  the TCP sequences, then asks passt-repair to clear repair mode, and sends a
+  test string to the server
