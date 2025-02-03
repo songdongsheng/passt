@@ -1920,6 +1920,9 @@ int tcp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 
 	/* Establishing connection from tap */
 	if (conn->events & TAP_SYN_RCVD) {
+		if (th->syn && !th->ack && !th->fin)
+			return 1;	/* SYN retry: ignore and keep waiting */
+
 		if (!(conn->events & TAP_SYN_ACK_SENT))
 			goto reset;
 
