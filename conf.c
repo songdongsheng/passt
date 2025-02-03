@@ -426,10 +426,12 @@ static void add_dns_resolv(struct ctx *c, const char *nameserver,
 		if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_host))
 			c->ip4.dns_host = ns4;
 
-		/* Guest or container can only access local addresses via
-		 * redirect
+		/* Special handling if guest or container can only access local
+		 * addresses via redirect, or if the host gateway is also a
+		 * resolver and we shadow its address
 		 */
-		if (IN4_IS_ADDR_LOOPBACK(&ns4)) {
+		if (IN4_IS_ADDR_LOOPBACK(&ns4) ||
+		    IN4_ARE_ADDR_EQUAL(&ns4, &c->ip4.map_host_loopback)) {
 			if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.map_host_loopback))
 				return;
 
@@ -445,10 +447,12 @@ static void add_dns_resolv(struct ctx *c, const char *nameserver,
 		if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_host))
 			c->ip6.dns_host = ns6;
 
-		/* Guest or container can only access local addresses via
-		 * redirect
+		/* Special handling if guest or container can only access local
+		 * addresses via redirect, or if the host gateway is also a
+		 * resolver and we shadow its address
 		 */
-		if (IN6_IS_ADDR_LOOPBACK(&ns6)) {
+		if (IN6_IS_ADDR_LOOPBACK(&ns6) ||
+		    IN6_ARE_ADDR_EQUAL(&ns6, &c->ip6.map_host_loopback)) {
 			if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.map_host_loopback))
 				return;
 
