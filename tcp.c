@@ -1535,24 +1535,12 @@ static void tcp_conn_from_tap(const struct ctx *c, sa_family_t af,
 	tcp_epoll_ctl(c, conn);
 
 	if (c->mode == MODE_VU) { /* To rebind to same oport after migration */
-		if (af == AF_INET) {
-			struct sockaddr_in s_in;
-
-			sl = sizeof(s_in);
-			if (!getsockname(s, (struct sockaddr *)&s_in, &sl)) {
-				/* NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage) */
-				tgt->oport = ntohs(s_in.sin_port);
-				tgt->oaddr = inany_from_v4(s_in.sin_addr);
-			}
+		sl = sizeof(sa);
+		if (!getsockname(s, &sa.sa, &sl)) {
+			inany_from_sockaddr(&tgt->oaddr, &tgt->oport, &sa);
 		} else {
-			struct sockaddr_in6 s_in6;
-
-			sl = sizeof(s_in6);
-			if (!getsockname(s, (struct sockaddr *)&s_in6, &sl)) {
-				/* NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage) */
-				tgt->oport = ntohs(s_in6.sin6_port);
-				tgt->oaddr.a6 = s_in6.sin6_addr;
-			}
+			err("Failed to get local address for socket: %s",
+			    strerror_(errno));
 		}
 	}
 
