@@ -7,5 +7,6 @@
 /qrap
 /pasta.1
 /seccomp.h
+/seccomp_repair.h
 /c*.json
 README.plain.md

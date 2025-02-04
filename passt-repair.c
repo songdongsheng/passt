@@ -46,7 +46,7 @@
  *
  * Return: 0 on success (EOF), 1 on error, 2 on usage error
  *
- * #syscalls:repair connect setsockopt write exit_group
+ * #syscalls:repair connect setsockopt write close exit_group
  * #syscalls:repair socket s390x:socketcall i686:socketcall
  * #syscalls:repair recvfrom recvmsg arm:recv ppc64le:recv
  * #syscalls:repair sendto sendmsg arm:send ppc64le:send
