@@ -151,9 +151,6 @@ static int fill(struct msg *m)
 {
 	int i, o, offset = 0;
 
-	m->op = BOOTREPLY;
-	m->secs = 0;
-
 	for (o = 0; o < 255; o++)
 		opts[o].sent = 0;
 
@@ -291,8 +288,9 @@ int dhcp(const struct ctx *c, const struct pool *p)
 	const struct ethhdr *eh;
 	const struct iphdr *iph;
 	const struct udphdr *uh;
+	struct msg const *m;
+	struct msg reply;
 	unsigned int i;
-	struct msg *m;
 
 	eh  = packet_get(p, 0, offset, sizeof(*eh),  NULL);
 	offset += sizeof(*eh);
@@ -320,6 +318,22 @@ int dhcp(const struct ctx *c, const struct pool *p)
 	    mlen  <  offsetof(struct msg, o)		||
 	    m->op != BOOTREQUEST)
 		return -1;
+
+	reply.op		= BOOTREPLY;
+	reply.htype		= m->htype;
+	reply.hlen		= m->hlen;
+	reply.hops		= 0;
+	reply.xid		= m->xid;
+	reply.secs		= 0;
+	reply.flags		= m->flags;
+	reply.ciaddr		= m->ciaddr;
+	reply.yiaddr		= c->ip4.addr;
+	reply.siaddr		= 0;
+	reply.giaddr		= m->giaddr;
+	memcpy(&reply.chaddr,	m->chaddr,	sizeof(reply.chaddr));
+	memset(&reply.sname,	0,		sizeof(reply.sname));
+	memset(&reply.file,	0,		sizeof(reply.file));
+	reply.magic		= m->magic;
 
 	offset += offsetof(struct msg, o);
 
@@ -364,7 +378,6 @@ int dhcp(const struct ctx *c, const struct pool *p)
 
 	info("    from %s", eth_ntop(m->chaddr, macstr, sizeof(macstr)));
 
-	m->yiaddr = c->ip4.addr;
 	mask.s_addr = htonl(0xffffffff << (32 - c->ip4.prefix_len));
 	memcpy(opts[1].s,  &mask,                sizeof(mask));
 	memcpy(opts[3].s,  &c->ip4.guest_gw,     sizeof(c->ip4.guest_gw));
@@ -401,14 +414,14 @@ int dhcp(const struct ctx *c, const struct pool *p)
 	if (!c->no_dhcp_dns_search)
 		opt_set_dns_search(c, sizeof(m->o));
 
-	dlen = offsetof(struct msg, o) + fill(m);
+	dlen = offsetof(struct msg, o) + fill(&reply);
 
 	if (m->flags & FLAG_BROADCAST)
 		dst = in4addr_broadcast;
 	else
 		dst = c->ip4.addr;
 
-	tap_udp4_send(c, c->ip4.our_tap_addr, 67, dst, 68, m, dlen);
+	tap_udp4_send(c, c->ip4.our_tap_addr, 67, dst, 68, &reply, dlen);
 
 	return 1;
 }
