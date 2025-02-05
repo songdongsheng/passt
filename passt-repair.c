@@ -21,6 +21,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <errno.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -75,7 +76,11 @@ int main(int argc, char **argv)
 	}
 
 	iov = (struct iovec){ &cmd, sizeof(cmd) };
-	msg = (struct msghdr){ NULL, 0, &iov, 1, buf, sizeof(buf), 0 };
+	msg = (struct msghdr){ .msg_name = NULL, .msg_namelen = 0,
+			       .msg_iov = &iov, .msg_iovlen = 1,
+			       .msg_control = buf,
+			       .msg_controllen = sizeof(buf),
+			       .msg_flags = 0 };
 	cmsg = CMSG_FIRSTHDR(&msg);
 
 	if (argc != 2) {
