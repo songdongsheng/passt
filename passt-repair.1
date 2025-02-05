@@ -31,7 +31,7 @@ same as the UNIX domain socket used for guest communication, suffixed by
 \fI.repair\fR.
 
 The messages consist of one 8-bit signed integer that can be \fITCP_REPAIR_ON\fR
-(1), \fITCP_REPAIR_OFF\fR (2), or \fITCP_REPAIR_OFF_WP\fR (-1), as defined by
+(1), \fITCP_REPAIR_OFF\fR (0), or \fITCP_REPAIR_OFF_NO_WP\fR (-1), as defined by
 the Linux kernel user API, and one to SCM_MAX_FD (253) sockets as SCM_RIGHTS
 (see \fBunix\fR(7)) ancillary message, sent by the server, \fBpasst\fR(1).
 
