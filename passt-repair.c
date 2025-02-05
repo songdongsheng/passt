@@ -71,7 +71,7 @@ int main(int argc, char **argv)
 	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) ||
 	    prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
 		fprintf(stderr, "Failed to apply seccomp filter");
-		return 1;
+		_exit(1);
 	}
 
 	iov = (struct iovec){ &cmd, sizeof(cmd) };
@@ -80,42 +80,42 @@ int main(int argc, char **argv)
 
 	if (argc != 2) {
 		fprintf(stderr, "Usage: %s PATH\n", argv[0]);
-		return 2;
+		_exit(2);
 	}
 
 	ret = snprintf(a.sun_path, sizeof(a.sun_path), "%s", argv[1]);
 	if (ret <= 0 || ret >= (int)sizeof(a.sun_path)) {
 		fprintf(stderr, "Invalid socket path: %s\n", argv[1]);
-		return 2;
+		_exit(2);
 	}
 
 	if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
 		perror("Failed to create AF_UNIX socket");
-		return 1;
+		_exit(1);
 	}
 
 	if (connect(s, (struct sockaddr *)&a, sizeof(a))) {
 		fprintf(stderr, "Failed to connect to %s: %s\n", argv[1],
 			strerror(errno));
-		return 1;
+		_exit(1);
 	}
 
 loop:
 	ret = recvmsg(s, &msg, 0);
 	if (ret < 0) {
 		perror("Failed to receive message");
-		return 1;
+		_exit(1);
 	}
 
 	if (!ret)	/* Done */
-		return 0;
+		_exit(0);
 
 	if (!cmsg ||
 	    cmsg->cmsg_len < CMSG_LEN(sizeof(int)) ||
 	    cmsg->cmsg_len > CMSG_LEN(sizeof(int) * SCM_MAX_FD) ||
 	    cmsg->cmsg_type != SCM_RIGHTS) {
 		fprintf(stderr, "No/bad ancillary data from peer\n");
-		return 1;
+		_exit(1);
 	}
 
 	n = cmsg->cmsg_len / CMSG_LEN(sizeof(int));
@@ -124,7 +124,7 @@ loop:
 	if (cmd != TCP_REPAIR_ON && cmd != TCP_REPAIR_OFF &&
 	    cmd != TCP_REPAIR_OFF_NO_WP) {
 		fprintf(stderr, "Unsupported command 0x%04x\n", cmd);
-		return 1;
+		_exit(1);
 	}
 
 	for (i = 0; i < n; i++) {
@@ -134,7 +134,7 @@ loop:
 			fprintf(stderr,
 				"Setting TCP_REPAIR to %i on socket %i: %s", o,
 				fds[i], strerror(errno));
-			return 1;
+			_exit(1);
 		}
 
 		/* Close _our_ copy */
@@ -144,11 +144,11 @@ loop:
 		if (send(s, &cmd, sizeof(cmd), 0) < 0) {
 			fprintf(stderr, "Reply to command %i: %s\n",
 				o, strerror(errno));
-			return 1;
+			_exit(1);
 		}
 	}
 
 	goto loop;
 
-	return 0;
+	_exit(0);
 }
