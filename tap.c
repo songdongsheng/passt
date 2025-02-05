@@ -1002,7 +1002,7 @@ void tap_sock_reset(struct ctx *c)
 	info("Client connection closed%s", c->one_off ? ", exiting" : "");
 
 	if (c->one_off)
-		exit(EXIT_SUCCESS);
+		_exit(EXIT_SUCCESS);
 
 	/* Close the connected socket, wait for a new connection */
 	epoll_del(c, c->fd_tap);

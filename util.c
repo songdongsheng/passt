@@ -405,7 +405,7 @@ void pidfile_write(int fd, pid_t pid)
 
 	if (write(fd, pid_buf, n) < 0) {
 		perror("PID file write");
-		exit(EXIT_FAILURE);
+		_exit(EXIT_FAILURE);
 	}
 
 	close(fd);
@@ -441,12 +441,12 @@ int __daemon(int pidfile_fd, int devnull_fd)
 
 	if (pid == -1) {
 		perror("fork");
-		exit(EXIT_FAILURE);
+		_exit(EXIT_FAILURE);
 	}
 
 	if (pid) {
 		pidfile_write(pidfile_fd, pid);
-		exit(EXIT_SUCCESS);
+		_exit(EXIT_SUCCESS);
 	}
 
 	if (setsid()				< 0 ||
@@ -454,7 +454,7 @@ int __daemon(int pidfile_fd, int devnull_fd)
 	    dup2(devnull_fd, STDOUT_FILENO)	< 0 ||
 	    dup2(devnull_fd, STDERR_FILENO)	< 0 ||
 	    close(devnull_fd))
-		exit(EXIT_FAILURE);
+		_exit(EXIT_FAILURE);
 
 	return 0;
 }

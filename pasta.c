@@ -73,12 +73,12 @@ void pasta_child_handler(int signal)
 	    !waitid(P_PID, pasta_child_pid, &infop, WEXITED | WNOHANG)) {
 		if (infop.si_pid == pasta_child_pid) {
 			if (infop.si_code == CLD_EXITED)
-				exit(infop.si_status);
+				_exit(infop.si_status);
 
 			/* If killed by a signal, si_status is the number.
 			 * Follow common shell convention of returning it + 128.
 			 */
-			exit(infop.si_status + 128);
+			_exit(infop.si_status + 128);
 
 			/* Nothing to do, detached PID namespace going away */
 		}
@@ -499,7 +499,7 @@ void pasta_netns_quit_inotify_handler(struct ctx *c, int inotify_fd)
 		return;
 
 	info("Namespace %s is gone, exiting", c->netns_base);
-	exit(EXIT_SUCCESS);
+	_exit(EXIT_SUCCESS);
 }
 
 /**
@@ -525,7 +525,7 @@ void pasta_netns_quit_timer_handler(struct ctx *c, union epoll_ref ref)
 			return;
 
 		info("Namespace %s is gone, exiting", c->netns_base);
-		exit(EXIT_SUCCESS);
+		_exit(EXIT_SUCCESS);
 	}
 
 	close(fd);

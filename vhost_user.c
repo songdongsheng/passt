@@ -60,7 +60,7 @@ void vu_print_capabilities(void)
 	info("{");
 	info("  \"type\": \"net\"");
 	info("}");
-	exit(EXIT_SUCCESS);
+	_exit(EXIT_SUCCESS);
 }
 
 /**

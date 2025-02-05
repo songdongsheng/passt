@@ -769,7 +769,7 @@ static void conf_ip6_local(struct ip6_ctx *ip6)
  * usage() - Print usage, exit with given status code
  * @name:	Executable name
  * @f:		Stream to print usage info to
- * @status:	Status code for exit()
+ * @status:	Status code for _exit()
  */
 static void usage(const char *name, FILE *f, int status)
 {
@@ -925,7 +925,7 @@ static void usage(const char *name, FILE *f, int status)
 		"    SPEC is as described for TCP above\n"
 		"    default: none\n");
 
-	exit(status);
+	_exit(status);
 
 pasta_opts:
 
@@ -980,7 +980,7 @@ pasta_opts:
 		"  --ns-mac-addr ADDR	Set MAC address on tap interface\n"
 		"  --no-splice		Disable inbound socket splicing\n");
 
-	exit(status);
+	_exit(status);
 }
 
 /**
@@ -1482,7 +1482,7 @@ void conf(struct ctx *c, int argc, char **argv)
 			FPRINTF(stdout,
 				c->mode == MODE_PASTA ? "pasta " : "passt ");
 			FPRINTF(stdout, VERSION_BLOB);
-			exit(EXIT_SUCCESS);
+			_exit(EXIT_SUCCESS);
 		case 15:
 			ret = snprintf(c->ip4.ifname_out,
 				       sizeof(c->ip4.ifname_out), "%s", optarg);

@@ -32,13 +32,13 @@ void logmsg_perror(int pri, const char *format, ...)
 #define die(...)							\
 	do {								\
 		err(__VA_ARGS__);					\
-		exit(EXIT_FAILURE);					\
+		_exit(EXIT_FAILURE);					\
 	} while (0)
 
 #define die_perror(...)							\
 	do {								\
 		err_perror(__VA_ARGS__);				\
-		exit(EXIT_FAILURE);					\
+		_exit(EXIT_FAILURE);					\
 	} while (0)
 
 extern int log_trace;

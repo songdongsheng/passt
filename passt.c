@@ -167,7 +167,7 @@ void exit_handler(int signal)
 {
 	(void)signal;
 
-	exit(EXIT_SUCCESS);
+	_exit(EXIT_SUCCESS);
 }
 
 /**
@@ -210,7 +210,7 @@ int main(int argc, char **argv)
 	sigaction(SIGQUIT, &sa, NULL);
 
 	if (argc < 1)
-		exit(EXIT_FAILURE);
+		_exit(EXIT_FAILURE);
 
 	strncpy(argv0, argv[0], PATH_MAX - 1);
 	name = basename(argv0);
@@ -226,7 +226,7 @@ int main(int argc, char **argv)
 	} else if (strstr(name, "passt")) {
 		c.mode = MODE_PASST;
 	} else {
-		exit(EXIT_FAILURE);
+		_exit(EXIT_FAILURE);
 	}
 
 	madvise(pkt_buf, TAP_BUF_BYTES, MADV_HUGEPAGE);
@@ -259,7 +259,7 @@ int main(int argc, char **argv)
 	flow_init();
 
 	if ((!c.no_udp && udp_init(&c)) || (!c.no_tcp && tcp_init(&c)))
-		exit(EXIT_FAILURE);
+		_exit(EXIT_FAILURE);
 
 	proto_update_l2_buf(c.guest_mac, c.our_tap_mac);
 
