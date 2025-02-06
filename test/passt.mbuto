@@ -13,7 +13,7 @@
 PROGS="${PROGS:-ash,dash,bash ip mount ls insmod mkdir ln cat chmod lsmod
        modprobe find grep mknod mv rm umount jq iperf3 dhclient hostname
        sed tr chown sipcalc cut socat dd strace ping tail killall sleep sysctl
-       nproc tcp_rr tcp_crr udp_rr which tee seq bc sshd ssh-keygen cmp}"
+       nproc tcp_rr tcp_crr udp_rr which tee seq bc sshd ssh-keygen cmp tcpdump}"
 
 # OpenSSH 9.8 introduced split binaries, with sshd being the daemon, and
 # sshd-session the per-session program. We need the latter as well, and the path
@@ -65,6 +65,7 @@ EOF
 	# sshd via vsock
 	cat > /etc/passwd << EOF
 root:x:0:0:root:/root:/bin/sh
+tcpdump:x:72:72:tcpdump:/:/sbin/nologin
 sshd:x:100:100:Privilege-separated SSH:/var/empty/sshd:/sbin/nologin
 EOF
 	cat > /etc/shadow << EOF
