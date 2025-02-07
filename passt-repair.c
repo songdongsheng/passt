@@ -57,7 +57,7 @@ int main(int argc, char **argv)
 	char buf[CMSG_SPACE(sizeof(int) * SCM_MAX_FD)]
 	     __attribute__ ((aligned(__alignof__(struct cmsghdr))));
 	struct sockaddr_un a = { AF_UNIX, "" };
-	int fds[SCM_MAX_FD], s, ret, i, n;
+	int fds[SCM_MAX_FD], s, ret, i, n = 0;
 	struct sock_fprog prog;
 	int8_t cmd = INT8_MAX;
 	struct cmsghdr *cmsg;
@@ -127,7 +127,21 @@ loop:
 		_exit(1);
 	}
 
-	n = cmsg->cmsg_len / CMSG_LEN(sizeof(int));
+	/* No inverse formula for CMSG_LEN(x), and building one with CMSG_LEN(0)
+	 * works but there's no guarantee it does. Search the whole domain.
+	 */
+	for (i = 1; i < SCM_MAX_FD; i++) {
+		if (CMSG_LEN(sizeof(int) * i) == cmsg->cmsg_len) {
+			n = i;
+			break;
+		}
+	}
+	if (!n) {
+		fprintf(stderr, "Invalid ancillary data length %zu from peer\n",
+			cmsg->cmsg_len);
+		_exit(1);
+	}
+
 	memcpy(fds, CMSG_DATA(cmsg), sizeof(int) * n);
 
 	if (cmd != TCP_REPAIR_ON && cmd != TCP_REPAIR_OFF &&
