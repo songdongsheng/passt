@@ -63,6 +63,7 @@ int main(int argc, char **argv)
 	struct cmsghdr *cmsg;
 	struct msghdr msg;
 	struct iovec iov;
+	int op;
 
 	prctl(PR_SET_DUMPABLE, 0);
 
@@ -150,25 +151,24 @@ loop:
 		_exit(1);
 	}
 
-	for (i = 0; i < n; i++) {
-		int o = cmd;
+	op = cmd;
 
-		if (setsockopt(fds[i], SOL_TCP, TCP_REPAIR, &o, sizeof(o))) {
+	for (i = 0; i < n; i++) {
+		if (setsockopt(fds[i], SOL_TCP, TCP_REPAIR, &op, sizeof(op))) {
 			fprintf(stderr,
-				"Setting TCP_REPAIR to %i on socket %i: %s", o,
+				"Setting TCP_REPAIR to %i on socket %i: %s", op,
 				fds[i], strerror(errno));
 			_exit(1);
 		}
 
 		/* Close _our_ copy */
 		close(fds[i]);
+	}
 
-		/* Confirm setting by echoing the command back */
-		if (send(s, &cmd, sizeof(cmd), 0) < 0) {
-			fprintf(stderr, "Reply to command %i: %s\n",
-				o, strerror(errno));
-			_exit(1);
-		}
+	/* Confirm setting by echoing the command back */
+	if (send(s, &cmd, sizeof(cmd), 0) < 0) {
+		fprintf(stderr, "Reply to %i: %s\n", op, strerror(errno));
+		_exit(1);
 	}
 
 	goto loop;
