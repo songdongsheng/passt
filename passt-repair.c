@@ -95,7 +95,7 @@ int main(int argc, char **argv)
 	}
 
 	if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-		perror("Failed to create AF_UNIX socket");
+		fprintf(stderr, "Failed to create AF_UNIX socket: %i\n", errno);
 		_exit(1);
 	}
 
@@ -108,8 +108,12 @@ int main(int argc, char **argv)
 loop:
 	ret = recvmsg(s, &msg, 0);
 	if (ret < 0) {
-		perror("Failed to receive message");
-		_exit(1);
+		if (errno == ECONNRESET) {
+			ret = 0;
+		} else {
+			fprintf(stderr, "Failed to read message: %i\n", errno);
+			_exit(1);
+		}
 	}
 
 	if (!ret)	/* Done */
