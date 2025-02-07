@@ -11,7 +11,7 @@
 # Copyright (c) 2021 Red Hat GmbH
 # Author: Stefano Brivio <sbrivio@redhat.com>
 
-gtools	ip jq dhclient sed tr
+gtools	ip jq dhclient sed tr hostname
 htools	ip jq sed tr head
 
 test	Interface name
@@ -47,7 +47,16 @@ gout	SEARCH sed 's/\. / /g' /etc/resolv.conf | sed 's/\.$//g' | sed -n 's/^searc
 hout	HOST_SEARCH sed 's/\. / /g' /etc/resolv.conf | sed 's/\.$//g' | sed -n 's/^search \(.*\)/\1/p' | tr ' \n' ',' | sed 's/,$//;s/$/\n/'
 check	[ "__SEARCH__" = "__HOST_SEARCH__" ]
 
+test	DHCP: Hostname
+gout	NEW_HOST_NAME cat /tmp/new_host_name
+check	[ "__NEW_HOST_NAME__" = "hostname1" ]
+
+test	DHCP: Client FQDN
+gout	NEW_FQDN_FQDN cat /tmp/new_fqdn_fqdn
+check	[ "__NEW_FQDN_FQDN__" = "fqdn1.passt.test" ]
+
 test	DHCPv6: address
+guest	rm /tmp/new_fqdn_fqdn
 guest	/sbin/dhclient -6 __IFNAME__
 # Wait for DAD to complete
 guest	while ip -j -6 addr show tentative | jq -e '.[].addr_info'; do sleep 0.1; done
@@ -70,3 +79,7 @@ test	DHCPv6: search list
 gout	SEARCH6 sed 's/\. / /g' /etc/resolv.conf | sed 's/\.$//g' | sed -n 's/^search \(.*\)/\1/p' | tr ' \n' ',' | sed 's/,$//;s/$/\n/'
 hout	HOST_SEARCH6 sed 's/\. / /g' /etc/resolv.conf | sed 's/\.$//g' | sed -n 's/^search \(.*\)/\1/p' | tr ' \n' ',' | sed 's/,$//;s/$/\n/'
 check	[ "__SEARCH6__" = "__HOST_SEARCH6__" ]
+
+test	DHCPv6: Hostname
+gout	NEW_FQDN_FQDN cat /tmp/new_fqdn_fqdn
+check	[ "__NEW_FQDN_FQDN__" = "fqdn1.passt.test" ]

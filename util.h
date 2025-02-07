@@ -40,6 +40,9 @@
 #ifndef IP_MAX_MTU
 #define IP_MAX_MTU			USHRT_MAX
 #endif
+#ifndef IPV6_MIN_MTU
+#define IPV6_MIN_MTU			1280
+#endif
 
 #ifndef MIN
 #define MIN(x, y)		(((x) < (y)) ? (x) : (y))
@@ -351,5 +354,8 @@ static inline int wrap_accept4(int sockfd, struct sockaddr *addr,
 }
 #define accept4(s, addr, addrlen, flags) \
 	wrap_accept4((s), (addr), (addrlen), (flags))
+
+#define PASST_MAXDNAME 254 /* 253 (RFC 1035) + 1 (the terminator) */
+void encode_domain_name(char *buf, const char *domain_name);
 
 #endif /* UTIL_H */

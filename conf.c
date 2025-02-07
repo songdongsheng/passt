@@ -858,7 +858,9 @@ static void usage(const char *name, FILE *f, int status)
 		FPRINTF(f, "    default: use addresses from /etc/resolv.conf\n");
 	FPRINTF(f,
 		"  -S, --search LIST	Space-separated list, search domains\n"
-		"    a single, empty option disables the DNS search list\n");
+		"    a single, empty option disables the DNS search list\n"
+		"  -H, --hostname NAME 	Hostname to configure client with\n"
+		"  --fqdn NAME		FQDN to configure client with\n");
 	if (strstr(name, "pasta"))
 		FPRINTF(f, "    default: don't use any search list\n");
 	else
@@ -1316,6 +1318,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		{"outbound",	required_argument,	NULL,		'o' },
 		{"dns",		required_argument,	NULL,		'D' },
 		{"search",	required_argument,	NULL,		'S' },
+		{"hostname",	required_argument,	NULL,		'H' },
 		{"no-tcp",	no_argument,		&c->no_tcp,	1 },
 		{"no-udp",	no_argument,		&c->no_udp,	1 },
 		{"no-icmp",	no_argument,		&c->no_icmp,	1 },
@@ -1360,6 +1363,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		/* vhost-user backend program convention */
 		{"print-capabilities", no_argument,	NULL,		26 },
 		{"socket-path",	required_argument,	NULL,		's' },
+		{"fqdn",	required_argument,	NULL,		27 },
 		{ 0 },
 	};
 	const char *logname = (c->mode == MODE_PASTA) ? "pasta" : "passt";
@@ -1382,9 +1386,9 @@ void conf(struct ctx *c, int argc, char **argv)
 	if (c->mode == MODE_PASTA) {
 		c->no_dhcp_dns = c->no_dhcp_dns_search = 1;
 		fwd_default = FWD_AUTO;
-		optstring = "+dqfel:hF:I:p:P:m:a:n:M:g:i:o:D:S:46t:u:T:U:";
+		optstring = "+dqfel:hF:I:p:P:m:a:n:M:g:i:o:D:S:H:46t:u:T:U:";
 	} else {
-		optstring = "+dqfel:hs:F:p:P:m:a:n:M:g:i:o:D:S:461t:u:";
+		optstring = "+dqfel:hs:F:p:P:m:a:n:M:g:i:o:D:S:H:461t:u:";
 	}
 
 	c->tcp.fwd_in.mode = c->tcp.fwd_out.mode = FWD_UNSET;
@@ -1561,6 +1565,11 @@ void conf(struct ctx *c, int argc, char **argv)
 		case 26:
 			vu_print_capabilities();
 			break;
+		case 27:
+			if (snprintf_check(c->fqdn, PASST_MAXDNAME,
+					   "%s", optarg))
+				die("Invalid FQDN: %s", optarg);
+			break;
 		case 'd':
 			c->debug = 1;
 			c->quiet = 0;
@@ -1729,6 +1738,11 @@ void conf(struct ctx *c, int argc, char **argv)
 			}
 
 			die("Cannot use DNS search domain %s", optarg);
+			break;
+		case 'H':
+			if (snprintf_check(c->hostname, PASST_MAXDNAME,
+					   "%s", optarg))
+				die("Invalid hostname: %s", optarg);
 			break;
 		case '4':
 			v4_only = true;

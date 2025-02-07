@@ -48,6 +48,7 @@ struct opt_hdr {
 # define  STATUS_NOTONLINK	htons_constant(4)
 # define OPT_DNS_SERVERS	htons_constant(23)
 # define OPT_DNS_SEARCH		htons_constant(24)
+# define OPT_CLIENT_FQDN	htons_constant(39)
 #define   STR_NOTONLINK		"Prefix not appropriate for link."
 
 	uint16_t l;
@@ -58,6 +59,9 @@ struct opt_hdr {
 					      sizeof(struct opt_hdr))
 #define OPT_VSIZE(x)		(sizeof(struct opt_##x) - 		\
 				 sizeof(struct opt_hdr))
+#define OPT_MAX_SIZE		IPV6_MIN_MTU - (sizeof(struct ipv6hdr) + \
+						sizeof(struct udphdr) + \
+						sizeof(struct msg_hdr))
 
 /**
  * struct opt_client_id - DHCPv6 Client Identifier option
@@ -164,6 +168,18 @@ struct opt_dns_search {
 } __attribute__((packed));
 
 /**
+ * struct opt_client_fqdn - Client FQDN option (RFC 4704)
+ * @hdr:		Option header
+ * @flags:		Flags described by RFC 4704
+ * @domain_name:	Client FQDN
+ */
+struct opt_client_fqdn {
+	struct opt_hdr hdr;
+	uint8_t flags;
+	char domain_name[PASST_MAXDNAME];
+} __attribute__((packed));
+
+/**
  * struct msg_hdr - DHCPv6 client/server message header
  * @type:		DHCP message type
  * @xid:		Transaction ID for message exchange
@@ -193,6 +209,7 @@ struct msg_hdr {
  * @client_id:		Client Identifier, variable length
  * @dns_servers:	DNS Recursive Name Server, here just for storage size
  * @dns_search:		Domain Search List, here just for storage size
+ * @client_fqdn:	Client FQDN, variable length
  */
 static struct resp_t {
 	struct msg_hdr hdr;
@@ -203,6 +220,7 @@ static struct resp_t {
 	struct opt_client_id client_id;
 	struct opt_dns_servers dns_servers;
 	struct opt_dns_search dns_search;
+	struct opt_client_fqdn client_fqdn;
 } __attribute__((__packed__)) resp = {
 	{ 0 },
 	SERVER_ID,
@@ -227,6 +245,10 @@ static struct resp_t {
 
 	{ { OPT_DNS_SEARCH,	0, },
 	  { 0 },
+	},
+
+	{ { OPT_CLIENT_FQDN, 0, },
+	  0, { 0 },
 	},
 };
 
@@ -346,7 +368,6 @@ static size_t dhcpv6_dns_fill(const struct ctx *c, char *buf, int offset)
 {
 	struct opt_dns_servers *srv = NULL;
 	struct opt_dns_search *srch = NULL;
-	char *p = NULL;
 	int i;
 
 	if (c->no_dhcp_dns)
@@ -383,32 +404,79 @@ search:
 		if (!name_len)
 			continue;
 
+		name_len += 2; /* Length byte for first label, and terminator */
+		if (name_len >
+		    NS_MAXDNAME + 1 /* Length byte for first label */ ||
+		    name_len > 255) {
+			debug("DHCP: DNS search name '%s' too long, skipping",
+			      c->dns_search[i].n);
+			continue;
+		}
+
 		if (!srch) {
 			srch = (struct opt_dns_search *)(buf + offset);
 			offset += sizeof(struct opt_hdr);
 			srch->hdr.t = OPT_DNS_SEARCH;
 			srch->hdr.l = 0;
-			p = srch->list;
 		}
 
-		*p = '.';
-		p = stpncpy(p + 1, c->dns_search[i].n, name_len);
-		p++;
-		srch->hdr.l += name_len + 2;
-		offset += name_len + 2;
+		encode_domain_name(buf + offset, c->dns_search[i].n);
+
+		srch->hdr.l += name_len;
+		offset += name_len;
+
 	}
 
-	if (srch) {
-		for (i = 0; i < srch->hdr.l; i++) {
-			if (srch->list[i] == '.') {
-				srch->list[i] = strcspn(srch->list + i + 1,
-							".");
-			}
-		}
+	if (srch)
 		srch->hdr.l = htons(srch->hdr.l);
-	}
 
 	return offset;
+}
+
+/**
+ * dhcpv6_client_fqdn_fill() - Fill in client FQDN option
+ * @c:		Execution context
+ * @buf:	Response message buffer where options will be appended
+ * @offset:	Offset in message buffer for new options
+ *
+ * Return: updated length of response message buffer.
+ */
+static size_t dhcpv6_client_fqdn_fill(const struct pool *p, const struct ctx *c,
+				      char *buf, int offset)
+
+{
+	struct opt_client_fqdn const *req_opt;
+	struct opt_client_fqdn *o;
+	size_t opt_len;
+
+	opt_len = strlen(c->fqdn);
+	if (opt_len == 0) {
+		return offset;
+	}
+
+	opt_len += 2; /* Length byte for first label, and terminator */
+	if (opt_len > OPT_MAX_SIZE - (offset +
+				      sizeof(struct opt_hdr) +
+				      1 /* flags */ )) {
+		debug("DHCPv6: client FQDN option doesn't fit, skipping");
+		return offset;
+	}
+
+	o = (struct opt_client_fqdn *)(buf + offset);
+	encode_domain_name(o->domain_name, c->fqdn);
+	req_opt = (struct opt_client_fqdn *)dhcpv6_opt(p, &(size_t){ 0 },
+						       OPT_CLIENT_FQDN);
+	if (req_opt && req_opt->flags & 0x01 /* S flag */)
+		o->flags = 0x02 /* O flag */;
+	else
+		o->flags = 0x00;
+
+	opt_len++;
+
+	o->hdr.t = OPT_CLIENT_FQDN;
+	o->hdr.l = htons(opt_len);
+
+	return offset + sizeof(struct opt_hdr) + opt_len;
 }
 
 /**
@@ -544,6 +612,7 @@ int dhcpv6(struct ctx *c, const struct pool *p,
 	n = offsetof(struct resp_t, client_id) +
 	    sizeof(struct opt_hdr) + ntohs(client_id->l);
 	n = dhcpv6_dns_fill(c, (char *)&resp, n);
+	n = dhcpv6_client_fqdn_fill(p, c, (char *)&resp, n);
 
 	resp.hdr.xid = mh->xid;
 

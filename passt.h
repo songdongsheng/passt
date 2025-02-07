@@ -209,6 +209,8 @@ struct ip6_ctx {
  * @ifi4:		Template interface for IPv4, -1: none, 0: IPv4 disabled
  * @ip:			IPv4 configuration
  * @dns_search:		DNS search list
+ * @hostname:		Guest hostname
+ * @fqdn:		Guest FQDN
  * @ifi6:		Template interface for IPv6, -1: none, 0: IPv6 disabled
  * @ip6:		IPv6 configuration
  * @pasta_ifn:		Name of namespace interface for pasta
@@ -268,6 +270,9 @@ struct ctx {
 	struct ip4_ctx ip4;
 
 	struct fqdn dns_search[MAXDNSRCH];
+
+	char hostname[PASST_MAXDNAME];
+	char fqdn[PASST_MAXDNAME];
 
 	int ifi6;
 	struct ip6_ctx ip6;

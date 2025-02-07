@@ -401,6 +401,16 @@ Enable IPv6-only operation. IPv4 traffic will be ignored.
 By default, IPv4 operation is enabled as long as at least an IPv4 route and an
 interface address are configured on a given host interface.
 
+.TP
+.BR \-H ", " \-\-hostname " " \fIname
+Hostname to configure the client with.
+Send \fIname\fR as DHCP option 12 (hostname).
+
+.TP
+.BR \-\-fqdn " " \fIname
+FQDN to configure the client with.
+Send \fIname\fR as Client FQDN: DHCP option 81 and DHCPv6 option 39.
+
 .SS \fBpasst\fR-only options
 
 .TP

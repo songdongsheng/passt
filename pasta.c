@@ -169,10 +169,12 @@ void pasta_open_ns(struct ctx *c, const char *netns)
  * struct pasta_spawn_cmd_arg - Argument for pasta_spawn_cmd()
  * @exe:	Executable to run
  * @argv:	Command and arguments to run
+ * @ctx:	Context to read config from
  */
 struct pasta_spawn_cmd_arg {
 	const char *exe;
 	char *const *argv;
+	struct ctx *c;
 };
 
 /**
@@ -186,6 +188,7 @@ static int pasta_spawn_cmd(void *arg)
 {
 	char hostname[HOST_NAME_MAX + 1] = HOSTNAME_PREFIX;
 	const struct pasta_spawn_cmd_arg *a;
+	size_t conf_hostname_len;
 	sigset_t set;
 
 	/* We run in a detached PID and mount namespace: mount /proc over */
@@ -195,9 +198,15 @@ static int pasta_spawn_cmd(void *arg)
 	if (write_file("/proc/sys/net/ipv4/ping_group_range", "0 0"))
 		warn("Cannot set ping_group_range, ICMP requests might fail");
 
-	if (!gethostname(hostname + sizeof(HOSTNAME_PREFIX) - 1,
-			 HOST_NAME_MAX + 1 - sizeof(HOSTNAME_PREFIX)) ||
-	    errno == ENAMETOOLONG) {
+	a = (const struct pasta_spawn_cmd_arg *)arg;
+
+	conf_hostname_len = strlen(a->c->hostname);
+	if (conf_hostname_len > 0) {
+		if (sethostname(a->c->hostname, conf_hostname_len))
+			warn("Unable to set configured hostname");
+	} else if (!gethostname(hostname + sizeof(HOSTNAME_PREFIX) - 1,
+				HOST_NAME_MAX + 1 - sizeof(HOSTNAME_PREFIX)) ||
+		   errno == ENAMETOOLONG) {
 		hostname[HOST_NAME_MAX] = '\0';
 		if (sethostname(hostname, strlen(hostname)))
 			warn("Unable to set pasta-prefixed hostname");
@@ -208,7 +217,6 @@ static int pasta_spawn_cmd(void *arg)
 	sigaddset(&set, SIGUSR1);
 	sigwaitinfo(&set, NULL);
 
-	a = (const struct pasta_spawn_cmd_arg *)arg;
 	execvp(a->exe, a->argv);
 
 	die_perror("Failed to start command or shell");
@@ -230,6 +238,7 @@ void pasta_start_ns(struct ctx *c, uid_t uid, gid_t gid,
 	struct pasta_spawn_cmd_arg arg = {
 		.exe = argv[0],
 		.argv = argv,
+		.c = c,
 	};
 	char uidmap[BUFSIZ], gidmap[BUFSIZ];
 	char *sh_argv[] = { NULL, NULL };

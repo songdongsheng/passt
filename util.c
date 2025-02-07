@@ -930,4 +930,28 @@ void raw_random(void *buf, size_t buflen)
 void epoll_del(const struct ctx *c, int fd)
 {
 	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, fd, NULL);
+
+}
+
+/**
+ * encode_domain_name() - Encode domain name according to RFC 1035, section 3.1
+ * @buf:		Buffer to fill in with encoded domain name
+ * @domain_name:	Input domain name string with terminator
+ *
+ * The buffer's 'buf' size has to be >= strlen(domain_name) + 2
+ */
+void encode_domain_name(char *buf, const char *domain_name)
+{
+	size_t i;
+	char *p;
+
+	buf[0] = strcspn(domain_name, ".");
+	p = buf + 1;
+	for (i = 0; domain_name[i]; i++) {
+		if (domain_name[i] == '.')
+			p[i] = strcspn(domain_name + i + 1, ".");
+		else
+			p[i] = domain_name[i];
+	}
+	p[i] = 0L;
 }

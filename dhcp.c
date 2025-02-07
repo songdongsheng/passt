@@ -63,6 +63,11 @@ static struct opt opts[255];
 
 #define OPT_MIN		60 /* RFC 951 */
 
+/* Total option size (excluding end option) is 576 (RFC 2131), minus
+ * offset of options (268), minus end option and its length (2).
+ */
+#define OPT_MAX		306
+
 /**
  * dhcp_init() - Initialise DHCP options
  */
@@ -122,7 +127,7 @@ struct msg {
 	uint8_t sname[64];
 	uint8_t file[128];
 	uint32_t magic;
-	uint8_t o[308];
+	uint8_t o[OPT_MAX + 2 /* End option and its length */ ];
 } __attribute__((__packed__));
 
 /**
@@ -130,15 +135,28 @@ struct msg {
  * @m:		Message to fill
  * @o:		Option number
  * @offset:	Current offset within options field, updated on insertion
+ *
+ * Return: false if m has space to write the option, true otherwise
  */
-static void fill_one(struct msg *m, int o, int *offset)
+static bool fill_one(struct msg *m, int o, int *offset)
 {
+	size_t slen = opts[o].slen;
+
+	/* If we don't have space to write the option, then just skip */
+	if (*offset + 1 /* length of option */ + slen > OPT_MAX)
+		return true;
+
 	m->o[*offset] = o;
-	m->o[*offset + 1] = opts[o].slen;
-	memcpy(&m->o[*offset + 2], opts[o].s, opts[o].slen);
+	m->o[*offset + 1] = slen;
+
+	/* Move to option */
+	*offset += 2;
+
+	memcpy(&m->o[*offset], opts[o].s, slen);
 
 	opts[o].sent = 1;
-	*offset += 2 + opts[o].slen;
+	*offset += slen;
+	return false;
 }
 
 /**
@@ -159,17 +177,20 @@ static int fill(struct msg *m)
 	 * Put it there explicitly, unless requested via option 55.
 	 */
 	if (opts[55].clen > 0 && !memchr(opts[55].c, 53, opts[55].clen))
-		fill_one(m, 53, &offset);
+		if (fill_one(m, 53, &offset))
+			 debug("DHCP: skipping option 53");
 
 	for (i = 0; i < opts[55].clen; i++) {
 		o = opts[55].c[i];
 		if (opts[o].slen != -1)
-			fill_one(m, o, &offset);
+			if (fill_one(m, o, &offset))
+				debug("DHCP: skipping option %i", o);
 	}
 
 	for (o = 0; o < 255; o++) {
 		if (opts[o].slen != -1 && !opts[o].sent)
-			fill_one(m, o, &offset);
+			if (fill_one(m, o, &offset))
+				debug("DHCP: skipping option %i", o);
 	}
 
 	m->o[offset++] = 255;
@@ -410,6 +431,30 @@ int dhcp(const struct ctx *c, const struct pool *p)
 	}
 	if (!opts[6].slen)
 		opts[6].slen = -1;
+
+	opt_len = strlen(c->hostname);
+	if (opt_len > 0) {
+		opts[12].slen = opt_len;
+		memcpy(opts[12].s, &c->hostname, opt_len);
+	}
+
+	opt_len = strlen(c->fqdn);
+	if (opt_len > 0) {
+		opt_len += 3 /* flags */
+			+ 2; /* Length byte for first label, and terminator */
+
+		if (sizeof(opts[81].s) >= opt_len) {
+			opts[81].s[0] = 0x4; /* flags (E) */
+			opts[81].s[1] = 0xff; /* RCODE1 */
+			opts[81].s[2] = 0xff; /* RCODE2 */
+
+			encode_domain_name((char *)opts[81].s + 3, c->fqdn);
+
+			opts[81].slen = opt_len;
+		} else {
+			debug("DHCP: client FQDN option doesn't fit, skipping");
+		}
+	}
 
 	if (!c->no_dhcp_dns_search)
 		opt_set_dns_search(c, sizeof(m->o));

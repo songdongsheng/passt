@@ -49,7 +49,7 @@ setup_passt() {
 
 	context_run passt "make clean"
 	context_run passt "make valgrind"
-	context_run_bg passt "valgrind --max-stackframe=$((4 * 1024 * 1024)) --trace-children=yes --vgdb=no --error-exitcode=1 --suppressions=test/valgrind.supp ./passt ${__opts} -s ${STATESETUP}/passt.socket -f -t 10001 -u 10001 -P ${STATESETUP}/passt.pid"
+	context_run_bg passt "valgrind --max-stackframe=$((4 * 1024 * 1024)) --trace-children=yes --vgdb=no --error-exitcode=1 --suppressions=test/valgrind.supp ./passt ${__opts} -s ${STATESETUP}/passt.socket -f -t 10001 -u 10001 -H hostname1 --fqdn fqdn1.passt.test -P ${STATESETUP}/passt.pid"
 
 	# pidfile isn't created until passt is listening
 	wait_for [ -f "${STATESETUP}/passt.pid" ]
@@ -160,11 +160,11 @@ setup_passt_in_ns() {
 	if [ ${VALGRIND} -eq 1 ]; then
 		context_run passt "make clean"
 		context_run passt "make valgrind"
-		context_run_bg passt "valgrind --max-stackframe=$((4 * 1024 * 1024)) --trace-children=yes --vgdb=no --error-exitcode=1 --suppressions=test/valgrind.supp ./passt -f ${__opts} -s ${STATESETUP}/passt.socket -t 10001,10011,10021,10031 -u 10001,10011,10021,10031 -P ${STATESETUP}/passt.pid --map-host-loopback ${__map_ns4} --map-host-loopback ${__map_ns6}"
+		context_run_bg passt "valgrind --max-stackframe=$((4 * 1024 * 1024)) --trace-children=yes --vgdb=no --error-exitcode=1 --suppressions=test/valgrind.supp ./passt -f ${__opts} -s ${STATESETUP}/passt.socket -H hostname1 --fqdn fqdn1.passt.test -t 10001,10011,10021,10031 -u 10001,10011,10021,10031 -P ${STATESETUP}/passt.pid --map-host-loopback ${__map_ns4} --map-host-loopback ${__map_ns6}"
 	else
 		context_run passt "make clean"
 		context_run passt "make"
-		context_run_bg passt "./passt -f ${__opts} -s ${STATESETUP}/passt.socket -t 10001,10011,10021,10031 -u 10001,10011,10021,10031 -P ${STATESETUP}/passt.pid --map-host-loopback ${__map_ns4} --map-host-loopback ${__map_ns6}"
+		context_run_bg passt "./passt -f ${__opts} -s ${STATESETUP}/passt.socket -H hostname1 --fqdn fqdn1.passt.test -t 10001,10011,10021,10031 -u 10001,10011,10021,10031 -P ${STATESETUP}/passt.pid --map-host-loopback ${__map_ns4} --map-host-loopback ${__map_ns6}"
 	fi
 	wait_for [ -f "${STATESETUP}/passt.pid" ]
 
@@ -243,7 +243,7 @@ setup_two_guests() {
 	[ ${TRACE} -eq 1 ] && __opts="${__opts} --trace"
 	[ ${VHOST_USER} -eq 1 ] && __opts="${__opts} --vhost-user"
 
-	context_run_bg passt_1 "./passt -s ${STATESETUP}/passt_1.socket -P ${STATESETUP}/passt_1.pid -f ${__opts} -t 10001 -u 10001"
+	context_run_bg passt_1 "./passt -s ${STATESETUP}/passt_1.socket -P ${STATESETUP}/passt_1.pid -f ${__opts} --fqdn fqdn1.passt.test -H hostname1 -t 10001 -u 10001"
 	wait_for [ -f "${STATESETUP}/passt_1.pid" ]
 
 	__opts=
@@ -252,7 +252,7 @@ setup_two_guests() {
 	[ ${TRACE} -eq 1 ] && __opts="${__opts} --trace"
 	[ ${VHOST_USER} -eq 1 ] && __opts="${__opts} --vhost-user"
 
-	context_run_bg passt_2 "./passt -s ${STATESETUP}/passt_2.socket -P ${STATESETUP}/passt_2.pid -f ${__opts} -t 10004 -u 10004"
+	context_run_bg passt_2 "./passt -s ${STATESETUP}/passt_2.socket -P ${STATESETUP}/passt_2.pid -f ${__opts} --hostname hostname2 --fqdn fqdn2 -t 10004 -u 10004"
 	wait_for [ -f "${STATESETUP}/passt_2.pid" ]
 
 	__vmem="$((${MEM_KIB} / 1024 / 4))"
