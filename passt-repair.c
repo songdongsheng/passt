@@ -173,5 +173,5 @@ loop:
 
 	goto loop;
 
-	_exit(0);
+	return 0;
 }
