@@ -2175,6 +2175,8 @@ void tcp_timer_handler(const struct ctx *c, union epoll_ref ref)
 			flow_dbg(conn, "ACK timeout, retry");
 			conn->retrans++;
 			conn->seq_to_tap = conn->seq_ack_from_tap;
+			if (!conn->wnd_from_tap)
+				conn->wnd_from_tap = 1; /* Zero-window probe */
 			if (tcp_set_peek_offset(conn->sock, 0)) {
 				tcp_rst(c, conn);
 			} else {
