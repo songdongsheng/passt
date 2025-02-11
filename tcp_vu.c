@@ -261,7 +261,7 @@ static ssize_t tcp_vu_sock_recv(const struct ctx *c,
 		len -= iov->iov_len;
 	}
 	/* adjust head count */
-	while (head_cnt > 0 && head[head_cnt - 1] > i)
+	while (head_cnt > 0 && head[head_cnt - 1] >= i)
 		head_cnt--;
 	/* mark end of array */
 	head[head_cnt] = i;
