@@ -1664,8 +1664,10 @@ static int tcp_data_from_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 			tcp_send_flag(c, conn, ACK);
 			tcp_timer_ctl(c, conn);
 
-			if (p->count == 1)
+			if (p->count == 1) {
+				tcp_tap_window_update(conn, ntohs(th->window));
 				return 1;
+			}
 
 			continue;
 		}
