@@ -106,8 +106,6 @@ struct vu_dev_region {
  * @log_call_fd:		Eventfd to report logging update
  * @log_size:			Size of the logging memory region
  * @log_table:			Base of the logging memory region
- * @device_state_fd:		Device state migration channel
- * @device_state_result:	Device state migration result
  */
 struct vu_dev {
 	struct ctx *context;
@@ -119,8 +117,6 @@ struct vu_dev {
 	int log_call_fd;
 	uint64_t log_size;
 	uint8_t *log_table;
-	int device_state_fd;
-	int device_state_result;
 };
 
 /**

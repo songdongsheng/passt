@@ -237,6 +237,9 @@ struct ip6_ctx {
  * @low_wmem:		Low probed net.core.wmem_max
  * @low_rmem:		Low probed net.core.rmem_max
  * @vdev:		vhost-user device
+ * @device_state_fd:	Device state migration channel
+ * @device_state_result: Device state migration result
+ * @migrate_target:	Are we the target, on the next migration request?
  */
 struct ctx {
 	enum passt_modes mode;
@@ -305,6 +308,11 @@ struct ctx {
 	int low_rmem;
 
 	struct vu_dev *vdev;
+
+	/* Migration */
+	int device_state_fd;
+	int device_state_result;
+	bool migrate_target;
 };
 
 void proto_update_l2_buf(const unsigned char *eth_d,

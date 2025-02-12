@@ -125,13 +125,42 @@
 	 (((x) & 0x0000ff00) <<  8) | (((x) & 0x000000ff) << 24))
 #endif
 
+#ifndef __bswap_constant_32
+#define __bswap_constant_32(x)						\
+	((((x) & 0xff000000) >> 24) | (((x) & 0x00ff0000) >>  8) |	\
+	 (((x) & 0x0000ff00) <<  8) | (((x) & 0x000000ff) << 24))
+#endif
+
+#ifndef __bswap_constant_64
+#define __bswap_constant_64(x) \
+	((((x) & 0xff00000000000000ULL) >> 56) |			\
+	 (((x) & 0x00ff000000000000ULL) >> 40) |			\
+	 (((x) & 0x0000ff0000000000ULL) >> 24) |			\
+	 (((x) & 0x000000ff00000000ULL) >> 8)  |			\
+	 (((x) & 0x00000000ff000000ULL) << 8)  |			\
+	 (((x) & 0x0000000000ff0000ULL) << 24) |			\
+	 (((x) & 0x000000000000ff00ULL) << 40) |			\
+	 (((x) & 0x00000000000000ffULL) << 56))
+#endif
+
 #if __BYTE_ORDER == __BIG_ENDIAN
 #define	htons_constant(x)	(x)
 #define	htonl_constant(x)	(x)
+#define htonll_constant(x)	(x)
+#define	ntohs_constant(x)	(x)
+#define	ntohl_constant(x)	(x)
+#define ntohll_constant(x)	(x)
 #else
 #define	htons_constant(x)	(__bswap_constant_16(x))
 #define	htonl_constant(x)	(__bswap_constant_32(x))
+#define	htonll_constant(x)	(__bswap_constant_64(x))
+#define	ntohs_constant(x)	(__bswap_constant_16(x))
+#define	ntohl_constant(x)	(__bswap_constant_32(x))
+#define	ntohll_constant(x)	(__bswap_constant_64(x))
 #endif
+
+#define ntohll(x)		(be64toh((x)))
+#define htonll(x)		(htobe64((x)))
 
 /**
  * ntohl_unaligned() - Read 32-bit BE value from a possibly unaligned address

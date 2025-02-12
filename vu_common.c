@@ -5,6 +5,7 @@
  * common_vu.c - vhost-user common UDP and TCP functions
  */
 
+#include <errno.h>
 #include <unistd.h>
 #include <sys/uio.h>
 #include <sys/eventfd.h>
@@ -17,6 +18,7 @@
 #include "vhost_user.h"
 #include "pcap.h"
 #include "vu_common.h"
+#include "migrate.h"
 
 #define VU_MAX_TX_BUFFER_NB	2
 
@@ -302,51 +304,4 @@ err:
 		vu_queue_detach_element(vq);
 
 	return -1;
-}
-
-/**
- * vu_migrate() - Send/receive passt insternal state to/from QEMU
- * @vdev:	vhost-user device
- * @events:	epoll events
- */
-void vu_migrate(struct vu_dev *vdev, uint32_t events)
-{
-	int ret;
-
-	/* TODO: collect/set passt internal state
-	 * and use vdev->device_state_fd to send/receive it
-	 */
-	debug("vu_migrate fd %d events %x", vdev->device_state_fd, events);
-	if (events & EPOLLOUT) {
-		debug("Saving backend state");
-
-		/* send some stuff */
-		ret = write(vdev->device_state_fd, "PASST", 6);
-		/* value to be returned by VHOST_USER_CHECK_DEVICE_STATE */
-		vdev->device_state_result = ret == -1 ? -1 : 0;
-		/* Closing the file descriptor signals the end of transfer */
-		epoll_del(vdev->context, vdev->device_state_fd);
-		close(vdev->device_state_fd);
-		vdev->device_state_fd = -1;
-	} else if (events & EPOLLIN) {
-		char buf[6];
-
-		debug("Loading backend state");
-		/* read some stuff */
-		ret = read(vdev->device_state_fd, buf, sizeof(buf));
-		/* value to be returned by VHOST_USER_CHECK_DEVICE_STATE */
-		if (ret != sizeof(buf)) {
-			vdev->device_state_result = -1;
-		} else {
-			ret = strncmp(buf, "PASST", sizeof(buf));
-			vdev->device_state_result = ret == 0 ? 0 : -1;
-		}
-	} else if (events & EPOLLHUP) {
-		debug("Closing migration channel");
-
-		/* The end of file signals the end of the transfer. */
-		epoll_del(vdev->context, vdev->device_state_fd);
-		close(vdev->device_state_fd);
-		vdev->device_state_fd = -1;
-	}
 }

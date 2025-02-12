@@ -44,6 +44,7 @@
 #include "tap.h"
 #include "vhost_user.h"
 #include "pcap.h"
+#include "migrate.h"
 
 /* vhost-user version we are compatible with */
 #define VHOST_USER_VERSION 1
@@ -998,36 +999,6 @@ static bool vu_send_rarp_exec(struct vu_dev *vdev,
 }
 
 /**
- * vu_set_migration_watch() - Add the migration file descriptor to epoll
- * @vdev:	vhost-user device
- * @fd:		File descriptor to add
- * @direction:	Direction of the migration (save or load backend state)
- */
-static void vu_set_migration_watch(const struct vu_dev *vdev, int fd,
-				   uint32_t direction)
-{
-	union epoll_ref ref = {
-		.type = EPOLL_TYPE_VHOST_MIGRATION,
-		.fd = fd,
-	 };
-	struct epoll_event ev = { 0 };
-
-	ev.data.u64 = ref.u64;
-	switch (direction) {
-	case VHOST_USER_TRANSFER_STATE_DIRECTION_SAVE:
-		ev.events = EPOLLOUT;
-		break;
-	case VHOST_USER_TRANSFER_STATE_DIRECTION_LOAD:
-		ev.events = EPOLLIN;
-		break;
-	default:
-		ASSERT(0);
-	}
-
-	epoll_ctl(vdev->context->epollfd, EPOLL_CTL_ADD, ref.fd, &ev);
-}
-
-/**
  * vu_set_device_state_fd_exec() - Set the device state migration channel
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
@@ -1051,16 +1022,8 @@ static bool vu_set_device_state_fd_exec(struct vu_dev *vdev,
 	    direction != VHOST_USER_TRANSFER_STATE_DIRECTION_LOAD)
 		die("Invalide device_state_fd direction: %d", direction);
 
-	if (vdev->device_state_fd != -1) {
-		epoll_del(vdev->context, vdev->device_state_fd);
-		close(vdev->device_state_fd);
-	}
-
-	vdev->device_state_fd = msg->fds[0];
-	vdev->device_state_result = -1;
-	vu_set_migration_watch(vdev, vdev->device_state_fd, direction);
-
-	debug("Got device_state_fd: %d", vdev->device_state_fd);
+	migrate_request(vdev->context, msg->fds[0],
+			direction == VHOST_USER_TRANSFER_STATE_DIRECTION_LOAD);
 
 	/* We don't provide a new fd for the data transfer */
 	vmsg_set_reply_u64(msg, VHOST_USER_VRING_NOFD_MASK);
@@ -1075,12 +1038,11 @@ static bool vu_set_device_state_fd_exec(struct vu_dev *vdev,
  *
  * Return: True as the reply contains the migration result
  */
+/* cppcheck-suppress constParameterCallback */
 static bool vu_check_device_state_exec(struct vu_dev *vdev,
 				       struct vhost_user_msg *msg)
 {
-	(void)vdev;
-
-	vmsg_set_reply_u64(msg, vdev->device_state_result);
+	vmsg_set_reply_u64(msg, vdev->context->device_state_result);
 
 	return true;
 }
@@ -1106,8 +1068,8 @@ void vu_init(struct ctx *c)
 	}
 	c->vdev->log_table = NULL;
 	c->vdev->log_call_fd = -1;
-	c->vdev->device_state_fd = -1;
-	c->vdev->device_state_result = -1;
+
+	migrate_init(c);
 }
 
 
@@ -1157,12 +1119,8 @@ void vu_cleanup(struct vu_dev *vdev)
 
 	vu_close_log(vdev);
 
-	if (vdev->device_state_fd != -1) {
-		epoll_del(vdev->context, vdev->device_state_fd);
-		close(vdev->device_state_fd);
-		vdev->device_state_fd = -1;
-		vdev->device_state_result = -1;
-	}
+	/* If we lose the VU dev, we also lose our migration channel */
+	migrate_close(vdev->context);
 }
 
 /**

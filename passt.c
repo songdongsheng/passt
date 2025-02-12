@@ -51,6 +51,7 @@
 #include "tcp_splice.h"
 #include "ndp.h"
 #include "vu_common.h"
+#include "migrate.h"
 
 #define EPOLL_EVENTS		8
 
@@ -75,7 +76,6 @@ char *epoll_type_str[] = {
 	[EPOLL_TYPE_TAP_LISTEN]		= "listening qemu socket",
 	[EPOLL_TYPE_VHOST_CMD]		= "vhost-user command socket",
 	[EPOLL_TYPE_VHOST_KICK]		= "vhost-user kick socket",
-	[EPOLL_TYPE_VHOST_MIGRATION]	= "vhost-user migration socket",
 };
 static_assert(ARRAY_SIZE(epoll_type_str) == EPOLL_NUM_TYPES,
 	      "epoll_type_str[] doesn't match enum epoll_type");
@@ -202,6 +202,7 @@ int main(int argc, char **argv)
 	isolate_initial(argc, argv);
 
 	c.pasta_netns_fd = c.fd_tap = c.pidfile_fd = -1;
+	c.device_state_fd = -1;
 
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
@@ -357,9 +358,6 @@ loop:
 		case EPOLL_TYPE_VHOST_KICK:
 			vu_kick_cb(c.vdev, ref, &now);
 			break;
-		case EPOLL_TYPE_VHOST_MIGRATION:
-			vu_migrate(c.vdev, eventmask);
-			break;
 		default:
 			/* Can't happen */
 			ASSERT(0);
@@ -367,6 +365,8 @@ loop:
 	}
 
 	post_handler(&c, &now);
+
+	migrate_handler(&c);
 
 	goto loop;
 }
