@@ -1536,12 +1536,10 @@ static void tcp_conn_from_tap(const struct ctx *c, sa_family_t af,
 
 	if (c->mode == MODE_VU) { /* To rebind to same oport after migration */
 		sl = sizeof(sa);
-		if (!getsockname(s, &sa.sa, &sl)) {
+		if (!getsockname(s, &sa.sa, &sl))
 			inany_from_sockaddr(&tgt->oaddr, &tgt->oport, &sa);
-		} else {
-			err("Failed to get local address for socket: %s",
-			    strerror_(errno));
-		}
+		else
+			err_perror("Can't get local address for socket %i", s);
 	}
 
 	FLOW_ACTIVATE(conn);
@@ -2075,9 +2073,9 @@ static void tcp_tap_conn_from_sock(const struct ctx *c, union flow *flow,
 void tcp_listen_handler(const struct ctx *c, union epoll_ref ref,
 			const struct timespec *now)
 {
-	const struct flowside *ini;
 	union sockaddr_inany sa;
 	socklen_t sl = sizeof(sa);
+	struct flowside *ini;
 	union flow *flow;
 	int s;
 
@@ -2093,11 +2091,19 @@ void tcp_listen_handler(const struct ctx *c, union epoll_ref ref,
 	tcp_sock_set_bufsize(c, s);
 	tcp_sock_set_nodelay(s);
 
-	/* FIXME: When listening port has a specific bound address, record that
-	 * as our address
+	/* FIXME: If useful: when the listening port has a specific bound
+	 * address, record that as our address, as implemented for vhost-user
+	 * mode only, below.
 	 */
 	ini = flow_initiate_sa(flow, ref.tcp_listen.pif, &sa,
 			       ref.tcp_listen.port);
+
+	if (c->mode == MODE_VU) { /* Rebind to same address after migration */
+		if (!getsockname(s, &sa.sa, &sl))
+			inany_from_sockaddr(&ini->oaddr, &ini->oport, &sa);
+		else
+			err_perror("Can't get local address for socket %i", s);
+	}
 
 	if (!inany_is_unicast(&ini->eaddr) || ini->eport == 0) {
 		char sastr[SOCKADDR_STRLEN];

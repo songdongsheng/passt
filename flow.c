@@ -390,9 +390,9 @@ const struct flowside *flow_initiate_af(union flow *flow, uint8_t pif,
  *
  * Return: pointer to the initiating flowside information
  */
-const struct flowside *flow_initiate_sa(union flow *flow, uint8_t pif,
-					const union sockaddr_inany *ssa,
-					in_port_t dport)
+struct flowside *flow_initiate_sa(union flow *flow, uint8_t pif,
+				  const union sockaddr_inany *ssa,
+				  in_port_t dport)
 {
 	struct flowside *ini = &flow->f.side[INISIDE];
 
