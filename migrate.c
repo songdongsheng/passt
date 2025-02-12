@@ -27,8 +27,81 @@
 /* Magic identifier for migration data */
 #define MIGRATE_MAGIC		0xB1BB1D1B0BB1D1B0
 
+/**
+ * struct migrate_seen_addrs_v1 - Migratable guest addresses for v1 state stream
+ * @addr6:	Observed guest IPv6 address
+ * @addr6_ll:	Observed guest IPv6 link-local address
+ * @addr4:	Observed guest IPv4 address
+ * @mac:	Observed guest MAC address
+ */
+struct migrate_seen_addrs_v1 {
+	struct in6_addr addr6;
+	struct in6_addr addr6_ll;
+	struct in_addr addr4;
+	unsigned char mac[ETH_ALEN];
+} __attribute__((packed));
+
+/**
+ * seen_addrs_source_v1() - Copy and send guest observed addresses from source
+ * @c:		Execution context
+ * @stage:	Migration stage, unused
+ * @fd:		File descriptor for state transfer
+ *
+ * Return: 0 on success, positive error code on failure
+ */
+/* cppcheck-suppress [constParameterCallback, unmatchedSuppression] */
+static int seen_addrs_source_v1(struct ctx *c,
+				const struct migrate_stage *stage, int fd)
+{
+	struct migrate_seen_addrs_v1 addrs = {
+		.addr6 = c->ip6.addr_seen,
+		.addr6_ll = c->ip6.addr_ll_seen,
+		.addr4 = c->ip4.addr_seen,
+	};
+
+	(void)stage;
+
+	memcpy(addrs.mac, c->guest_mac, sizeof(addrs.mac));
+
+	if (write_all_buf(fd, &addrs, sizeof(addrs)))
+		return errno;
+
+	return 0;
+}
+
+/**
+ * seen_addrs_target_v1() - Receive and use guest observed addresses on target
+ * @c:		Execution context
+ * @stage:	Migration stage, unused
+ * @fd:		File descriptor for state transfer
+ *
+ * Return: 0 on success, positive error code on failure
+ */
+static int seen_addrs_target_v1(struct ctx *c,
+				const struct migrate_stage *stage, int fd)
+{
+	struct migrate_seen_addrs_v1 addrs;
+
+	(void)stage;
+
+	if (read_all_buf(fd, &addrs, sizeof(addrs)))
+		return errno;
+
+	c->ip6.addr_seen = addrs.addr6;
+	c->ip6.addr_ll_seen = addrs.addr6_ll;
+	c->ip4.addr_seen = addrs.addr4;
+	memcpy(c->guest_mac, addrs.mac, sizeof(c->guest_mac));
+
+	return 0;
+}
+
 /* Stages for version 1 */
 static const struct migrate_stage stages_v1[] = {
+	{
+		.name = "observed addresses",
+		.source = seen_addrs_source_v1,
+		.target = seen_addrs_target_v1,
+	},
 	{ 0 },
 };
 
