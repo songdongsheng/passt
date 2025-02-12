@@ -23,6 +23,7 @@
 #include "flow_table.h"
 
 #include "migrate.h"
+#include "repair.h"
 
 /* Magic identifier for migration data */
 #define MIGRATE_MAGIC		0xB1BB1D1B0BB1D1B0
@@ -232,7 +233,7 @@ void migrate_init(struct ctx *c)
 }
 
 /**
- * migrate_close() - Close migration channel
+ * migrate_close() - Close migration channel and connection to passt-repair
  * @c:		Execution context
  */
 void migrate_close(struct ctx *c)
@@ -243,6 +244,8 @@ void migrate_close(struct ctx *c)
 		c->device_state_fd = -1;
 		c->device_state_result = -1;
 	}
+
+	repair_close(c);
 }
 
 /**

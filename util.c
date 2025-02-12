@@ -179,6 +179,68 @@ int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 }
 
 /**
+ * sock_unix() - Create and bind AF_UNIX socket
+ * @sock_path:	Socket path. If empty, set on return (UNIX_SOCK_PATH as prefix)
+ *
+ * Return: socket descriptor on success, won't return on failure
+ */
+int sock_unix(char *sock_path)
+{
+	int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+	struct sockaddr_un addr = {
+		.sun_family = AF_UNIX,
+	};
+	int i;
+
+	if (fd < 0)
+		die_perror("Failed to open UNIX domain socket");
+
+	for (i = 1; i < UNIX_SOCK_MAX; i++) {
+		char *path = addr.sun_path;
+		int ex, ret;
+
+		if (*sock_path)
+			memcpy(path, sock_path, UNIX_PATH_MAX);
+		else if (snprintf_check(path, UNIX_PATH_MAX - 1,
+					UNIX_SOCK_PATH, i))
+			die_perror("Can't build UNIX domain socket path");
+
+		ex = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC,
+			    0);
+		if (ex < 0)
+			die_perror("Failed to check for UNIX domain conflicts");
+
+		ret = connect(ex, (const struct sockaddr *)&addr, sizeof(addr));
+		if (!ret || (errno != ENOENT && errno != ECONNREFUSED &&
+			     errno != EACCES)) {
+			if (*sock_path)
+				die("Socket path %s already in use", path);
+
+			close(ex);
+			continue;
+		}
+		close(ex);
+
+		unlink(path);
+		ret = bind(fd, (const struct sockaddr *)&addr, sizeof(addr));
+		if (*sock_path && ret)
+			die_perror("Failed to bind UNIX domain socket");
+
+		if (!ret)
+			break;
+	}
+
+	if (i == UNIX_SOCK_MAX)
+		die_perror("Failed to bind UNIX domain socket");
+
+	info("UNIX domain socket bound at %s", addr.sun_path);
+	if (!*sock_path)
+		memcpy(sock_path, addr.sun_path, UNIX_PATH_MAX);
+
+	return fd;
+}
+
+/**
  * sock_probe_mem() - Check if setting high SO_SNDBUF and SO_RCVBUF is allowed
  * @c:		Execution context
  */

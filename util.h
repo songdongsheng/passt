@@ -217,6 +217,7 @@ struct ctx;
 int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 	       const void *sa, socklen_t sl,
 	       const char *ifname, bool v6only, uint32_t data);
+int sock_unix(char *sock_path);
 void sock_probe_mem(struct ctx *c);
 long timespec_diff_ms(const struct timespec *a, const struct timespec *b);
 int64_t timespec_diff_us(const struct timespec *a, const struct timespec *b);

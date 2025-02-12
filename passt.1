@@ -429,6 +429,17 @@ Enable vhost-user. The vhost-user command socket is provided by \fB--socket\fR.
 Print back-end capabilities in JSON format, only meaningful for vhost-user mode.
 
 .TP
+.BR \-\-repair-path " " \fIpath
+Path for UNIX domain socket used by the \fBpasst-repair\fR(1) helper to connect
+to \fBpasst\fR in order to set or clear the TCP_REPAIR option on sockets, during
+migration. \fB--repair-path none\fR disables this interface (if you need to
+specify a socket path called "none" you can prefix the path by \fI./\fR).
+
+Default, for \-\-vhost-user mode only, is to append \fI.repair\fR to the path
+chosen for the hypervisor UNIX domain socket. No socket is created if not in
+\-\-vhost-user mode.
+
+.TP
 .BR \-F ", " \-\-fd " " \fIFD
 Pass a pre-opened, connected socket to \fBpasst\fR. Usually the socket is opened
 in the parent process and \fBpasst\fR inherits it when run as a child. This

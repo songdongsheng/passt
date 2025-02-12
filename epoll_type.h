@@ -40,6 +40,10 @@ enum epoll_type {
 	EPOLL_TYPE_VHOST_CMD,
 	/* vhost-user kick event socket */
 	EPOLL_TYPE_VHOST_KICK,
+	/* TCP_REPAIR helper listening socket */
+	EPOLL_TYPE_REPAIR_LISTEN,
+	/* TCP_REPAIR helper socket */
+	EPOLL_TYPE_REPAIR,
 
 	EPOLL_NUM_TYPES,
 };

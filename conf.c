@@ -820,6 +820,9 @@ static void usage(const char *name, FILE *f, int status)
 			"    UNIX domain socket is provided by -s option\n"
 			"  --print-capabilities	print back-end capabilities in JSON format,\n"
 			"    only meaningful for vhost-user mode\n");
+		FPRINTF(f,
+			"  --repair-path PATH	path for passt-repair(1)\n"
+			"    default: append '.repair' to UNIX domain path\n");
 	}
 
 	FPRINTF(f,
@@ -1245,8 +1248,25 @@ static void conf_nat(const char *arg, struct in_addr *addr4,
  */
 static void conf_open_files(struct ctx *c)
 {
-	if (c->mode != MODE_PASTA && c->fd_tap == -1)
-		c->fd_tap_listen = tap_sock_unix_open(c->sock_path);
+	if (c->mode != MODE_PASTA && c->fd_tap == -1) {
+		c->fd_tap_listen = sock_unix(c->sock_path);
+
+		if (c->mode == MODE_VU && strcmp(c->repair_path, "none")) {
+			if (!*c->repair_path &&
+			    snprintf_check(c->repair_path,
+					   sizeof(c->repair_path), "%s.repair",
+					   c->sock_path)) {
+				warn("passt-repair path %s not usable",
+				     c->repair_path);
+				c->fd_repair_listen = -1;
+			} else {
+				c->fd_repair_listen = sock_unix(c->repair_path);
+			}
+		} else {
+			c->fd_repair_listen = -1;
+		}
+		c->fd_repair = -1;
+	}
 
 	if (*c->pidfile) {
 		c->pidfile_fd = output_file_open(c->pidfile, O_WRONLY);
@@ -1360,10 +1380,12 @@ void conf(struct ctx *c, int argc, char **argv)
 		{"host-lo-to-ns-lo", no_argument, 	NULL,		23 },
 		{"dns-host",	required_argument,	NULL,		24 },
 		{"vhost-user",	no_argument,		NULL,		25 },
+
 		/* vhost-user backend program convention */
 		{"print-capabilities", no_argument,	NULL,		26 },
 		{"socket-path",	required_argument,	NULL,		's' },
 		{"fqdn",	required_argument,	NULL,		27 },
+		{"repair-path",	required_argument,	NULL,		28 },
 		{ 0 },
 	};
 	const char *logname = (c->mode == MODE_PASTA) ? "pasta" : "passt";
@@ -1569,6 +1591,9 @@ void conf(struct ctx *c, int argc, char **argv)
 			if (snprintf_check(c->fqdn, PASST_MAXDNAME,
 					   "%s", optarg))
 				die("Invalid FQDN: %s", optarg);
+			break;
+		case 28:
+			/* Handle this once we checked --vhost-user */
 			break;
 		case 'd':
 			c->debug = 1;
@@ -1841,8 +1866,8 @@ void conf(struct ctx *c, int argc, char **argv)
 	if (c->ifi4 && IN4_IS_ADDR_UNSPECIFIED(&c->ip4.guest_gw))
 		c->no_dhcp = 1;
 
-	/* Inbound port options & DNS can be parsed now (after IPv4/IPv6
-	 * settings)
+	/* Inbound port options, DNS, and --repair-path can be parsed now, after
+	 * IPv4/IPv6 settings and --vhost-user.
 	 */
 	fwd_probe_ephemeral();
 	udp_portmap_clear();
@@ -1888,6 +1913,16 @@ void conf(struct ctx *c, int argc, char **argv)
 			}
 
 			die("Cannot use DNS address %s", optarg);
+		} else if (name == 28) {
+			if (c->mode != MODE_VU && strcmp(optarg, "none"))
+				die("--repair-path is for vhost-user mode only");
+
+			if (snprintf_check(c->repair_path,
+					   sizeof(c->repair_path), "%s",
+					   optarg))
+				die("Invalid passt-repair path: %s", optarg);
+
+			break;
 		}
 	} while (name != -1);
 

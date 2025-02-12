@@ -20,6 +20,7 @@ union epoll_ref;
 #include "siphash.h"
 #include "ip.h"
 #include "inany.h"
+#include "migrate.h"
 #include "flow.h"
 #include "icmp.h"
 #include "fwd.h"
@@ -193,6 +194,7 @@ struct ip6_ctx {
  * @foreground:		Run in foreground, don't log to stderr by default
  * @nofile:		Maximum number of open files (ulimit -n)
  * @sock_path:		Path for UNIX domain socket
+ * @repair_path:	TCP_REPAIR helper path, can be "none", empty for default
  * @pcap:		Path for packet capture file
  * @pidfile:		Path to PID file, empty string if not configured
  * @pidfile_fd:		File descriptor for PID file, -1 if none
@@ -203,6 +205,8 @@ struct ip6_ctx {
  * @epollfd:		File descriptor for epoll instance
  * @fd_tap_listen:	File descriptor for listening AF_UNIX socket, if any
  * @fd_tap:		AF_UNIX socket, tuntap device, or pre-opened socket
+ * @fd_repair_listen:	File descriptor for listening TCP_REPAIR socket, if any
+ * @fd_repair:		Connected AF_UNIX socket for TCP_REPAIR helper
  * @our_tap_mac:	Pasta/passt's MAC on the tap link
  * @guest_mac:		MAC address of guest or namespace, seen or configured
  * @hash_secret:	128-bit secret for siphash functions
@@ -249,6 +253,7 @@ struct ctx {
 	int foreground;
 	int nofile;
 	char sock_path[UNIX_PATH_MAX];
+	char repair_path[UNIX_PATH_MAX];
 	char pcap[PATH_MAX];
 
 	char pidfile[PATH_MAX];
@@ -265,6 +270,8 @@ struct ctx {
 	int epollfd;
 	int fd_tap_listen;
 	int fd_tap;
+	int fd_repair_listen;
+	int fd_repair;
 	unsigned char our_tap_mac[ETH_ALEN];
 	unsigned char guest_mac[ETH_ALEN];
 	uint64_t hash_secret[2];

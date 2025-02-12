@@ -52,6 +52,7 @@
 #include "ndp.h"
 #include "vu_common.h"
 #include "migrate.h"
+#include "repair.h"
 
 #define EPOLL_EVENTS		8
 
@@ -76,6 +77,8 @@ char *epoll_type_str[] = {
 	[EPOLL_TYPE_TAP_LISTEN]		= "listening qemu socket",
 	[EPOLL_TYPE_VHOST_CMD]		= "vhost-user command socket",
 	[EPOLL_TYPE_VHOST_KICK]		= "vhost-user kick socket",
+	[EPOLL_TYPE_REPAIR_LISTEN]	= "TCP_REPAIR helper listening socket",
+	[EPOLL_TYPE_REPAIR]		= "TCP_REPAIR helper socket",
 };
 static_assert(ARRAY_SIZE(epoll_type_str) == EPOLL_NUM_TYPES,
 	      "epoll_type_str[] doesn't match enum epoll_type");
@@ -357,6 +360,12 @@ loop:
 			break;
 		case EPOLL_TYPE_VHOST_KICK:
 			vu_kick_cb(c.vdev, ref, &now);
+			break;
+		case EPOLL_TYPE_REPAIR_LISTEN:
+			repair_listen_handler(&c, eventmask);
+			break;
+		case EPOLL_TYPE_REPAIR:
+			repair_handler(&c, eventmask);
 			break;
 		default:
 			/* Can't happen */
