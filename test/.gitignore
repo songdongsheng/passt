@@ -8,5 +8,6 @@ QEMU_EFI.fd
 *.raw.xz
 *.bin
 nstool
+rampstream
 guest-key
 guest-key.pub

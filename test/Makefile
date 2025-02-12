@@ -52,7 +52,8 @@ UBUNTU_IMGS = $(UBUNTU_OLD_IMGS) $(UBUNTU_NEW_IMGS)
 
 DOWNLOAD_ASSETS = mbuto podman \
 	$(DEBIAN_IMGS) $(FEDORA_IMGS) $(OPENSUSE_IMGS) $(UBUNTU_IMGS)
-TESTDATA_ASSETS = small.bin big.bin medium.bin
+TESTDATA_ASSETS = small.bin big.bin medium.bin \
+	rampstream
 LOCAL_ASSETS = mbuto.img mbuto.mem.img podman/bin/podman QEMU_EFI.fd \
 	$(DEBIAN_IMGS:%=prepared-%) $(FEDORA_IMGS:%=prepared-%) \
 	$(UBUNTU_NEW_IMGS:%=prepared-%) \
@@ -85,7 +86,7 @@ podman/bin/podman: pull-podman
 guest-key guest-key.pub:
 	ssh-keygen -f guest-key -N ''
 
-mbuto.img: passt.mbuto mbuto/mbuto guest-key.pub $(TESTDATA_ASSETS)
+mbuto.img: passt.mbuto mbuto/mbuto guest-key.pub rampstream-check.sh $(TESTDATA_ASSETS)
 	./mbuto/mbuto -p ./$< -c lz4 -f $@
 
 mbuto.mem.img: passt.mem.mbuto mbuto ../passt.avx2

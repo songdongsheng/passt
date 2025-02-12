@@ -13,7 +13,8 @@
 PROGS="${PROGS:-ash,dash,bash ip mount ls insmod mkdir ln cat chmod lsmod
        modprobe find grep mknod mv rm umount jq iperf3 dhclient hostname
        sed tr chown sipcalc cut socat dd strace ping tail killall sleep sysctl
-       nproc tcp_rr tcp_crr udp_rr which tee seq bc sshd ssh-keygen cmp tcpdump env}"
+       nproc tcp_rr tcp_crr udp_rr which tee seq bc sshd ssh-keygen cmp tcpdump
+       env}"
 
 # OpenSSH 9.8 introduced split binaries, with sshd being the daemon, and
 # sshd-session the per-session program. We need the latter as well, and the path
@@ -31,7 +32,7 @@ LINKS="${LINKS:-
 
 DIRS="${DIRS} /tmp /usr/sbin /usr/share /var/log /var/lib /etc/ssh /run/sshd /root/.ssh"
 
-COPIES="${COPIES} small.bin,/root/small.bin medium.bin,/root/medium.bin big.bin,/root/big.bin"
+COPIES="${COPIES} small.bin,/root/small.bin medium.bin,/root/medium.bin big.bin,/root/big.bin rampstream,/bin/rampstream rampstream-check.sh,/bin/rampstream-check.sh"
 
 FIXUP="${FIXUP}"'
 	mv /sbin/* /usr/sbin || :
