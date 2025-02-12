@@ -20,6 +20,7 @@ require {
 	type fs_t;
 	type tmp_t;
 	type user_tmp_t;
+	type user_home_t;
 	type tmpfs_t;
 	type root_t;
 
@@ -80,6 +81,9 @@ allow passt_t root_t:dir mounton;
 allow passt_t tmp_t:dir { add_name mounton remove_name write };
 allow passt_t tmpfs_t:filesystem mount;
 allow passt_t fs_t:filesystem unmount;
+allow passt_t user_home_t:dir search;
+allow passt_t user_tmp_t:fifo_file append;
+allow passt_t user_tmp_t:file map;
 
 manage_files_pattern(passt_t, user_tmp_t, user_tmp_t)
 files_pid_filetrans(passt_t, user_tmp_t, file)

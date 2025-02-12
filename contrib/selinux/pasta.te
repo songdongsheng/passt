@@ -18,6 +18,7 @@ require {
 	type bin_t;
 	type user_home_t;
 	type user_home_dir_t;
+	type user_tmp_t;
 	type fs_t;
 	type tmp_t;
 	type tmpfs_t;
@@ -56,8 +57,10 @@ require {
 	attribute port_type;
 	type port_t;
 	type http_port_t;
+	type http_cache_port_t;
 	type ssh_port_t;
 	type reserved_port_t;
+	type unreserved_port_t;
 	type dns_port_t;
 	type dhcpc_port_t;
 	type chronyd_port_t;
@@ -122,8 +125,8 @@ domain_auto_trans(pasta_t, ping_exec_t, ping_t);
 
 allow pasta_t nsfs_t:file { open read };
 
-allow pasta_t user_home_t:dir getattr;
-allow pasta_t user_home_t:file { open read getattr setattr };
+allow pasta_t user_home_t:dir { getattr search };
+allow pasta_t user_home_t:file { open read getattr setattr execute execute_no_trans map};
 allow pasta_t user_home_dir_t:dir { search getattr open add_name read write };
 allow pasta_t user_home_dir_t:file { create open read write };
 allow pasta_t tmp_t:dir { add_name mounton remove_name write };
@@ -132,6 +135,11 @@ allow pasta_t fs_t:filesystem unmount;
 allow pasta_t root_t:dir mounton;
 manage_files_pattern(pasta_t, pasta_pid_t, pasta_pid_t)
 files_pid_filetrans(pasta_t, pasta_pid_t, file)
+
+allow pasta_t user_tmp_t:dir { add_name remove_name search write };
+allow pasta_t user_tmp_t:fifo_file append;
+allow pasta_t user_tmp_t:file { create open write };
+allow pasta_t user_tmp_t:sock_file { create unlink };
 
 allow pasta_t console_device_t:chr_file { open write getattr ioctl };
 allow pasta_t user_devpts_t:chr_file { getattr read write ioctl };
@@ -160,6 +168,8 @@ allow pasta_t self:udp_socket create_stream_socket_perms;
 allow pasta_t reserved_port_t:udp_socket name_bind;
 allow pasta_t llmnr_port_t:tcp_socket name_bind;
 allow pasta_t llmnr_port_t:udp_socket name_bind;
+allow pasta_t http_cache_port_t:tcp_socket { name_bind name_connect };
+allow pasta_t unreserved_port_t:udp_socket name_bind;
 corenet_udp_sendrecv_generic_node(pasta_t)
 corenet_udp_bind_generic_node(pasta_t)
 allow pasta_t node_t:icmp_socket { name_bind node_bind };
