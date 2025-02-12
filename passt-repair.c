@@ -131,7 +131,7 @@ loop:
 	/* No inverse formula for CMSG_LEN(x), and building one with CMSG_LEN(0)
 	 * works but there's no guarantee it does. Search the whole domain.
 	 */
-	for (i = 1; i < SCM_MAX_FD; i++) {
+	for (i = 1; i <= SCM_MAX_FD; i++) {
 		if (CMSG_LEN(sizeof(int) * i) == cmsg->cmsg_len) {
 			n = i;
 			break;
