@@ -351,7 +351,7 @@ static int tcp_splice_connect(const struct ctx *c, struct tcp_splice_conn *conn)
 	int one = 1;
 
 	if (tgtpif == PIF_HOST)
-		conn->s[1] = tcp_conn_sock(c, af);
+		conn->s[1] = tcp_conn_sock(af);
 	else if (tgtpif == PIF_SPLICE)
 		conn->s[1] = tcp_conn_sock_ns(c, af);
 	else
@@ -703,13 +703,13 @@ static int tcp_sock_refill_ns(void *arg)
 	ns_enter(c);
 
 	if (c->ifi4) {
-		int rc = tcp_sock_refill_pool(c, ns_sock_pool4, AF_INET);
+		int rc = tcp_sock_refill_pool(ns_sock_pool4, AF_INET);
 		if (rc < 0)
 			warn("TCP: Error refilling IPv4 ns socket pool: %s",
 			     strerror_(-rc));
 	}
 	if (c->ifi6) {
-		int rc = tcp_sock_refill_pool(c, ns_sock_pool6, AF_INET6);
+		int rc = tcp_sock_refill_pool(ns_sock_pool6, AF_INET6);
 		if (rc < 0)
 			warn("TCP: Error refilling IPv6 ns socket pool: %s",
 			     strerror_(-rc));

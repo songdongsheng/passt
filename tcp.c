@@ -739,24 +739,6 @@ static void tcp_get_sndbuf(struct tcp_tap_conn *conn)
 }
 
 /**
- * tcp_sock_set_bufsize() - Set SO_RCVBUF and SO_SNDBUF to maximum values
- * @s:		Socket, can be -1 to avoid check in the caller
- */
-static void tcp_sock_set_bufsize(const struct ctx *c, int s)
-{
-	int v = INT_MAX / 2; /* Kernel clamps and rounds, no need to check */
-
-	if (s == -1)
-		return;
-
-	if (!c->low_rmem && setsockopt(s, SOL_SOCKET, SO_RCVBUF, &v, sizeof(v)))
-		trace("TCP: failed to set SO_RCVBUF to %i", v);
-
-	if (!c->low_wmem && setsockopt(s, SOL_SOCKET, SO_SNDBUF, &v, sizeof(v)))
-		trace("TCP: failed to set SO_SNDBUF to %i", v);
-}
-
-/**
  * tcp_sock_set_nodelay() - Set TCP_NODELAY option (disable Nagle's algorithm)
  * @s:		Socket, can be -1 to avoid check in the caller
  */
@@ -1278,12 +1260,11 @@ int tcp_conn_pool_sock(int pool[])
 
 /**
  * tcp_conn_new_sock() - Open and prepare new socket for connection
- * @c:		Execution context
  * @af:		Address family
  *
  * Return: socket number on success, negative code if socket creation failed
  */
-static int tcp_conn_new_sock(const struct ctx *c, sa_family_t af)
+static int tcp_conn_new_sock(sa_family_t af)
 {
 	int s;
 
@@ -1297,7 +1278,6 @@ static int tcp_conn_new_sock(const struct ctx *c, sa_family_t af)
 	if (s < 0)
 		return -errno;
 
-	tcp_sock_set_bufsize(c, s);
 	tcp_sock_set_nodelay(s);
 
 	return s;
@@ -1305,12 +1285,11 @@ static int tcp_conn_new_sock(const struct ctx *c, sa_family_t af)
 
 /**
  * tcp_conn_sock() - Obtain a connectable socket in the host/init namespace
- * @c:		Execution context
  * @af:		Address family (AF_INET or AF_INET6)
  *
  * Return: Socket fd on success, -errno on failure
  */
-int tcp_conn_sock(const struct ctx *c, sa_family_t af)
+int tcp_conn_sock(sa_family_t af)
 {
 	int *pool = af == AF_INET6 ? init_sock_pool6 : init_sock_pool4;
 	int s;
@@ -1321,7 +1300,7 @@ int tcp_conn_sock(const struct ctx *c, sa_family_t af)
 	/* If the pool is empty we just open a new one without refilling the
 	 * pool to keep latency down.
 	 */
-	if ((s = tcp_conn_new_sock(c, af)) >= 0)
+	if ((s = tcp_conn_new_sock(af)) >= 0)
 		return s;
 
 	err("TCP: Unable to open socket for new connection: %s",
@@ -1462,7 +1441,7 @@ static void tcp_conn_from_tap(const struct ctx *c, sa_family_t af,
 		goto cancel;
 	}
 
-	if ((s = tcp_conn_sock(c, af)) < 0)
+	if ((s = tcp_conn_sock(af)) < 0)
 		goto cancel;
 
 	pif_sockaddr(c, &sa, &sl, PIF_HOST, &tgt->eaddr, tgt->eport);
@@ -1483,7 +1462,7 @@ static void tcp_conn_from_tap(const struct ctx *c, sa_family_t af,
 	} else {
 		/* Not a local, bound destination, inconclusive test */
 		close(s);
-		if ((s = tcp_conn_sock(c, af)) < 0)
+		if ((s = tcp_conn_sock(af)) < 0)
 			goto cancel;
 	}
 
@@ -2090,7 +2069,6 @@ void tcp_listen_handler(const struct ctx *c, union epoll_ref ref,
 	if (s < 0)
 		goto cancel;
 
-	tcp_sock_set_bufsize(c, s);
 	tcp_sock_set_nodelay(s);
 
 	/* FIXME: If useful: when the listening port has a specific bound
@@ -2434,13 +2412,12 @@ static int tcp_ns_socks_init(void *arg)
 
 /**
  * tcp_sock_refill_pool() - Refill one pool of pre-opened sockets
- * @c:		Execution context
  * @pool:	Pool of sockets to refill
  * @af:		Address family to use
  *
  * Return: 0 on success, negative error code if there was at least one error
  */
-int tcp_sock_refill_pool(const struct ctx *c, int pool[], sa_family_t af)
+int tcp_sock_refill_pool(int pool[], sa_family_t af)
 {
 	int i;
 
@@ -2450,7 +2427,7 @@ int tcp_sock_refill_pool(const struct ctx *c, int pool[], sa_family_t af)
 		if (pool[i] >= 0)
 			continue;
 
-		if ((fd = tcp_conn_new_sock(c, af)) < 0)
+		if ((fd = tcp_conn_new_sock(af)) < 0)
 			return fd;
 
 		pool[i] = fd;
@@ -2466,13 +2443,13 @@ int tcp_sock_refill_pool(const struct ctx *c, int pool[], sa_family_t af)
 static void tcp_sock_refill_init(const struct ctx *c)
 {
 	if (c->ifi4) {
-		int rc = tcp_sock_refill_pool(c, init_sock_pool4, AF_INET);
+		int rc = tcp_sock_refill_pool(init_sock_pool4, AF_INET);
 		if (rc < 0)
 			warn("TCP: Error refilling IPv4 host socket pool: %s",
 			     strerror_(-rc));
 	}
 	if (c->ifi6) {
-		int rc = tcp_sock_refill_pool(c, init_sock_pool6, AF_INET6);
+		int rc = tcp_sock_refill_pool(init_sock_pool6, AF_INET6);
 		if (rc < 0)
 			warn("TCP: Error refilling IPv6 host socket pool: %s",
 			     strerror_(-rc));

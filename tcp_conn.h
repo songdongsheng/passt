@@ -143,8 +143,8 @@ bool tcp_flow_defer(const struct tcp_tap_conn *conn);
 bool tcp_splice_flow_defer(struct tcp_splice_conn *conn);
 void tcp_splice_timer(const struct ctx *c, struct tcp_splice_conn *conn);
 int tcp_conn_pool_sock(int pool[]);
-int tcp_conn_sock(const struct ctx *c, sa_family_t af);
-int tcp_sock_refill_pool(const struct ctx *c, int pool[], sa_family_t af);
+int tcp_conn_sock(sa_family_t af);
+int tcp_sock_refill_pool(int pool[], sa_family_t af);
 void tcp_splice_refill(const struct ctx *c);
 
 #endif /* TCP_CONN_H */
