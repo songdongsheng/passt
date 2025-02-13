@@ -24,6 +24,12 @@ require {
 	type tmpfs_t;
 	type root_t;
 
+	# Workaround: passt --vhost-user needs to map guest memory, but
+	# libvirt doesn't maintain its own policy, which makes updates
+	# particularly complicated. To avoid breakage in the short term,
+	# deal with it in passt's own policy.
+	type svirt_image_t;
+
 	class file { ioctl getattr setattr create read write unlink open relabelto execute execute_no_trans map };
 	class dir { search write add_name remove_name mounton };
 	class chr_file { append read write open getattr ioctl };
@@ -131,3 +137,9 @@ allow passt_t user_tmp_t:dir { add_name write };
 allow passt_t user_tmp_t:file { create open };
 allow passt_t user_tmp_t:sock_file { create read write unlink };
 allow passt_t unconfined_t:unix_stream_socket { read write };
+
+# Workaround: passt --vhost-user needs to map guest memory, but
+# libvirt doesn't maintain its own policy, which makes updates
+# particularly complicated. To avoid breakage in the short term,
+# deal with it in passt's own policy.
+allow passt_t svirt_image_t:file { read write map };
