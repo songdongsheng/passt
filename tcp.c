@@ -338,7 +338,7 @@ static const char *tcp_state_str[] __attribute((__unused__)) = {
 	"SYN_RCVD",	/* approximately maps to TAP_SYN_ACK_SENT */
 
 	/* Passive close: */
-	"CLOSE_WAIT", "CLOSE_WAIT", "LAST_ACK", "LAST_ACK", "LAST_ACK",
+	"CLOSE_WAIT", "CLOSE_WAIT", "CLOSE_WAIT", "LAST_ACK", "LAST_ACK",
 	/* Active close (+5): */
 	"CLOSING", "FIN_WAIT_1", "FIN_WAIT_1", "FIN_WAIT_2", "TIME_WAIT",
 };
@@ -1968,6 +1968,8 @@ int tcp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 	/* Established connections not accepting data from tap */
 	if (conn->events & TAP_FIN_RCVD) {
 		tcp_update_seqack_from_tap(c, conn, ntohl(th->ack_seq));
+		tcp_tap_window_update(conn, ntohs(th->window));
+		tcp_data_from_sock(c, conn);
 
 		if (conn->events & SOCK_FIN_RCVD &&
 		    conn->seq_ack_from_tap == conn->seq_to_tap)
