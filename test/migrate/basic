@@ -6,10 +6,10 @@
 # PASTA - Pack A Subtle Tap Abstraction
 #  for network namespace/tap device mode
 #
-# test/migrate/rampstream_out - Check sequence correctness with outbound ramp
+# test/migrate/basic - Check basic migration functionality
 #
-# Copyright (c) 2025 Red Hat
-# Author: David Gibson <david@gibson.dropbear.id.au>
+# Copyright (c) 2025 Red Hat GmbH
+# Author: Stefano Brivio <sbrivio@redhat.com>
 
 g1tools	ip jq dhclient socat cat
 htools	ip jq
@@ -18,7 +18,6 @@ set	MAP_HOST4 192.0.2.1
 set	MAP_HOST6 2001:db8:9a55::1
 set	MAP_NS4 192.0.2.2
 set	MAP_NS6 2001:db8:9a55::2
-set	RAMPS 6000000
 
 test	Interface name
 g1out	IFNAME1 ip -j link show | jq -rM '.[] | select(.link_type == "ether").ifname'
@@ -43,13 +42,18 @@ g1out	ADDR1_6 ip -j -6 addr show|jq -rM '[.[] | select(.ifname == "__IFNAME1__")
 hout	HOST_ADDR6 ip -j -6 addr show|jq -rM '[.[] | select(.ifname == "__HOST_IFNAME6__").addr_info[] | select(.scope == "global" and .deprecated != true).local] | .[0]'
 check	[ "__ADDR1_6__" = "__HOST_ADDR6__" ]
 
-test	TCP/IPv4: sequence check, ramps, outbound
+test	TCP/IPv4: guest1/guest2 > host
 g1out	GW1 ip -j -4 route show|jq -rM '.[] | select(.dst == "default").gateway'
-hostb	socat -u TCP4-LISTEN:10006 EXEC:"test/rampstream check __RAMPS__"
+hostb	socat -u TCP4-LISTEN:10006 OPEN:__STATESETUP__/msg,create,trunc
 sleep	1
-guest1b	socat -u EXEC:"rampstream send __RAMPS__" TCP4:__MAP_HOST4__:10006
+# Option 1: via spliced path in pasta, namespace to host
+# guest1b	{ printf "Hello from guest 1"; sleep 10; printf " and from guest 2\n"; } | socat -u STDIN TCP4:__GW1__:10003
+# Option 2: via --map-guest-addr (tap) in pasta, namespace to host
+guest1b	{ printf "Hello from guest 1"; sleep 3; printf " and from guest 2\n"; } | socat -u STDIN TCP4:__MAP_HOST4__:10006
 sleep	1
 
 mon	echo "migrate tcp:0:20005" | socat -u STDIN UNIX:__STATESETUP__/qemu_1_mon.sock
 
 hostw
+hout	MSG cat __STATESETUP__/msg
+check	[ "__MSG__" = "Hello from guest 1 and from guest 2" ]

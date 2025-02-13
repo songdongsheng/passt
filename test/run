@@ -130,6 +130,43 @@ run() {
 	test two_guests_vu/basic
 	teardown two_guests
 
+	setup migrate
+	test migrate/basic
+	teardown migrate
+	setup migrate
+	test migrate/basic_fin
+	teardown migrate
+	setup migrate
+	test migrate/bidirectional
+	teardown migrate
+	setup migrate
+	test migrate/bidirectional_fin
+	teardown migrate
+	setup migrate
+	test migrate/iperf3_out4
+	teardown migrate
+	setup migrate
+	test migrate/iperf3_out6
+	teardown migrate
+	setup migrate
+	test migrate/iperf3_in4
+	teardown migrate
+	setup migrate
+	test migrate/iperf3_in6
+	teardown migrate
+	setup migrate
+	test migrate/iperf3_bidir6
+	teardown migrate
+	setup migrate
+	test migrate/iperf3_many_out6
+	teardown migrate
+	setup migrate
+	test migrate/rampstream_in
+	teardown migrate
+	setup migrate
+	test migrate/rampstream_out
+	teardown migrate
+
 	VALGRIND=0
 	VHOST_USER=0
 	setup passt_in_ns
@@ -186,7 +223,10 @@ run_selected() {
 
 	__setup=
 	for __test; do
-		if [ "${__test%%/*}" != "${__setup}" ]; then
+		# HACK: the migrate tests need the setup repeated for
+		#       each test
+		if [ "${__test%%/*}" != "${__setup}" -o		\
+		     "${__test%%/*}" = "migrate" ]; then
 			[ -n "${__setup}" ] && teardown "${__setup}"
 			__setup="${__test%%/*}"
 			setup "${__setup}"

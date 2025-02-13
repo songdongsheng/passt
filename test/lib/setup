@@ -305,6 +305,117 @@ setup_two_guests() {
 	context_setup_guest guest_2 ${GUEST_2_CID}
 }
 
+# setup_migrate() - Set up two namespace, run qemu, passt/passt-repair in both
+setup_migrate() {
+	context_setup_host host
+	context_setup_host mon
+	context_setup_host pasta_1
+	context_setup_host pasta_2
+
+	layout_migrate
+
+	# Ports:
+	#
+	#         guest #1  |  guest #2 |   ns #1   |    host
+	#         --------- |-----------|-----------|------------
+	#  10001  as server |           | to guest  |  to ns #1
+	#  10002            |           | as server |  to ns #1
+	#  10003            |           |  to init  |  as server
+	#  10004            | as server | to guest  |  to ns #1
+
+	__opts=
+	[ ${PCAP} -eq 1 ] && __opts="${__opts} -p ${LOGDIR}/pasta_1.pcap"
+	[ ${DEBUG} -eq 1 ] && __opts="${__opts} -d"
+	[ ${TRACE} -eq 1 ] && __opts="${__opts} --trace"
+
+	__map_host4=192.0.2.1
+	__map_host6=2001:db8:9a55::1
+	__map_ns4=192.0.2.2
+	__map_ns6=2001:db8:9a55::2
+
+	# Option 1: send stuff via spliced path in pasta
+	# context_run_bg pasta_1 "./pasta ${__opts} -P ${STATESETUP}/pasta_1.pid -t 10001,10002 -T 10003 -u 10001,10002 -U 10003 --config-net ${NSTOOL} hold ${STATESETUP}/ns1.hold"
+	# Option 2: send stuff via tap (--map-guest-addr) instead (useful to see capture of full migration)
+	context_run_bg pasta_1 "./pasta ${__opts} -P ${STATESETUP}/pasta_1.pid -t 10001,10002,10004 -T 10003 -u 10001,10002,10004 -U 10003 --map-guest-addr ${__map_host4} --map-guest-addr ${__map_host6} --config-net ${NSTOOL} hold ${STATESETUP}/ns1.hold"
+	context_setup_nstool passt_1 ${STATESETUP}/ns1.hold
+	context_setup_nstool passt_repair_1 ${STATESETUP}/ns1.hold
+
+	context_setup_nstool passt_2 ${STATESETUP}/ns1.hold
+	context_setup_nstool passt_repair_2 ${STATESETUP}/ns1.hold
+
+	context_setup_nstool qemu_1 ${STATESETUP}/ns1.hold
+	context_setup_nstool qemu_2 ${STATESETUP}/ns1.hold
+
+	__ifname="$(context_run qemu_1 "ip -j link show | jq -rM '.[] | select(.link_type == \"ether\").ifname'")"
+
+	sleep 1
+
+	__opts="--vhost-user"
+	[ ${PCAP} -eq 1 ] && __opts="${__opts} -p ${LOGDIR}/passt_1.pcap"
+	[ ${DEBUG} -eq 1 ] && __opts="${__opts} -d"
+	[ ${TRACE} -eq 1 ] && __opts="${__opts} --trace"
+
+	context_run_bg passt_1 "./passt -s ${STATESETUP}/passt_1.socket -P ${STATESETUP}/passt_1.pid -f ${__opts} -t 10001 -u 10001"
+	wait_for [ -f "${STATESETUP}/passt_1.pid" ]
+
+	context_run_bg passt_repair_1 "./passt-repair ${STATESETUP}/passt_1.socket.repair"
+
+	__opts="--vhost-user"
+	[ ${PCAP} -eq 1 ] && __opts="${__opts} -p ${LOGDIR}/passt_2.pcap"
+	[ ${DEBUG} -eq 1 ] && __opts="${__opts} -d"
+	[ ${TRACE} -eq 1 ] && __opts="${__opts} --trace"
+
+	context_run_bg passt_2 "./passt -s ${STATESETUP}/passt_2.socket -P ${STATESETUP}/passt_2.pid -f ${__opts} -t 10004 -u 10004"
+	wait_for [ -f "${STATESETUP}/passt_2.pid" ]
+
+	context_run_bg passt_repair_2 "./passt-repair ${STATESETUP}/passt_2.socket.repair"
+
+	__vmem="512M"	# Keep migration fast
+	__qemu_netdev1="					       \
+		-chardev socket,id=c,path=${STATESETUP}/passt_1.socket \
+		-netdev vhost-user,id=v,chardev=c		       \
+		-device virtio-net,netdev=v			       \
+		-object memory-backend-memfd,id=m,share=on,size=${__vmem} \
+		-numa node,memdev=m"
+	__qemu_netdev2="					       \
+		-chardev socket,id=c,path=${STATESETUP}/passt_2.socket \
+		-netdev vhost-user,id=v,chardev=c		       \
+		-device virtio-net,netdev=v			       \
+		-object memory-backend-memfd,id=m,share=on,size=${__vmem} \
+		-numa node,memdev=m"
+
+	GUEST_1_CID=94557
+	context_run_bg qemu_1 'qemu-system-'"${QEMU_ARCH}"		     \
+		' -M accel=kvm:tcg'                                          \
+		' -m '${__vmem}' -cpu host -smp '${VCPUS}		     \
+		' -kernel '"${KERNEL}"					     \
+		' -initrd '${INITRAMFS}' -nographic -serial stdio'	     \
+		' -nodefaults'						     \
+		' -append "console=ttyS0 mitigations=off apparmor=0" '	     \
+		" ${__qemu_netdev1}"					     \
+		" -pidfile ${STATESETUP}/qemu_1.pid"			     \
+		" -device vhost-vsock-pci,guest-cid=$GUEST_1_CID"	     \
+		" -monitor unix:${STATESETUP}/qemu_1_mon.sock,server,nowait"
+
+	GUEST_2_CID=94558
+	context_run_bg qemu_2 'qemu-system-'"${QEMU_ARCH}"		     \
+		' -M accel=kvm:tcg'                                          \
+		' -m '${__vmem}' -cpu host -smp '${VCPUS}		     \
+		' -kernel '"${KERNEL}"					     \
+		' -initrd '${INITRAMFS}' -nographic -serial stdio'	     \
+		' -nodefaults'						     \
+		' -append "console=ttyS0 mitigations=off apparmor=0" '	     \
+		" ${__qemu_netdev2}"					     \
+		" -pidfile ${STATESETUP}/qemu_2.pid"			     \
+		" -device vhost-vsock-pci,guest-cid=$GUEST_2_CID"	     \
+		" -monitor unix:${STATESETUP}/qemu_2_mon.sock,server,nowait" \
+		" -incoming tcp:0:20005"
+
+	context_setup_guest guest_1 ${GUEST_1_CID}
+	# Only available after migration:
+	( context_setup_guest guest_2 ${GUEST_2_CID} & )
+}
+
 # teardown_context_watch() - Remove contexts and stop panes watching them
 # $1:	Pane number watching
 # $@:	Context names
@@ -375,13 +486,38 @@ teardown_two_guests() {
 	context_wait pasta_1
 	context_wait pasta_2
 
-	rm -f "${STATESETUP}/passt__[12].pid" "${STATESETUP}/pasta_[12].pid"
+	rm "${STATESETUP}/passt_1.pid" "${STATESETUP}/passt_2.pid"
+	rm "${STATESETUP}/pasta_1.pid" "${STATESETUP}/pasta_2.pid"
 
 	teardown_context_watch ${PANE_HOST} host
 	teardown_context_watch ${PANE_GUEST_1} qemu_1 guest_1
 	teardown_context_watch ${PANE_GUEST_2} qemu_2 guest_2
 	teardown_context_watch ${PANE_PASST_1} pasta_1 passt_1
 	teardown_context_watch ${PANE_PASST_2} pasta_2 passt_2
+}
+
+# teardown_migrate() - Exit namespaces, kill qemu processes, passt and pasta
+teardown_migrate() {
+	${NSTOOL} exec ${STATESETUP}/ns1.hold -- kill $(cat "${STATESETUP}/qemu_1.pid")
+	${NSTOOL} exec ${STATESETUP}/ns1.hold -- kill $(cat "${STATESETUP}/qemu_2.pid")
+	context_wait qemu_1
+	context_wait qemu_2
+
+	${NSTOOL} exec ${STATESETUP}/ns1.hold -- kill $(cat "${STATESETUP}/passt_2.pid")
+	context_wait passt_1
+	context_wait passt_2
+	${NSTOOL} stop "${STATESETUP}/ns1.hold"
+	context_wait pasta_1
+
+	rm -f "${STATESETUP}/passt_1.pid" "${STATESETUP}/passt_2.pid"
+	rm -f "${STATESETUP}/pasta_1.pid" "${STATESETUP}/pasta_2.pid"
+
+	teardown_context_watch ${PANE_HOST} host
+
+	teardown_context_watch ${PANE_GUEST_1} qemu_1 guest_1
+	teardown_context_watch ${PANE_GUEST_2} qemu_2 guest_2
+	teardown_context_watch ${PANE_PASST_1} pasta_1 passt_1
+	teardown_context_watch ${PANE_PASST_2} pasta_1 passt_2
 }
 
 # teardown_demo_passt() - Exit namespace, kill qemu, passt and pasta

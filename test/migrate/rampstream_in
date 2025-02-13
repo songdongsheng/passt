@@ -6,10 +6,10 @@
 # PASTA - Pack A Subtle Tap Abstraction
 #  for network namespace/tap device mode
 #
-# test/migrate/basic - Check basic migration functionality
+# test/migrate/rampstream_in - Check sequence correctness with inbound ramp
 #
-# Copyright (c) 2025 Red Hat GmbH
-# Author: Stefano Brivio <sbrivio@redhat.com>
+# Copyright (c) 2025 Red Hat
+# Author: David Gibson <david@gibson.dropbear.id.au>
 
 g1tools	ip jq dhclient socat cat
 htools	ip jq
@@ -43,15 +43,15 @@ g1out	ADDR1_6 ip -j -6 addr show|jq -rM '[.[] | select(.ifname == "__IFNAME1__")
 hout	HOST_ADDR6 ip -j -6 addr show|jq -rM '[.[] | select(.ifname == "__HOST_IFNAME6__").addr_info[] | select(.scope == "global" and .deprecated != true).local] | .[0]'
 check	[ "__ADDR1_6__" = "__HOST_ADDR6__" ]
 
-test	TCP/IPv4: host > guest
+test	TCP/IPv4: sequence check, ramps, inbound
 g1out	GW1 ip -j -4 route show|jq -rM '.[] | select(.dst == "default").gateway'
 guest1b	socat -u TCP4-LISTEN:10001 EXEC:"rampstream-check.sh __RAMPS__"
 sleep	1
 hostb	socat -u EXEC:"test/rampstream send __RAMPS__" TCP4:__ADDR1__:10001
 
-sleep 1
+sleep	1
 
-#mon	echo "migrate tcp:0:20005" | socat -u STDIN UNIX:__STATESETUP__/qemu_1_mon.sock
+monb	echo "migrate tcp:0:20005" | socat -u STDIN UNIX:__STATESETUP__/qemu_1_mon.sock
 
 hostw
 

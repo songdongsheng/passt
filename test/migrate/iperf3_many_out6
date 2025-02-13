@@ -6,10 +6,10 @@
 # PASTA - Pack A Subtle Tap Abstraction
 #  for network namespace/tap device mode
 #
-# test/migrate/rampstream_out - Check sequence correctness with outbound ramp
+# test/migrate/iperf3_many_out6 - Migration behaviour with many outbound flows
 #
-# Copyright (c) 2025 Red Hat
-# Author: David Gibson <david@gibson.dropbear.id.au>
+# Copyright (c) 2025 Red Hat GmbH
+# Author: Stefano Brivio <sbrivio@redhat.com>
 
 g1tools	ip jq dhclient socat cat
 htools	ip jq
@@ -18,7 +18,11 @@ set	MAP_HOST4 192.0.2.1
 set	MAP_HOST6 2001:db8:9a55::1
 set	MAP_NS4 192.0.2.2
 set	MAP_NS6 2001:db8:9a55::2
-set	RAMPS 6000000
+
+set	THREADS 16
+set	TIME 3
+set	OMIT 0.1
+set	OPTS -Z -P __THREADS__ -O__OMIT__ -N -l 1M
 
 test	Interface name
 g1out	IFNAME1 ip -j link show | jq -rM '.[] | select(.link_type == "ether").ifname'
@@ -43,13 +47,14 @@ g1out	ADDR1_6 ip -j -6 addr show|jq -rM '[.[] | select(.ifname == "__IFNAME1__")
 hout	HOST_ADDR6 ip -j -6 addr show|jq -rM '[.[] | select(.ifname == "__HOST_IFNAME6__").addr_info[] | select(.scope == "global" and .deprecated != true).local] | .[0]'
 check	[ "__ADDR1_6__" = "__HOST_ADDR6__" ]
 
-test	TCP/IPv4: sequence check, ramps, outbound
-g1out	GW1 ip -j -4 route show|jq -rM '.[] | select(.dst == "default").gateway'
-hostb	socat -u TCP4-LISTEN:10006 EXEC:"test/rampstream check __RAMPS__"
-sleep	1
-guest1b	socat -u EXEC:"rampstream send __RAMPS__" TCP4:__MAP_HOST4__:10006
-sleep	1
+test	TCP/IPv6 guest to host flood, many flows, during migration
 
-mon	echo "migrate tcp:0:20005" | socat -u STDIN UNIX:__STATESETUP__/qemu_1_mon.sock
+test	TCP/IPv6 host to guest throughput during migration
 
-hostw
+monb	sleep 1; echo "migrate tcp:0:20005" | socat -u STDIN UNIX:__STATESETUP__/qemu_1_mon.sock
+
+iperf3s	host 10006
+iperf3m	BW guest_1 guest_2 __MAP_HOST6__ 10006 __TIME__ __OPTS__
+bw	__BW__ 1 2
+
+iperf3k	host

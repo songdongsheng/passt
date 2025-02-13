@@ -135,7 +135,7 @@ layout_two_guests() {
 	get_info_cols
 
 	pane_watch_contexts ${PANE_GUEST_1} "guest #1 in namespace #1" qemu_1 guest_1
-	pane_watch_contexts ${PANE_GUEST_2} "guest #2 in namespace #2" qemu_2 guest_2
+	pane_watch_contexts ${PANE_GUEST_2} "guest #2 in namespace #1" qemu_2 guest_2
 
 	tmux send-keys -l -t ${PANE_INFO} 'while cat '"$STATEBASE/log_pipe"'; do :; done'
 	tmux send-keys -t ${PANE_INFO} -N 100 C-m
@@ -143,9 +143,62 @@ layout_two_guests() {
 
 	pane_watch_contexts ${PANE_HOST} host host
 	pane_watch_contexts ${PANE_PASST_1} "passt #1 in namespace #1" pasta_1 passt_1
-	pane_watch_contexts ${PANE_PASST_2} "passt #2 in namespace #2" pasta_2 passt_2
+	pane_watch_contexts ${PANE_PASST_2} "passt #2 in namespace #1" pasta_1 passt_2
 
 	info_layout "two guests, two passt instances, in namespaces"
+
+	sleep 1
+}
+
+# layout_migrate() - Two guest panes, two passt panes, two passt-repair panes,
+#		     plus host and log
+layout_migrate() {
+	sleep 1
+
+	tmux kill-pane -a -t 0
+	cmd_write 0 clear
+
+	tmux split-window -v -t passt_test
+	tmux split-window -h -l '33%'
+	tmux split-window -h -t passt_test:1.1
+
+	tmux split-window -h -l '35%' -t passt_test:1.0
+	tmux split-window -v -t passt_test:1.0
+
+	tmux split-window -v -t passt_test:1.4
+	tmux split-window -v -t passt_test:1.6
+
+	tmux split-window -v -t passt_test:1.3
+
+	PANE_GUEST_1=0
+	PANE_GUEST_2=1
+	PANE_INFO=2
+	PANE_MON=3
+	PANE_HOST=4
+	PANE_PASST_REPAIR_1=5
+	PANE_PASST_1=6
+	PANE_PASST_REPAIR_2=7
+	PANE_PASST_2=8
+
+	get_info_cols
+
+	pane_watch_contexts ${PANE_GUEST_1} "guest #1 in namespace #1" qemu_1 guest_1
+	pane_watch_contexts ${PANE_GUEST_2} "guest #2 in namespace #2" qemu_2 guest_2
+
+	tmux send-keys -l -t ${PANE_INFO} 'while cat '"$STATEBASE/log_pipe"'; do :; done'
+	tmux send-keys -t ${PANE_INFO} -N 100 C-m
+	tmux select-pane -t ${PANE_INFO} -T "test log"
+
+	pane_watch_contexts ${PANE_MON} "QEMU monitor" mon mon
+
+	pane_watch_contexts ${PANE_HOST} host host
+	pane_watch_contexts ${PANE_PASST_REPAIR_1} "passt-repair #1 in namespace #1" repair_1 passt_repair_1
+	pane_watch_contexts ${PANE_PASST_1} "passt #1 in namespace #1" pasta_1 passt_1
+
+	pane_watch_contexts ${PANE_PASST_REPAIR_2} "passt-repair #2 in namespace #2" repair_2 passt_repair_2
+	pane_watch_contexts ${PANE_PASST_2} "passt #2 in namespace #2" pasta_2 passt_2
+
+	info_layout "two guests, two passt + passt-repair instances, in namespaces"
 
 	sleep 1
 }

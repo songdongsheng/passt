@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# PASST - Plug A Simple Socket Transport
+#  for qemu/UNIX domain socket mode
+#
+# PASTA - Pack A Subtle Tap Abstraction
+#  for network namespace/tap device mode
+#
+# test/migrate/iperf3_in4 - Migration behaviour under inbound IPv4 flood
+#
+# Copyright (c) 2025 Red Hat GmbH
+# Author: Stefano Brivio <sbrivio@redhat.com>
+
+g1tools	ip jq dhclient socat cat
+htools	ip jq
+
+set	MAP_HOST4 192.0.2.1
+set	MAP_HOST6 2001:db8:9a55::1
+set	MAP_NS4 192.0.2.2
+set	MAP_NS6 2001:db8:9a55::2
+
+guest1	/sbin/sysctl -w net.core.rmem_max=33554432
+guest1	/sbin/sysctl -w net.core.wmem_max=33554432
+
+set	THREADS 1
+set	TIME 4
+set	OMIT 0.1
+set	OPTS -Z -P __THREADS__ -O__OMIT__ -N -R
+
+test	Interface name
+g1out	IFNAME1 ip -j link show | jq -rM '.[] | select(.link_type == "ether").ifname'
+hout	HOST_IFNAME ip -j -4 route show|jq -rM '[.[] | select(.dst == "default").dev] | .[0]'
+check	[ -n "__IFNAME1__" ]
+
+test	DHCP: address
+guest1	ip link set dev __IFNAME1__ up
+guest1	/sbin/dhclient -4 __IFNAME1__
+g1out	ADDR1 ip -j -4 addr show|jq -rM '.[] | select(.ifname == "__IFNAME1__").addr_info[0].local'
+hout	HOST_ADDR ip -j -4 addr show|jq -rM '.[] | select(.ifname == "__HOST_IFNAME__").addr_info[0].local'
+check	[ "__ADDR1__" = "__HOST_ADDR__" ]
+
+test	TCP/IPv4 host to guest throughput during migration
+
+monb	sleep 1; echo "migrate tcp:0:20005" | socat -u STDIN UNIX:__STATESETUP__/qemu_1_mon.sock
+
+iperf3s	host 10006
+iperf3m	BW guest_1 guest_2 __MAP_HOST4__ 10006 __TIME__ __OPTS__
+bw	__BW__ 1 2
+
+iperf3k	host
