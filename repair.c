@@ -202,7 +202,6 @@ int repair_flush(struct ctx *c)
  *
  * Return: 0 on success, negative error code on failure
  */
-/* cppcheck-suppress unusedFunction */
 int repair_set(struct ctx *c, int s, int cmd)
 {
 	int rc;

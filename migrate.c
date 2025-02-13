@@ -103,6 +103,16 @@ static const struct migrate_stage stages_v1[] = {
 		.source = seen_addrs_source_v1,
 		.target = seen_addrs_target_v1,
 	},
+	{
+		.name = "prepare flows",
+		.source = flow_migrate_source_pre,
+		.target = NULL,
+	},
+	{
+		.name = "transfer flows",
+		.source = flow_migrate_source,
+		.target = flow_migrate_target,
+	},
 	{ 0 },
 };
 

@@ -249,6 +249,14 @@ union flow;
 
 void flow_init(void);
 void flow_defer_handler(const struct ctx *c, const struct timespec *now);
+int flow_migrate_source_early(struct ctx *c, const struct migrate_stage *stage,
+			      int fd);
+int flow_migrate_source_pre(struct ctx *c, const struct migrate_stage *stage,
+			    int fd);
+int flow_migrate_source(struct ctx *c, const struct migrate_stage *stage,
+			int fd);
+int flow_migrate_target(struct ctx *c, const struct migrate_stage *stage,
+			int fd);
 
 void flow_log_(const struct flow_common *f, int pri, const char *fmt, ...)
 	__attribute__((format(printf, 3, 4)));

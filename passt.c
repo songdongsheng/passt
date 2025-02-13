@@ -223,15 +223,15 @@ int main(int argc, char **argv)
 		if (sigaction(SIGCHLD, &sa, NULL))
 			die_perror("Couldn't install signal handlers");
 
-		if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
-			die_perror("Couldn't set disposition for SIGPIPE");
-
 		c.mode = MODE_PASTA;
 	} else if (strstr(name, "passt")) {
 		c.mode = MODE_PASST;
 	} else {
 		_exit(EXIT_FAILURE);
 	}
+
+	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+		die_perror("Couldn't set disposition for SIGPIPE");
 
 	madvise(pkt_buf, TAP_BUF_BYTES, MADV_HUGEPAGE);
 
