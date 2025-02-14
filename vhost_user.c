@@ -732,6 +732,7 @@ static bool vu_get_vring_base_exec(struct vu_dev *vdev,
 	msg->hdr.size = sizeof(msg->payload.state);
 
 	vdev->vq[idx].started = false;
+	vdev->vq[idx].vring.avail = 0;
 
 	if (vdev->vq[idx].call_fd != -1) {
 		close(vdev->vq[idx].call_fd);
