@@ -13,6 +13,7 @@
  */
 
 #include <errno.h>
+#include <sys/socket.h>
 #include <sys/uio.h>
 
 #include "util.h"
@@ -145,9 +146,9 @@ void repair_handler(struct ctx *c, uint32_t events)
  */
 int repair_flush(struct ctx *c)
 {
-	struct iovec iov = { &repair_cmd, sizeof(repair_cmd) };
 	char buf[CMSG_SPACE(sizeof(int) * SCM_MAX_FD)]
-	     __attribute__ ((aligned(__alignof__(struct cmsghdr))));
+	     __attribute__ ((aligned(__alignof__(struct cmsghdr)))) = { 0 };
+	struct iovec iov = { &repair_cmd, sizeof(repair_cmd) };
 	struct cmsghdr *cmsg;
 	struct msghdr msg;
 	int8_t reply;
@@ -155,8 +156,12 @@ int repair_flush(struct ctx *c)
 	if (!repair_nfds)
 		return 0;
 
-	msg = (struct msghdr){ NULL, 0, &iov, 1,
-			       buf, CMSG_SPACE(sizeof(int) * repair_nfds), 0 };
+	msg = (struct msghdr){ .msg_name = NULL, .msg_namelen = 0,
+			       .msg_iov = &iov, .msg_iovlen = 1,
+			       .msg_control = buf,
+			       .msg_controllen = CMSG_SPACE(sizeof(int) *
+							    repair_nfds),
+			       .msg_flags = 0 };
 	cmsg = CMSG_FIRSTHDR(&msg);
 
 	cmsg->cmsg_level = SOL_SOCKET;

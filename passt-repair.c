@@ -63,6 +63,7 @@ int main(int argc, char **argv)
 	struct cmsghdr *cmsg;
 	struct msghdr msg;
 	struct iovec iov;
+	size_t cmsg_len;
 	int op;
 
 	prctl(PR_SET_DUMPABLE, 0);
@@ -138,8 +139,9 @@ loop:
 		}
 	}
 	if (!n) {
+		cmsg_len = cmsg->cmsg_len; /* socklen_t is 'unsigned' on musl */
 		fprintf(stderr, "Invalid ancillary data length %zu from peer\n",
-			cmsg->cmsg_len);
+			cmsg_len);
 		_exit(1);
 	}
 
