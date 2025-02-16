@@ -556,7 +556,7 @@ eintr:
 			if (readlen >= (long)c->tcp.pipe_size * 10 / 100)
 				continue;
 
-			if (conn->flags & lowat_set_flag &&
+			if (!(conn->flags & lowat_set_flag) &&
 			    readlen > (long)c->tcp.pipe_size / 10) {
 				int lowat = c->tcp.pipe_size / 4;
 
