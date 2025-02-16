@@ -131,8 +131,12 @@ static void tcp_splice_conn_epoll_events(uint16_t events,
 		ev[1].events = EPOLLOUT;
 	}
 
-	flow_foreach_sidei(sidei)
-		ev[sidei].events |= (events & OUT_WAIT(sidei)) ? EPOLLOUT : 0;
+	flow_foreach_sidei(sidei) {
+		if (events & OUT_WAIT(sidei)) {
+			ev[sidei].events |= EPOLLOUT;
+			ev[!sidei].events &= ~EPOLLIN;
+		}
+	}
 }
 
 /**
