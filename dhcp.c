@@ -64,9 +64,9 @@ static struct opt opts[255];
 #define OPT_MIN		60 /* RFC 951 */
 
 /* Total option size (excluding end option) is 576 (RFC 2131), minus
- * offset of options (268), minus end option and its length (2).
+ * offset of options (268), minus end option (1).
  */
-#define OPT_MAX		306
+#define OPT_MAX		307
 
 /**
  * dhcp_init() - Initialise DHCP options
@@ -127,7 +127,7 @@ struct msg {
 	uint8_t sname[64];
 	uint8_t file[128];
 	uint32_t magic;
-	uint8_t o[OPT_MAX + 2 /* End option and its length */ ];
+	uint8_t o[OPT_MAX + 1 /* End option */ ];
 } __attribute__((__packed__));
 
 /**
@@ -194,7 +194,6 @@ static int fill(struct msg *m)
 	}
 
 	m->o[offset++] = 255;
-	m->o[offset++] = 0;
 
 	if (offset < OPT_MIN) {
 		memset(&m->o[offset], 0, OPT_MIN - offset);
