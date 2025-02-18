@@ -143,7 +143,7 @@ static bool fill_one(struct msg *m, int o, int *offset)
 	size_t slen = opts[o].slen;
 
 	/* If we don't have space to write the option, then just skip */
-	if (*offset + 1 /* length of option */ + slen > OPT_MAX)
+	if (*offset + 2 /* code and length of option */ + slen > OPT_MAX)
 		return true;
 
 	m->o[*offset] = o;
