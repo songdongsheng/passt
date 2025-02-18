@@ -1106,7 +1106,7 @@ int flow_migrate_target(struct ctx *c, const struct migrate_stage *stage,
 	repair_flush(c);
 
 	for (i = 0; i < count; i++) {
-		rc = tcp_flow_migrate_target_ext(c, flowtab + i, fd);
+		rc = tcp_flow_migrate_target_ext(c, &flowtab[i].tcp, fd);
 		if (rc) {
 			debug("Migration data failure at flow %u: %s, abort",
 			      i, strerror_(-rc));

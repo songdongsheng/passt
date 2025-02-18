@@ -239,7 +239,7 @@ int tcp_flow_migrate_source_ext(int fd, int fidx,
 				const struct tcp_tap_conn *conn);
 
 int tcp_flow_migrate_target(struct ctx *c, int fd);
-int tcp_flow_migrate_target_ext(struct ctx *c, union flow *flow, int fd);
+int tcp_flow_migrate_target_ext(struct ctx *c, struct tcp_tap_conn *conn, int fd);
 
 bool tcp_flow_is_established(const struct tcp_tap_conn *conn);
 

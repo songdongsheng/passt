@@ -3394,14 +3394,13 @@ int tcp_flow_migrate_target(struct ctx *c, int fd)
 /**
  * tcp_flow_migrate_target_ext() - Receive extended data for flow, set, connect
  * @c:		Execution context
- * @flow:	Existing flow for this connection data
+ * @conn:	Connection entry to complete with extra data
  * @fd:		Descriptor for state migration
  *
  * Return: 0 on success, negative on fatal failure, but 0 on single flow failure
  */
-int tcp_flow_migrate_target_ext(struct ctx *c, union flow *flow, int fd)
+int tcp_flow_migrate_target_ext(struct ctx *c, struct tcp_tap_conn *conn, int fd)
 {
-	struct tcp_tap_conn *conn = &flow->tcp;
 	uint32_t peek_offset = conn->seq_to_tap - conn->seq_ack_from_tap;
 	struct tcp_tap_transfer_ext t;
 	int s = conn->sock, rc;
@@ -3413,7 +3412,7 @@ int tcp_flow_migrate_target_ext(struct ctx *c, union flow *flow, int fd)
 	}
 
 	if (!t.tcpi_state) { /* Source wants us to skip this flow */
-		flow_err(flow, "Dropping as requested by source");
+		flow_err(conn, "Dropping as requested by source");
 		goto fail;
 	}
 
