@@ -109,9 +109,9 @@ passt-repair: $(PASST_REPAIR_SRCS) seccomp_repair.h
 	$(CC) $(FLAGS) $(CFLAGS) $(CPPFLAGS) $(PASST_REPAIR_SRCS) -o passt-repair $(LDFLAGS)
 
 valgrind: EXTRA_SYSCALLS += rt_sigprocmask rt_sigtimedwait rt_sigaction	\
-			    rt_sigreturn getpid gettid kill clock_gettime mmap \
-			    mmap2 munmap open unlink gettimeofday futex statx \
-			    readlink
+			    rt_sigreturn getpid gettid kill clock_gettime \
+			    mmap|mmap2 munmap open unlink gettimeofday futex \
+			    statx readlink
 valgrind: FLAGS += -g -DVALGRIND
 valgrind: all
 
