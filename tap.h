@@ -6,8 +6,6 @@
 #ifndef TAP_H
 #define TAP_H
 
-#define ETH_HDR_INIT(proto) { .h_proto = htons_constant(proto) }
-
 /**
  * struct tap_hdr - tap backend specific headers
  * @vnet_len:	Frame length (for qemu socket transport)
