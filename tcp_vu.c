@@ -38,7 +38,6 @@
 static struct iovec iov_vu[VIRTQUEUE_MAX_SIZE + 1];
 static struct vu_virtq_element elem[VIRTQUEUE_MAX_SIZE];
 static int head[VIRTQUEUE_MAX_SIZE + 1];
-static int head_cnt;
 
 /**
  * tcp_vu_hdrlen() - return the size of the header in level 2 frame (TCP)
@@ -183,7 +182,7 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 static ssize_t tcp_vu_sock_recv(const struct ctx *c,
 				const struct tcp_tap_conn *conn, bool v6,
 				uint32_t already_sent, size_t fillsize,
-				int *iov_cnt)
+				int *iov_cnt, int *head_cnt)
 {
 	struct vu_dev *vdev = c->vdev;
 	struct vu_virtq *vq = &vdev->vq[VHOST_USER_RX_QUEUE];
@@ -202,7 +201,7 @@ static ssize_t tcp_vu_sock_recv(const struct ctx *c,
 	vu_init_elem(elem, &iov_vu[1], VIRTQUEUE_MAX_SIZE);
 
 	elem_cnt = 0;
-	head_cnt = 0;
+	*head_cnt = 0;
 	while (fillsize > 0 && elem_cnt < VIRTQUEUE_MAX_SIZE) {
 		struct iovec *iov;
 		size_t frame_size, dlen;
@@ -221,7 +220,7 @@ static ssize_t tcp_vu_sock_recv(const struct ctx *c,
 		ASSERT(iov->iov_len >= hdrlen);
 		iov->iov_base = (char *)iov->iov_base + hdrlen;
 		iov->iov_len -= hdrlen;
-		head[head_cnt++] = elem_cnt;
+		head[(*head_cnt)++] = elem_cnt;
 
 		fillsize -= dlen;
 		elem_cnt += cnt;
@@ -261,17 +260,18 @@ static ssize_t tcp_vu_sock_recv(const struct ctx *c,
 		len -= iov->iov_len;
 	}
 	/* adjust head count */
-	while (head_cnt > 0 && head[head_cnt - 1] >= i)
-		head_cnt--;
+	while (*head_cnt > 0 && head[*head_cnt - 1] >= i)
+		(*head_cnt)--;
+
 	/* mark end of array */
-	head[head_cnt] = i;
+	head[*head_cnt] = i;
 	*iov_cnt = i;
 
 	/* release unused buffers */
 	vu_queue_rewind(vq, elem_cnt - i);
 
 	/* restore space for headers in iov */
-	for (i = 0; i < head_cnt; i++) {
+	for (i = 0; i < *head_cnt; i++) {
 		struct iovec *iov = &elem[head[i]].in_sg[0];
 
 		iov->iov_base = (char *)iov->iov_base - hdrlen;
@@ -357,11 +357,11 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 	struct vu_dev *vdev = c->vdev;
 	struct vu_virtq *vq = &vdev->vq[VHOST_USER_RX_QUEUE];
 	ssize_t len, previous_dlen;
+	int i, iov_cnt, head_cnt;
 	size_t hdrlen, fillsize;
 	int v6 = CONN_V6(conn);
 	uint32_t already_sent;
 	const uint16_t *check;
-	int i, iov_cnt;
 
 	if (!vu_queue_enabled(vq) || !vu_queue_started(vq)) {
 		debug("Got packet, but RX virtqueue not usable yet");
@@ -396,7 +396,8 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 	/* collect the buffers from vhost-user and fill them with the
 	 * data from the socket
 	 */
-	len = tcp_vu_sock_recv(c, conn, v6, already_sent, fillsize, &iov_cnt);
+	len = tcp_vu_sock_recv(c, conn, v6, already_sent, fillsize,
+			       &iov_cnt, &head_cnt);
 	if (len < 0) {
 		if (len != -EAGAIN && len != -EWOULDBLOCK) {
 			tcp_rst(c, conn);
