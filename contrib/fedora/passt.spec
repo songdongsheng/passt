@@ -44,7 +44,7 @@ Requires(preun): %{name}
 Requires(preun): policycoreutils
 
 %description selinux
-This package adds SELinux enforcement to passt(1) and pasta(1).
+This package adds SELinux enforcement to passt(1), pasta(1), passt-repair(1).
 
 %prep
 %setup -q -n passt-%{git_hash}
@@ -82,6 +82,7 @@ make -f %{_datadir}/selinux/devel/Makefile
 install -p -m 644 -D passt.pp %{buildroot}%{_datadir}/selinux/packages/%{selinuxtype}/passt.pp
 install -p -m 644 -D passt.if %{buildroot}%{_datadir}/selinux/devel/include/distributed/passt.if
 install -p -m 644 -D pasta.pp %{buildroot}%{_datadir}/selinux/packages/%{selinuxtype}/pasta.pp
+install -p -m 644 -D passt-repair.pp %{buildroot}%{_datadir}/selinux/packages/%{selinuxtype}/passt-repair.pp
 popd
 
 %pre selinux
@@ -90,11 +91,13 @@ popd
 %post selinux
 %selinux_modules_install -s %{selinuxtype} %{_datadir}/selinux/packages/%{selinuxtype}/passt.pp
 %selinux_modules_install -s %{selinuxtype} %{_datadir}/selinux/packages/%{selinuxtype}/pasta.pp
+%selinux_modules_install -s %{selinuxtype} %{_datadir}/selinux/packages/%{selinuxtype}/passt-repair.pp
 
 %postun selinux
 if [ $1 -eq 0 ]; then
 	%selinux_modules_uninstall -s %{selinuxtype} passt
 	%selinux_modules_uninstall -s %{selinuxtype} pasta
+	%selinux_modules_uninstall -s %{selinuxtype} passt-repair
 fi
 
 %posttrans selinux
@@ -124,6 +127,7 @@ fi
 %{_datadir}/selinux/packages/%{selinuxtype}/passt.pp
 %{_datadir}/selinux/devel/include/distributed/passt.if
 %{_datadir}/selinux/packages/%{selinuxtype}/pasta.pp
+%{_datadir}/selinux/packages/%{selinuxtype}/passt-repair.pp
 
 %changelog
 {{{ passt_git_changelog }}}
