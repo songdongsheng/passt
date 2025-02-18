@@ -23,23 +23,22 @@
 #include "log.h"
 
 /**
- * packet_check_range() - Check if a packet memory range is valid
+ * packet_check_range() - Check if a memory range is valid for a pool
  * @p:		Packet pool
- * @offset:	Offset of data range in packet descriptor
+ * @ptr:	Start of desired data range
  * @len:	Length of desired data range
- * @start:	Start of the packet descriptor
  * @func:	For tracing: name of calling function
  * @line:	For tracing: caller line of function call
  *
  * Return: 0 if the range is valid, -1 otherwise
  */
-static int packet_check_range(const struct pool *p, size_t offset, size_t len,
-			      const char *start, const char *func, int line)
+static int packet_check_range(const struct pool *p, const char *ptr, size_t len,
+			      const char *func, int line)
 {
 	if (p->buf_size == 0) {
 		int ret;
 
-		ret = vu_packet_check_range((void *)p->buf, offset, len, start);
+		ret = vu_packet_check_range((void *)p->buf, ptr, len);
 
 		if (ret == -1)
 			trace("cannot find region, %s:%i", func, line);
@@ -47,16 +46,16 @@ static int packet_check_range(const struct pool *p, size_t offset, size_t len,
 		return ret;
 	}
 
-	if (start < p->buf) {
-		trace("packet start %p before buffer start %p, "
-		      "%s:%i", (void *)start, (void *)p->buf, func, line);
+	if (ptr < p->buf) {
+		trace("packet range start %p before buffer start %p, %s:%i",
+		      (void *)ptr, (void *)p->buf, func, line);
 		return -1;
 	}
 
-	if (start + len + offset > p->buf + p->buf_size) {
-		trace("packet offset plus length %zu from size %zu, "
-		      "%s:%i", start - p->buf + len + offset,
-		      p->buf_size, func, line);
+	if (ptr + len > p->buf + p->buf_size) {
+		trace("packet range end %p after buffer end %p, %s:%i",
+		      (void *)(ptr + len), (void *)(p->buf + p->buf_size),
+		      func, line);
 		return -1;
 	}
 
@@ -81,7 +80,7 @@ void packet_add_do(struct pool *p, size_t len, const char *start,
 		return;
 	}
 
-	if (packet_check_range(p, 0, len, start, func, line))
+	if (packet_check_range(p, start, len, func, line))
 		return;
 
 	if (len > UINT16_MAX) {
@@ -110,6 +109,8 @@ void packet_add_do(struct pool *p, size_t len, const char *start,
 void *packet_get_do(const struct pool *p, size_t idx, size_t offset,
 		    size_t len, size_t *left, const char *func, int line)
 {
+	char *ptr;
+
 	if (idx >= p->size || idx >= p->count) {
 		if (func) {
 			trace("packet %zu from pool size: %zu, count: %zu, "
@@ -135,14 +136,15 @@ void *packet_get_do(const struct pool *p, size_t idx, size_t offset,
 		return NULL;
 	}
 
-	if (packet_check_range(p, offset, len, p->pkt[idx].iov_base,
-			       func, line))
+	ptr = (char *)p->pkt[idx].iov_base + offset;
+
+	if (packet_check_range(p, ptr, len, func, line))
 		return NULL;
 
 	if (left)
 		*left = p->pkt[idx].iov_len - offset - len;
 
-	return (char *)p->pkt[idx].iov_base + offset;
+	return ptr;
 }
 
 /**

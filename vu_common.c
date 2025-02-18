@@ -26,14 +26,12 @@
  * vu_packet_check_range() - Check if a given memory zone is contained in
  * 			     a mapped guest memory region
  * @buf:	Array of the available memory regions
- * @offset:	Offset of data range in packet descriptor
+ * @ptr:	Start of desired data range
  * @size:	Length of desired data range
- * @start:	Start of the packet descriptor
  *
  * Return: 0 if the zone is in a mapped memory region, -1 otherwise
  */
-int vu_packet_check_range(void *buf, size_t offset, size_t len,
-			  const char *start)
+int vu_packet_check_range(void *buf, const char *ptr, size_t len)
 {
 	struct vu_dev_region *dev_region;
 
@@ -41,9 +39,8 @@ int vu_packet_check_range(void *buf, size_t offset, size_t len,
 		/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
 		char *m = (char *)(uintptr_t)dev_region->mmap_addr;
 
-		if (m <= start &&
-		    start + offset + len <= m + dev_region->mmap_offset +
-					       dev_region->size)
+		if (m <= ptr &&
+		    ptr + len <= m + dev_region->mmap_offset + dev_region->size)
 			return 0;
 	}
 
