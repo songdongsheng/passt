@@ -233,7 +233,6 @@ bool tcp_flow_defer(const struct tcp_tap_conn *conn);
 int tcp_flow_repair_on(struct ctx *c, const struct tcp_tap_conn *conn);
 int tcp_flow_repair_off(struct ctx *c, const struct tcp_tap_conn *conn);
 
-int tcp_flow_migrate_shrink_window(int fidx, const struct tcp_tap_conn *conn);
 int tcp_flow_migrate_source(int fd, struct tcp_tap_conn *conn);
 int tcp_flow_migrate_source_ext(int fd, int fidx,
 				const struct tcp_tap_conn *conn);
