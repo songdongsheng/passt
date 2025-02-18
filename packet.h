@@ -21,7 +21,7 @@ struct pool {
 	size_t buf_size;
 	size_t size;
 	size_t count;
-	struct iovec pkt[1];
+	struct iovec pkt[];
 };
 
 int vu_packet_check_range(void *buf, size_t offset, size_t len,
