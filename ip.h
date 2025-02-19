@@ -36,13 +36,14 @@
 		.tos		= 0,					\
 		.tot_len	= 0,					\
 		.id		= 0,					\
-		.frag_off	= 0,					\
+		.frag_off	= htons(IP_DF), 			\
 		.ttl		= 0xff,					\
 		.protocol	= (proto),				\
 		.saddr		= 0,					\
 		.daddr		= 0,					\
 	}
 #define L2_BUF_IP4_PSUM(proto)	((uint32_t)htons_constant(0x4500) +	\
+				 (uint32_t)htons_constant(IP_DF) +	\
 				 (uint32_t)htons(0xff00 | (proto)))
 
 

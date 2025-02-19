@@ -153,7 +153,7 @@ static void *tap_push_ip4h(struct iphdr *ip4h, struct in_addr src,
 	ip4h->tos = 0;
 	ip4h->tot_len = htons(l3len);
 	ip4h->id = 0;
-	ip4h->frag_off = 0;
+	ip4h->frag_off = htons(IP_DF);
 	ip4h->ttl = 255;
 	ip4h->protocol = proto;
 	ip4h->saddr = src.s_addr;
