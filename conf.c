@@ -1652,20 +1652,29 @@ void conf(struct ctx *c, int argc, char **argv)
 				die("Invalid PID file: %s", optarg);
 
 			break;
-		case 'm':
-			errno = 0;
-			c->mtu = strtol(optarg, NULL, 0);
+		case 'm': {
+			unsigned long mtu;
+			char *e;
 
-			if (!c->mtu) {
+			errno = 0;
+			mtu = strtoul(optarg, &e, 0);
+
+			if (errno || *e)
+				die("Invalid MTU: %s", optarg);
+
+			if (!mtu) {
 				c->mtu = -1;
 				break;
 			}
 
-			if (c->mtu < ETH_MIN_MTU || c->mtu > (int)ETH_MAX_MTU ||
-			    errno)
-				die("Invalid MTU: %s", optarg);
+			if (mtu < ETH_MIN_MTU || mtu > ETH_MAX_MTU) {
+				die("MTU %lu out of range (%u..%u)", mtu,
+				    ETH_MIN_MTU, ETH_MAX_MTU);
+			}
 
+			c->mtu = mtu;
 			break;
+		}
 		case 'a':
 			if (inet_pton(AF_INET6, optarg, &c->ip6.addr)	&&
 			    !IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr)	&&
