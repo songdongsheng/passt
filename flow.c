@@ -53,30 +53,28 @@ const uint8_t flow_proto[] = {
 static_assert(ARRAY_SIZE(flow_proto) == FLOW_NUM_TYPES,
 	      "flow_proto[] doesn't match enum flow_type");
 
-#define foreach_flow(i, flow, bound)					\
-	for ((i) = 0, (flow) = &flowtab[(i)];				\
-	     (i) < (bound);						\
-	     (i)++, (flow) = &flowtab[(i)])				\
+#define foreach_flow(flow, bound)					\
+	for ((flow) = flowtab; FLOW_IDX(flow) < (bound); (flow)++)	\
 		if ((flow)->f.state == FLOW_STATE_FREE)			\
-			(i) += (flow)->free.n - 1;			\
+			(flow) += (flow)->free.n - 1;			\
 		else
 
-#define foreach_active_flow(i, flow, bound)				\
-	foreach_flow((i), (flow), (bound))				\
+#define foreach_active_flow(flow, bound)				\
+	foreach_flow((flow), (bound))					\
 		if ((flow)->f.state != FLOW_STATE_ACTIVE)		\
 			/* NOLINTNEXTLINE(bugprone-branch-clone) */	\
 			continue;					\
 		else
 
-#define foreach_tcp_flow(i, flow, bound)				\
-	foreach_active_flow((i), (flow), (bound))			\
+#define foreach_tcp_flow(flow, bound)					\
+	foreach_active_flow((flow), (bound))				\
 		if ((flow)->f.type != FLOW_TCP)				\
 			/* NOLINTNEXTLINE(bugprone-branch-clone) */	\
 			continue;					\
 		else
 
-#define foreach_established_tcp_flow(i, flow, bound)			\
-	foreach_tcp_flow((i), (flow), (bound))				\
+#define foreach_established_tcp_flow(flow, bound)			\
+	foreach_tcp_flow((flow), (bound))				\
 		if (!tcp_flow_is_established(&(flow)->tcp))		\
 			/* NOLINTNEXTLINE(bugprone-branch-clone) */	\
 			continue;					\
@@ -918,11 +916,10 @@ static int flow_migrate_source_rollback(struct ctx *c, unsigned max_flow,
 					int ret)
 {
 	union flow *flow;
-	unsigned i;
 
 	debug("...roll back migration");
 
-	foreach_established_tcp_flow(i, flow, max_flow)
+	foreach_established_tcp_flow(flow, max_flow)
 		if (tcp_flow_repair_off(c, &flow->tcp))
 			die("Failed to roll back TCP_REPAIR mode");
 
@@ -942,10 +939,9 @@ static int flow_migrate_source_rollback(struct ctx *c, unsigned max_flow,
 static int flow_migrate_repair_all(struct ctx *c, bool enable)
 {
 	union flow *flow;
-	unsigned i;
 	int rc;
 
-	foreach_established_tcp_flow(i, flow, FLOW_MAX) {
+	foreach_established_tcp_flow(flow, FLOW_MAX) {
 		if (enable)
 			rc = tcp_flow_repair_on(c, &flow->tcp);
 		else
@@ -954,14 +950,15 @@ static int flow_migrate_repair_all(struct ctx *c, bool enable)
 		if (rc) {
 			debug("Can't %s repair mode: %s",
 			      enable ? "enable" : "disable", strerror_(-rc));
-			return flow_migrate_source_rollback(c, i, rc);
+			return flow_migrate_source_rollback(c, FLOW_IDX(flow),
+							    rc);
 		}
 	}
 
 	if ((rc = repair_flush(c))) {
 		debug("Can't %s repair mode: %s",
 		      enable ? "enable" : "disable", strerror_(-rc));
-		return flow_migrate_source_rollback(c, i, rc);
+		return flow_migrate_source_rollback(c, FLOW_IDX(flow), rc);
 	}
 
 	return 0;
@@ -1003,13 +1000,12 @@ int flow_migrate_source(struct ctx *c, const struct migrate_stage *stage,
 	uint32_t count = 0;
 	bool first = true;
 	union flow *flow;
-	unsigned i;
 	int rc;
 
 	(void)c;
 	(void)stage;
 
-	foreach_established_tcp_flow(i, flow, FLOW_MAX)
+	foreach_established_tcp_flow(flow, FLOW_MAX)
 		count++;
 
 	count = htonl(count);
@@ -1028,10 +1024,11 @@ int flow_migrate_source(struct ctx *c, const struct migrate_stage *stage,
 	 * stream might now be inconsistent, and we might have closed listening
 	 * TCP sockets, so just terminate.
 	 */
-	foreach_established_tcp_flow(i, flow, FLOW_MAX) {
+	foreach_established_tcp_flow(flow, FLOW_MAX) {
 		rc = tcp_flow_migrate_source(fd, &flow->tcp);
 		if (rc) {
-			err("Can't send data, flow %u: %s", i, strerror_(-rc));
+			err("Can't send data, flow %u: %s", FLOW_IDX(flow),
+			    strerror_(-rc));
 			if (!first)
 				die("Inconsistent migration state, exiting");
 
@@ -1054,10 +1051,11 @@ int flow_migrate_source(struct ctx *c, const struct migrate_stage *stage,
 	 * failures but not if the stream might be inconsistent (reported here
 	 * as EIO).
 	 */
-	foreach_established_tcp_flow(i, flow, FLOW_MAX) {
+	foreach_established_tcp_flow(flow, FLOW_MAX) {
 		rc = tcp_flow_migrate_source_ext(fd, &flow->tcp);
 		if (rc) {
-			err("Extended data for flow %u: %s", i, strerror_(-rc));
+			err("Extended data for flow %u: %s", FLOW_IDX(flow),
+			    strerror_(-rc));
 
 			if (rc == -EIO)
 				die("Inconsistent migration state, exiting");
