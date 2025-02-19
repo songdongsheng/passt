@@ -1139,7 +1139,7 @@ int tcp_prepare_flags(const struct ctx *c, struct tcp_tap_conn *conn,
 	if (flags & SYN) {
 		int mss;
 
-		if (c->mtu == -1) {
+		if (!c->mtu) {
 			mss = tinfo.tcpi_snd_mss;
 		} else {
 			mss = c->mtu - sizeof(struct tcphdr);

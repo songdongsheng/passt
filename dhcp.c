@@ -417,7 +417,7 @@ int dhcp(const struct ctx *c, const struct pool *p)
 		       &c->ip4.guest_gw, sizeof(c->ip4.guest_gw));
 	}
 
-	if (c->mtu != -1) {
+	if (c->mtu) {
 		opts[26].slen = 2;
 		opts[26].s[0] = c->mtu / 256;
 		opts[26].s[1] = c->mtu % 256;

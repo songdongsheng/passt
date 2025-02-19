@@ -319,7 +319,7 @@ void pasta_ns_conf(struct ctx *c)
 	if (c->pasta_conf_ns) {
 		unsigned int flags = IFF_UP;
 
-		if (c->mtu != -1)
+		if (c->mtu)
 			nl_link_set_mtu(nl_sock_ns, c->pasta_ifi, c->mtu);
 
 		if (c->ifi6) /* Avoid duplicate address detection on link up */

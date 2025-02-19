@@ -256,7 +256,7 @@ static void ndp_ra(const struct ctx *c, const struct in6_addr *dst)
 
 	ptr = &ra.var[0];
 
-	if (c->mtu != -1) {
+	if (c->mtu) {
 		struct opt_mtu *mtu = (struct opt_mtu *)ptr;
 		*mtu = (struct opt_mtu) {
 			.header = {

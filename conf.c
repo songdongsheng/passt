@@ -1413,6 +1413,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		optstring = "+dqfel:hs:F:p:P:m:a:n:M:g:i:o:D:S:H:461t:u:";
 	}
 
+	c->mtu = ROUND_DOWN(ETH_MAX_MTU - ETH_HLEN, sizeof(uint32_t));
 	c->tcp.fwd_in.mode = c->tcp.fwd_out.mode = FWD_UNSET;
 	c->udp.fwd_in.mode = c->udp.fwd_out.mode = FWD_UNSET;
 	memcpy(c->our_tap_mac, MAC_OUR_LAA, ETH_ALEN);
@@ -1662,12 +1663,7 @@ void conf(struct ctx *c, int argc, char **argv)
 			if (errno || *e)
 				die("Invalid MTU: %s", optarg);
 
-			if (!mtu) {
-				c->mtu = -1;
-				break;
-			}
-
-			if (mtu < ETH_MIN_MTU || mtu > ETH_MAX_MTU) {
+			if (mtu && (mtu < ETH_MIN_MTU || mtu > ETH_MAX_MTU)) {
 				die("MTU %lu out of range (%u..%u)", mtu,
 				    ETH_MIN_MTU, ETH_MAX_MTU);
 			}
@@ -1979,9 +1975,6 @@ void conf(struct ctx *c, int argc, char **argv)
 	} else if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr)) {
 		c->no_dhcpv6 = 1;
 	}
-
-	if (!c->mtu)
-		c->mtu = ROUND_DOWN(ETH_MAX_MTU - ETH_HLEN, sizeof(uint32_t));
 
 	get_dns(c);
 

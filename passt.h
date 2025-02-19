@@ -274,6 +274,8 @@ struct ctx {
 	int fd_repair;
 	unsigned char our_tap_mac[ETH_ALEN];
 	unsigned char guest_mac[ETH_ALEN];
+	uint16_t mtu;
+
 	uint64_t hash_secret[2];
 
 	int ifi4;
@@ -298,7 +300,6 @@ struct ctx {
 	int no_icmp;
 	struct icmp_ctx icmp;
 
-	int mtu;
 	int no_dns;
 	int no_dns_search;
 	int no_dhcp_dns;
