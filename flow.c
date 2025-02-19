@@ -53,28 +53,8 @@ const uint8_t flow_proto[] = {
 static_assert(ARRAY_SIZE(flow_proto) == FLOW_NUM_TYPES,
 	      "flow_proto[] doesn't match enum flow_type");
 
-#define foreach_flow(flow)						\
-	for ((flow) = flowtab; FLOW_IDX(flow) < FLOW_MAX; (flow)++)	\
-		if ((flow)->f.state == FLOW_STATE_FREE)			\
-			(flow) += (flow)->free.n - 1;			\
-		else
-
-#define foreach_active_flow(flow)					\
-	foreach_flow((flow))						\
-		if ((flow)->f.state != FLOW_STATE_ACTIVE)		\
-			/* NOLINTNEXTLINE(bugprone-branch-clone) */	\
-			continue;					\
-		else
-
-#define foreach_tcp_flow(flow)						\
-	foreach_active_flow((flow))					\
-		if ((flow)->f.type != FLOW_TCP)				\
-			/* NOLINTNEXTLINE(bugprone-branch-clone) */	\
-			continue;					\
-		else
-
 #define foreach_established_tcp_flow(flow)				\
-	foreach_tcp_flow((flow))					\
+	flow_foreach_of_type((flow), FLOW_TCP)				\
 		if (!tcp_flow_is_established(&(flow)->tcp))		\
 			/* NOLINTNEXTLINE(bugprone-branch-clone) */	\
 			continue;					\
@@ -801,7 +781,7 @@ void flow_defer_handler(const struct ctx *c, const struct timespec *now)
 	struct flow_free_cluster *free_head = NULL;
 	unsigned *last_next = &flow_first_free;
 	bool timer = false;
-	unsigned idx;
+	union flow *flow;
 
 	if (timespec_diff_ms(now, &flow_timer_run) >= FLOW_TIMER_INTERVAL) {
 		timer = true;
@@ -810,8 +790,7 @@ void flow_defer_handler(const struct ctx *c, const struct timespec *now)
 
 	ASSERT(!flow_new_entry); /* Incomplete flow at end of cycle */
 
-	for (idx = 0; idx < FLOW_MAX; idx++) {
-		union flow *flow = &flowtab[idx];
+	flow_foreach_slot(flow) {
 		bool closed = false;
 
 		switch (flow->f.state) {
@@ -828,12 +807,12 @@ void flow_defer_handler(const struct ctx *c, const struct timespec *now)
 			} else {
 				/* New free cluster, add to chain */
 				free_head = &flow->free;
-				*last_next = idx;
+				*last_next = FLOW_IDX(flow);
 				last_next = &free_head->next;
 			}
 
 			/* Skip remaining empty entries */
-			idx += skip - 1;
+			flow += skip - 1;
 			continue;
 		}
 
@@ -886,14 +865,15 @@ void flow_defer_handler(const struct ctx *c, const struct timespec *now)
 
 			if (free_head) {
 				/* Add slot to current free cluster */
-				ASSERT(idx == FLOW_IDX(free_head) + free_head->n);
+				ASSERT(FLOW_IDX(flow) ==
+				       FLOW_IDX(free_head) + free_head->n);
 				free_head->n++;
 				flow->free.n = flow->free.next = 0;
 			} else {
 				/* Create new free cluster */
 				free_head = &flow->free;
 				free_head->n = 1;
-				*last_next = idx;
+				*last_next = FLOW_IDX(flow);
 				last_next = &free_head->next;
 			}
 		} else {

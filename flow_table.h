@@ -50,6 +50,42 @@ extern union flow flowtab[];
 #define flow_foreach_sidei(sidei_) \
 	for ((sidei_) = INISIDE; (sidei_) < SIDES; (sidei_)++)
 
+
+/**
+ * flow_foreach_slot() - Step through each flow table entry
+ * @flow:	Takes values of pointer to each flow table entry
+ *
+ * Includes FREE slots.
+ */
+#define flow_foreach_slot(flow)						\
+	for ((flow) = flowtab; FLOW_IDX(flow) < FLOW_MAX; (flow)++)
+
+/**
+ * flow_foreach() - Step through each active flow
+ * @flow:	Takes values of pointer to each active flow
+ */
+#define flow_foreach(flow)						\
+	flow_foreach_slot((flow))					\
+		if ((flow)->f.state == FLOW_STATE_FREE)			\
+			(flow) += (flow)->free.n - 1;			\
+		else if ((flow)->f.state != FLOW_STATE_ACTIVE) {	\
+			flow_err((flow), "Bad flow state during traversal"); \
+			continue;					\
+		} else
+
+/**
+ * flow_foreach_of_type() - Step through each active flow of given type
+ * @flow:	Takes values of pointer to each flow
+ * @type_:	Type of flow to traverse
+ */
+#define flow_foreach_of_type(flow, type_)				\
+	flow_foreach((flow))						\
+	if ((flow)->f.type != (type_))					\
+			/* NOLINTNEXTLINE(bugprone-branch-clone) */	\
+			continue;					\
+		else
+
+
 /** flow_idx() - Index of flow from common structure
  * @f:	Common flow fields pointer
  *
