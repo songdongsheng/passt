@@ -53,28 +53,28 @@ const uint8_t flow_proto[] = {
 static_assert(ARRAY_SIZE(flow_proto) == FLOW_NUM_TYPES,
 	      "flow_proto[] doesn't match enum flow_type");
 
-#define foreach_flow(flow, bound)					\
-	for ((flow) = flowtab; FLOW_IDX(flow) < (bound); (flow)++)	\
+#define foreach_flow(flow)						\
+	for ((flow) = flowtab; FLOW_IDX(flow) < FLOW_MAX; (flow)++)	\
 		if ((flow)->f.state == FLOW_STATE_FREE)			\
 			(flow) += (flow)->free.n - 1;			\
 		else
 
-#define foreach_active_flow(flow, bound)				\
-	foreach_flow((flow), (bound))					\
+#define foreach_active_flow(flow)					\
+	foreach_flow((flow))						\
 		if ((flow)->f.state != FLOW_STATE_ACTIVE)		\
 			/* NOLINTNEXTLINE(bugprone-branch-clone) */	\
 			continue;					\
 		else
 
-#define foreach_tcp_flow(flow, bound)					\
-	foreach_active_flow((flow), (bound))				\
+#define foreach_tcp_flow(flow)						\
+	foreach_active_flow((flow))					\
 		if ((flow)->f.type != FLOW_TCP)				\
 			/* NOLINTNEXTLINE(bugprone-branch-clone) */	\
 			continue;					\
 		else
 
-#define foreach_established_tcp_flow(flow, bound)			\
-	foreach_tcp_flow((flow), (bound))				\
+#define foreach_established_tcp_flow(flow)				\
+	foreach_tcp_flow((flow))					\
 		if (!tcp_flow_is_established(&(flow)->tcp))		\
 			/* NOLINTNEXTLINE(bugprone-branch-clone) */	\
 			continue;					\
@@ -907,21 +907,23 @@ void flow_defer_handler(const struct ctx *c, const struct timespec *now)
 /**
  * flow_migrate_source_rollback() - Disable repair mode, return failure
  * @c:		Execution context
- * @max_flow:	Maximum index of affected flows
+ * @bound:	No need to roll back flow indices >= @bound
  * @ret:	Negative error code
  *
  * Return: @ret
  */
-static int flow_migrate_source_rollback(struct ctx *c, unsigned max_flow,
-					int ret)
+static int flow_migrate_source_rollback(struct ctx *c, unsigned bound, int ret)
 {
 	union flow *flow;
 
 	debug("...roll back migration");
 
-	foreach_established_tcp_flow(flow, max_flow)
+	foreach_established_tcp_flow(flow) {
+		if (FLOW_IDX(flow) >= bound)
+			break;
 		if (tcp_flow_repair_off(c, &flow->tcp))
 			die("Failed to roll back TCP_REPAIR mode");
+	}
 
 	if (repair_flush(c))
 		die("Failed to roll back TCP_REPAIR mode");
@@ -941,7 +943,7 @@ static int flow_migrate_repair_all(struct ctx *c, bool enable)
 	union flow *flow;
 	int rc;
 
-	foreach_established_tcp_flow(flow, FLOW_MAX) {
+	foreach_established_tcp_flow(flow) {
 		if (enable)
 			rc = tcp_flow_repair_on(c, &flow->tcp);
 		else
@@ -1005,7 +1007,7 @@ int flow_migrate_source(struct ctx *c, const struct migrate_stage *stage,
 	(void)c;
 	(void)stage;
 
-	foreach_established_tcp_flow(flow, FLOW_MAX)
+	foreach_established_tcp_flow(flow)
 		count++;
 
 	count = htonl(count);
@@ -1024,7 +1026,7 @@ int flow_migrate_source(struct ctx *c, const struct migrate_stage *stage,
 	 * stream might now be inconsistent, and we might have closed listening
 	 * TCP sockets, so just terminate.
 	 */
-	foreach_established_tcp_flow(flow, FLOW_MAX) {
+	foreach_established_tcp_flow(flow) {
 		rc = tcp_flow_migrate_source(fd, &flow->tcp);
 		if (rc) {
 			err("Can't send data, flow %u: %s", FLOW_IDX(flow),
@@ -1051,7 +1053,7 @@ int flow_migrate_source(struct ctx *c, const struct migrate_stage *stage,
 	 * failures but not if the stream might be inconsistent (reported here
 	 * as EIO).
 	 */
-	foreach_established_tcp_flow(flow, FLOW_MAX) {
+	foreach_established_tcp_flow(flow) {
 		rc = tcp_flow_migrate_source_ext(fd, &flow->tcp);
 		if (rc) {
 			err("Extended data for flow %u: %s", FLOW_IDX(flow),
