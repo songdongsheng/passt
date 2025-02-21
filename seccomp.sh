@@ -255,7 +255,7 @@ for __p in ${__profiles}; do
 	__calls="${__calls} ${EXTRA_SYSCALLS:-}"
 	__calls="$(filter ${__calls})"
 
-	cols="$(stty -a | sed -n 's/.*columns \([0-9]*\).*/\1/p' || :)" 2>/dev/null
+	cols="$(stty -a 2>/dev/null | sed -n 's/.*columns \([0-9]*\).*/\1/p' || :)" 2>/dev/null
 	case $cols in [0-9]*) col_args="-w ${cols}";; *) col_args="";; esac
 	echo "seccomp profile ${__p} allows: ${__calls}" | tr '\n' ' ' | fmt -t ${col_args}
 
