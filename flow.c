@@ -999,6 +999,9 @@ int flow_migrate_source(struct ctx *c, const struct migrate_stage *stage,
 
 	debug("Sending %u flows", ntohl(count));
 
+	if (!count)
+		return 0;
+
 	/* Dump and send information that can be stored in the flow table.
 	 *
 	 * Limited rollback options here: if we fail to transfer any data (that
@@ -1069,6 +1072,9 @@ int flow_migrate_target(struct ctx *c, const struct migrate_stage *stage,
 
 	count = ntohl(count);
 	debug("Receiving %u flows", count);
+
+	if (!count)
+		return 0;
 
 	if ((rc = flow_migrate_repair_all(c, true)))
 		return -rc;
