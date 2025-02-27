@@ -923,6 +923,10 @@ static int flow_migrate_repair_all(struct ctx *c, bool enable)
 	union flow *flow;
 	int rc;
 
+	/* If we don't have a repair helper, there's nothing we can do */
+	if (c->fd_repair < 0)
+		return 0;
+
 	foreach_established_tcp_flow(flow) {
 		if (enable)
 			rc = tcp_flow_repair_on(c, &flow->tcp);
@@ -987,8 +991,11 @@ int flow_migrate_source(struct ctx *c, const struct migrate_stage *stage,
 	(void)c;
 	(void)stage;
 
-	foreach_established_tcp_flow(flow)
-		count++;
+	/* If we don't have a repair helper, we can't migrate TCP flows */
+	if (c->fd_repair >= 0) {
+		foreach_established_tcp_flow(flow)
+			count++;
+	}
 
 	count = htonl(count);
 	if (write_all_buf(fd, &count, sizeof(count))) {
