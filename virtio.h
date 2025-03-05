@@ -174,16 +174,12 @@ static inline bool vu_has_protocol_feature(const struct vu_dev *vdev,
 	return has_feature(vdev->protocol_features, fbit);
 }
 
-bool vu_queue_empty(struct vu_virtq *vq);
 void vu_queue_notify(const struct vu_dev *dev, struct vu_virtq *vq);
 int vu_queue_pop(const struct vu_dev *dev, struct vu_virtq *vq,
 		 struct vu_virtq_element *elem);
 void vu_queue_detach_element(struct vu_virtq *vq);
 void vu_queue_unpop(struct vu_virtq *vq);
 bool vu_queue_rewind(struct vu_virtq *vq, unsigned int num);
-void vu_queue_fill_by_index(const struct vu_dev *vdev, struct vu_virtq *vq,
-			    unsigned int index, unsigned int len,
-			    unsigned int idx);
 void vu_queue_fill(const struct vu_dev *vdev, struct vu_virtq *vq,
 		   const struct vu_virtq_element *elem, unsigned int len,
 		   unsigned int idx);

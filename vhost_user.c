@@ -517,7 +517,7 @@ static void vu_close_log(struct vu_dev *vdev)
  * vu_log_kick() - Inform the front-end that the log has been modified
  * @vdev:	vhost-user device
  */
-void vu_log_kick(const struct vu_dev *vdev)
+static void vu_log_kick(const struct vu_dev *vdev)
 {
 	if (vdev->log_call_fd != -1) {
 		int rc;

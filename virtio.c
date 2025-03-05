@@ -286,7 +286,7 @@ static int virtqueue_read_next_desc(const struct vring_desc *desc,
  *
  * Return: true if the virtqueue is empty, false otherwise
  */
-bool vu_queue_empty(struct vu_virtq *vq)
+static bool vu_queue_empty(struct vu_virtq *vq)
 {
 	if (!vq->vring.avail)
 		return true;
@@ -671,9 +671,10 @@ static void vu_log_queue_fill(const struct vu_dev *vdev, struct vu_virtq *vq,
  * @len:	Size of the element
  * @idx:	Used ring entry index
  */
-void vu_queue_fill_by_index(const struct vu_dev *vdev, struct vu_virtq *vq,
-			    unsigned int index, unsigned int len,
-			    unsigned int idx)
+static void vu_queue_fill_by_index(const struct vu_dev *vdev,
+				   struct vu_virtq *vq,
+				   unsigned int index, unsigned int len,
+				   unsigned int idx)
 {
 	struct vring_used_elem uelem;
 
