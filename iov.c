@@ -203,6 +203,7 @@ size_t iov_tail_size(struct iov_tail *tail)
  *	    overruns the IO vector, is not contiguous or doesn't have the
  *	    requested alignment.
  */
+/* cppcheck-suppress [staticFunction,unmatchedSuppression] */
 void *iov_peek_header_(struct iov_tail *tail, size_t len, size_t align)
 {
 	char *p;

@@ -281,6 +281,7 @@ static void passt_vsyslog(bool newline, int pri, const char *format, va_list ap)
  * @format:	Message
  * @ap:		Variable argument list
  */
+/* cppcheck-suppress [staticFunction,unmatchedSuppression] */
 void vlogmsg(bool newline, bool cont, int pri, const char *format, va_list ap)
 {
 	bool debug_print = (log_mask & LOG_MASK(LOG_DEBUG)) && log_file == -1;
