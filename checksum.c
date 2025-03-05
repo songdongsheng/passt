@@ -85,7 +85,7 @@
  */
 /* NOLINTNEXTLINE(clang-diagnostic-unknown-attributes) */
 __attribute__((optimize("-fno-strict-aliasing")))
-uint32_t sum_16b(const void *buf, size_t len)
+static uint32_t sum_16b(const void *buf, size_t len)
 {
 	const uint16_t *p = buf;
 	uint32_t sum = 0;
@@ -107,7 +107,7 @@ uint32_t sum_16b(const void *buf, size_t len)
  *
  * Return: 16-bit folded sum
  */
-uint16_t csum_fold(uint32_t sum)
+static uint16_t csum_fold(uint32_t sum)
 {
 	while (sum >> 16)
 		sum = (sum & 0xffff) + (sum >> 16);
@@ -159,6 +159,21 @@ uint32_t proto_ipv4_header_psum(uint16_t l4len, uint8_t protocol,
 	psum += htons(l4len);
 
 	return psum;
+}
+
+/**
+ * csum() - Compute TCP/IP-style checksum
+ * @buf:	Input buffer
+ * @len:	Input length
+ * @init:	Initial 32-bit checksum, 0 for no pre-computed checksum
+ *
+ * Return: 16-bit folded, complemented checksum
+ */
+/* NOLINTNEXTLINE(clang-diagnostic-unknown-attributes) */
+__attribute__((optimize("-fno-strict-aliasing")))	/* See csum_16b() */
+static uint16_t csum(const void *buf, size_t len, uint32_t init)
+{
+	return (uint16_t)~csum_fold(csum_unfolded(buf, len, init));
 }
 
 /**
@@ -481,21 +496,6 @@ uint32_t csum_unfolded(const void *buf, size_t len, uint32_t init)
 	return sum_16b(buf, len) + init;
 }
 #endif /* !__AVX2__ */
-
-/**
- * csum() - Compute TCP/IP-style checksum
- * @buf:	Input buffer
- * @len:	Input length
- * @init:	Initial 32-bit checksum, 0 for no pre-computed checksum
- *
- * Return: 16-bit folded, complemented checksum
- */
-/* NOLINTNEXTLINE(clang-diagnostic-unknown-attributes) */
-__attribute__((optimize("-fno-strict-aliasing")))	/* See csum_16b() */
-uint16_t csum(const void *buf, size_t len, uint32_t init)
-{
-	return (uint16_t)~csum_fold(csum_unfolded(buf, len, init));
-}
 
 /**
  * csum_iov_tail() - Calculate unfolded checksum for the tail of an IO vector
