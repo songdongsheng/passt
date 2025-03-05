@@ -34,14 +34,8 @@
 #ifndef ETH_MAX_MTU
 #define ETH_MAX_MTU			USHRT_MAX
 #endif
-#ifndef ETH_MIN_MTU
-#define ETH_MIN_MTU			68
-#endif
 #ifndef IP_MAX_MTU
 #define IP_MAX_MTU			USHRT_MAX
-#endif
-#ifndef IPV6_MIN_MTU
-#define IPV6_MIN_MTU			1280
 #endif
 
 #ifndef MIN

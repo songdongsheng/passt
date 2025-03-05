@@ -1663,9 +1663,9 @@ void conf(struct ctx *c, int argc, char **argv)
 			if (errno || *e)
 				die("Invalid MTU: %s", optarg);
 
-			if (mtu && (mtu < ETH_MIN_MTU || mtu > ETH_MAX_MTU)) {
-				die("MTU %lu out of range (%u..%u)", mtu,
-				    ETH_MIN_MTU, ETH_MAX_MTU);
+			if (mtu > ETH_MAX_MTU) {
+				die("MTU %lu too large (max %u)",
+				    mtu, ETH_MAX_MTU);
 			}
 
 			c->mtu = mtu;
@@ -1842,9 +1842,21 @@ void conf(struct ctx *c, int argc, char **argv)
 		c->ifi4 = conf_ip4(ifi4, &c->ip4);
 	if (!v4_only)
 		c->ifi6 = conf_ip6(ifi6, &c->ip6);
+
+	if (c->ifi4 && c->mtu < IPV4_MIN_MTU) {
+		warn("MTU %"PRIu16" is too small for IPv4 (minimum %u)",
+		     c->mtu, IPV4_MIN_MTU);
+	}
+	if (c->ifi6 && c->mtu < IPV6_MIN_MTU) {
+		warn("MTU %"PRIu16" is too small for IPv6 (minimum %u)",
+			     c->mtu, IPV6_MIN_MTU);
+	}
+
 	if ((*c->ip4.ifname_out && !c->ifi4) ||
 	    (*c->ip6.ifname_out && !c->ifi6))
 		die("External interface not usable");
+
+
 	if (!c->ifi4 && !c->ifi6) {
 		info("No external interface as template, switch to local mode");
 

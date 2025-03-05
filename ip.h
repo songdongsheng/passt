@@ -129,4 +129,11 @@ static const struct in6_addr in6addr_ll_all_nodes = {
 /* IPv4 Limited Broadcast (RFC 919, Section 7), 255.255.255.255 */
 static const struct in_addr in4addr_broadcast = { 0xffffffff };
 
+#ifndef IPV4_MIN_MTU
+#define IPV4_MIN_MTU		68
+#endif
+#ifndef IPV6_MIN_MTU
+#define IPV6_MIN_MTU		1280
+#endif
+
 #endif /* IP_H */
