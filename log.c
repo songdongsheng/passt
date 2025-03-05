@@ -250,6 +250,30 @@ static void logfile_write(bool newline, bool cont, int pri,
 }
 
 /**
+ * passt_vsyslog() - vsyslog() implementation not using heap memory
+ * @newline:	Append newline at the end of the message, if missing
+ * @pri:	Facility and level map, same as priority for vsyslog()
+ * @format:	Same as vsyslog() format
+ * @ap:		Same as vsyslog() ap
+ */
+static void passt_vsyslog(bool newline, int pri, const char *format, va_list ap)
+{
+	char buf[BUFSIZ];
+	int n;
+
+	/* Send without timestamp, the system logger should add it */
+	n = snprintf(buf, BUFSIZ, "<%i> %s: ", pri, log_ident);
+
+	n += vsnprintf(buf + n, BUFSIZ - n, format, ap);
+
+	if (newline && format[strlen(format)] != '\n')
+		n += snprintf(buf + n, BUFSIZ - n, "\n");
+
+	if (log_sock >= 0 && send(log_sock, buf, n, 0) != n && log_stderr)
+		FPRINTF(stderr, "Failed to send %i bytes to syslog\n", n);
+}
+
+/**
  * vlogmsg() - Print or send messages to log or output files as configured
  * @newline:	Append newline at the end of the message, if missing
  * @cont:	Continuation of a previous message, on the same line
@@ -371,30 +395,6 @@ void __setlogmask(int mask)
 {
 	log_mask = mask;
 	setlogmask(mask);
-}
-
-/**
- * passt_vsyslog() - vsyslog() implementation not using heap memory
- * @newline:	Append newline at the end of the message, if missing
- * @pri:	Facility and level map, same as priority for vsyslog()
- * @format:	Same as vsyslog() format
- * @ap:		Same as vsyslog() ap
- */
-void passt_vsyslog(bool newline, int pri, const char *format, va_list ap)
-{
-	char buf[BUFSIZ];
-	int n;
-
-	/* Send without timestamp, the system logger should add it */
-	n = snprintf(buf, BUFSIZ, "<%i> %s: ", pri, log_ident);
-
-	n += vsnprintf(buf + n, BUFSIZ - n, format, ap);
-
-	if (newline && format[strlen(format)] != '\n')
-		n += snprintf(buf + n, BUFSIZ - n, "\n");
-
-	if (log_sock >= 0 && send(log_sock, buf, n, 0) != n && log_stderr)
-		FPRINTF(stderr, "Failed to send %i bytes to syslog\n", n);
 }
 
 /**
