@@ -355,7 +355,7 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
  *
  * Return: true if a gateway was found, false otherwise
  */
-bool nl_route_get_def_multipath(struct rtattr *rta, void *gw)
+static bool nl_route_get_def_multipath(struct rtattr *rta, void *gw)
 {
 	int nh_len = RTA_PAYLOAD(rta);
 	struct rtnexthop *rtnh;

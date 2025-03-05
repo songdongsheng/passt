@@ -56,7 +56,7 @@ bool		log_stderr = true;	/* Not daemonised, no shell spawned */
  *
  * Return: pointer to @now, or NULL if there was an error retrieving the time
  */
-const struct timespec *logtime(struct timespec *ts)
+static const struct timespec *logtime(struct timespec *ts)
 {
 	if (clock_gettime(CLOCK_MONOTONIC, ts))
 		return NULL;

@@ -166,7 +166,7 @@ void proto_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s)
  *
  * #syscalls exit_group
  */
-void exit_handler(int signal)
+static void exit_handler(int signal)
 {
 	(void)signal;
 

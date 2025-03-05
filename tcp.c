@@ -2497,7 +2497,7 @@ static void tcp_ns_sock_init6(const struct ctx *c, in_port_t port)
  * @c:		Execution context
  * @port:	Port, host order
  */
-void tcp_ns_sock_init(const struct ctx *c, in_port_t port)
+static void tcp_ns_sock_init(const struct ctx *c, in_port_t port)
 {
 	ASSERT(!c->no_tcp);
 
@@ -3141,7 +3141,7 @@ static int tcp_flow_dump_rcvqueue(int s, struct tcp_tap_transfer_ext *t)
  *
  * Return: 0 on success, negative error code on failure
  */
-int tcp_flow_repair_opt(int s, const struct tcp_tap_transfer_ext *t)
+static int tcp_flow_repair_opt(int s, const struct tcp_tap_transfer_ext *t)
 {
 	const struct tcp_repair_opt opts[] = {
 		{ TCPOPT_WINDOW,		t->snd_ws + (t->rcv_ws << 16) },
@@ -3333,7 +3333,7 @@ fail:
  *
  * Return: 0 on success, negative error code on failure
  */
-int tcp_flow_repair_socket(struct ctx *c, struct tcp_tap_conn *conn)
+static int tcp_flow_repair_socket(struct ctx *c, struct tcp_tap_conn *conn)
 {
 	sa_family_t af = CONN_V4(conn) ? AF_INET : AF_INET6;
 	const struct flowside *sockside = HOSTFLOW(conn);
