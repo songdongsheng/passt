@@ -787,7 +787,8 @@ static void tcp_sock_set_nodelay(int s)
  * @th:		TCP header (updated)
  * @payload:	TCP payload
  */
-void tcp_update_csum(uint32_t psum, struct tcphdr *th, struct iov_tail *payload)
+static void tcp_update_csum(uint32_t psum, struct tcphdr *th,
+			    struct iov_tail *payload)
 {
 	th->check = 0;
 	psum = csum_unfolded(th, sizeof(*th), psum);

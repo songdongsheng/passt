@@ -166,8 +166,6 @@ void tcp_rst_do(const struct ctx *c, struct tcp_tap_conn *conn);
 
 struct tcp_info_linux;
 
-void tcp_update_csum(uint32_t psum, struct tcphdr *th,
-		     struct iov_tail *payload);
 void tcp_fill_headers(const struct tcp_tap_conn *conn,
 		      struct tap_hdr *taph,
 		      struct iphdr *ip4h, struct ipv6hdr *ip6h,
