@@ -261,7 +261,7 @@ void *tap_push_ip6h(struct ipv6hdr *ip6h,
 	ip6h->saddr = *src;
 	ip6h->daddr = *dst;
 	ip6_set_flow_lbl(ip6h, flow);
-	return ip6h + 1;
+	return (char *)ip6h + sizeof(*ip6h);
 }
 
 /**

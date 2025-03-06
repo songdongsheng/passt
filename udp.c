@@ -88,6 +88,7 @@
 #include <netinet/ip.h>
 #include <netinet/udp.h>
 #include <netinet/ip_icmp.h>
+#include <netinet/icmp6.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -115,6 +116,9 @@
 
 /* Maximum UDP data to be returned in ICMP messages */
 #define ICMP4_MAX_DLEN 8
+#define ICMP6_MAX_DLEN (IPV6_MIN_MTU			\
+			- sizeof(struct udphdr)	\
+			- sizeof(struct ipv6hdr))
 
 /* "Spliced" sockets indexed by bound port (host order) */
 static int udp_splice_ns  [IP_VERSIONS][NUM_PORTS];
@@ -449,6 +453,51 @@ static void udp_send_conn_fail_icmp4(const struct ctx *c,
 	tap_icmp4_send(c, saddr, eaddr, &msg, msglen);
 }
 
+
+/**
+ * udp_send_conn_fail_icmp6() - Construct and send ICMPv6 to local peer
+ * @c:		Execution context
+ * @ee:	Extended error descriptor
+ * @toside:	Destination side of flow
+ * @saddr:	Address of ICMP generating node
+ * @in:	First bytes (max 1232) of original UDP message body
+ * @dlen:	Length of the read part of original UDP message body
+ * @flow:	IPv6 flow identifier
+ */
+static void udp_send_conn_fail_icmp6(const struct ctx *c,
+				     const struct sock_extended_err *ee,
+				     const struct flowside *toside,
+				     const struct in6_addr *saddr,
+				     void *in, size_t dlen, uint32_t flow)
+{
+	const struct in6_addr *oaddr = &toside->oaddr.a6;
+	const struct in6_addr *eaddr = &toside->eaddr.a6;
+	in_port_t eport = toside->eport;
+	in_port_t oport = toside->oport;
+	struct {
+		struct icmp6_hdr icmp6h;
+		struct ipv6hdr ip6h;
+		struct udphdr uh;
+		char data[ICMP6_MAX_DLEN];
+	} __attribute__((packed, aligned(__alignof__(max_align_t)))) msg;
+	size_t msglen = sizeof(msg) - sizeof(msg.data) + dlen;
+	size_t l4len = dlen + sizeof(struct udphdr);
+
+	ASSERT(dlen <= ICMP6_MAX_DLEN);
+	memset(&msg, 0, sizeof(msg));
+	msg.icmp6h.icmp6_type = ee->ee_type;
+	msg.icmp6h.icmp6_code = ee->ee_code;
+	if (ee->ee_type == ICMP6_PACKET_TOO_BIG)
+		msg.icmp6h.icmp6_dataun.icmp6_un_data32[0] = htonl(ee->ee_info);
+
+	/* Reconstruct the original headers as returned in the ICMP message */
+	tap_push_ip6h(&msg.ip6h, eaddr, oaddr, l4len, IPPROTO_UDP, flow);
+	tap_push_uh6(&msg.uh, eaddr, eport, oaddr, oport, in, dlen);
+	memcpy(&msg.data, in, dlen);
+
+	tap_icmp6_send(c, saddr, eaddr, &msg, msglen);
+}
+
 /**
  * udp_sock_recverr() - Receive and clear an error from a socket
  * @c:		Execution context
@@ -465,7 +514,7 @@ static int udp_sock_recverr(const struct ctx *c, union epoll_ref ref)
 	const struct cmsghdr *hdr;
 	union sockaddr_inany saddr;
 	char buf[CMSG_SPACE(sizeof(*ee))];
-	char data[ICMP4_MAX_DLEN];
+	char data[ICMP6_MAX_DLEN];
 	int s = ref.fd;
 	struct iovec iov = {
 		.iov_base = data,
@@ -508,9 +557,17 @@ static int udp_sock_recverr(const struct ctx *c, union epoll_ref ref)
 	if (ref.type == EPOLL_TYPE_UDP_REPLY) {
 		flow_sidx_t sidx = flow_sidx_opposite(ref.flowside);
 		const struct flowside *toside = flowside_at_sidx(sidx);
+		size_t dlen = rc;
 
-		udp_send_conn_fail_icmp4(c, ee, toside, saddr.sa4.sin_addr,
-					 data, rc);
+		if (hdr->cmsg_level == IPPROTO_IP) {
+			dlen = MIN(dlen, ICMP4_MAX_DLEN);
+			udp_send_conn_fail_icmp4(c, ee, toside, saddr.sa4.sin_addr,
+						 data, dlen);
+		} else if (hdr->cmsg_level == IPPROTO_IPV6) {
+			udp_send_conn_fail_icmp6(c, ee, toside,
+						 &saddr.sa6.sin6_addr,
+						 data, dlen, sidx.flowi);
+		}
 	} else {
 		trace("Ignoring received IP_RECVERR cmsg on listener socket");
 	}
