@@ -265,7 +265,7 @@ void *tap_push_ip6h(struct ipv6hdr *ip6h,
 }
 
 /**
- * tap_udp6_send() - Send UDP over IPv6 packet
+ * tap_push_uh6() - Build UDPv6 header with checksum
  * @c:		Execution context
  * @src:	IPv6 source address
  * @sport:	UDP source port
@@ -273,6 +273,38 @@ void *tap_push_ip6h(struct ipv6hdr *ip6h,
  * @dport:	UDP destination port
  * @flow:	Flow label
  * @in:		UDP payload contents (not including UDP header)
+ * @dlen:	UDP payload length (not including UDP header)
+ *
+ * Return: pointer at which to write the packet's payload
+ */
+void *tap_push_uh6(struct udphdr *uh,
+		   const struct in6_addr *src, in_port_t sport,
+		   const struct in6_addr *dst, in_port_t dport,
+		   void *in, size_t dlen)
+{
+	size_t l4len = dlen + sizeof(struct udphdr);
+	const struct iovec iov = {
+		.iov_base = in,
+		.iov_len = dlen
+	};
+	struct iov_tail payload = IOV_TAIL(&iov, 1, 0);
+
+	uh->source = htons(sport);
+	uh->dest = htons(dport);
+	uh->len = htons(l4len);
+	csum_udp6(uh, src, dst, &payload);
+	return (char *)uh + sizeof(*uh);
+}
+
+/**
+ * tap_udp6_send() - Send UDP over IPv6 packet
+ * @c:		Execution context
+ * @src:	IPv6 source address
+ * @sport:	UDP source port
+ * @dst:	IPv6 destination address
+ * @dport:	UDP destination port
+ * @flow:	Flow label
+ * @in:	UDP payload contents (not including UDP header)
  * @dlen:	UDP payload length (not including UDP header)
  */
 void tap_udp6_send(const struct ctx *c,
@@ -285,19 +317,9 @@ void tap_udp6_send(const struct ctx *c,
 	struct ipv6hdr *ip6h = tap_push_l2h(c, buf, ETH_P_IPV6);
 	struct udphdr *uh = tap_push_ip6h(ip6h, src, dst,
 					  l4len, IPPROTO_UDP, flow);
-	char *data = (char *)(uh + 1);
-	const struct iovec iov = {
-		.iov_base = in,
-		.iov_len = dlen
-	};
-	struct iov_tail payload = IOV_TAIL(&iov, 1, 0);
+	char *data = tap_push_uh6(uh, src, sport, dst, dport, in, dlen);
 
-	uh->source = htons(sport);
-	uh->dest = htons(dport);
-	uh->len = htons(l4len);
-	csum_udp6(uh, src, dst, &payload);
 	memcpy(data, in, dlen);
-
 	tap_send_single(c, buf, dlen + (data - buf));
 }
 
