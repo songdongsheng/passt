@@ -163,7 +163,7 @@ void *tap_push_ip4h(struct iphdr *ip4h, struct in_addr src,
 }
 
 /**
- * tap_udp4_send() - Send UDP over IPv4 packet
+ * tap_push_uh4() - Build UDPv4 header with checksum
  * @c:		Execution context
  * @src:	IPv4 source address
  * @sport:	UDP source port
@@ -171,16 +171,14 @@ void *tap_push_ip4h(struct iphdr *ip4h, struct in_addr src,
  * @dport:	UDP destination port
  * @in:		UDP payload contents (not including UDP header)
  * @dlen:	UDP payload length (not including UDP header)
+ *
+ * Return: pointer at which to write the packet's payload
  */
-void tap_udp4_send(const struct ctx *c, struct in_addr src, in_port_t sport,
+void *tap_push_uh4(struct udphdr *uh, struct in_addr src, in_port_t sport,
 		   struct in_addr dst, in_port_t dport,
 		   const void *in, size_t dlen)
 {
 	size_t l4len = dlen + sizeof(struct udphdr);
-	char buf[USHRT_MAX];
-	struct iphdr *ip4h = tap_push_l2h(c, buf, ETH_P_IP);
-	struct udphdr *uh = tap_push_ip4h(ip4h, src, dst, l4len, IPPROTO_UDP);
-	char *data = (char *)(uh + 1);
 	const struct iovec iov = {
 		.iov_base = (void *)in,
 		.iov_len = dlen
@@ -191,8 +189,30 @@ void tap_udp4_send(const struct ctx *c, struct in_addr src, in_port_t sport,
 	uh->dest = htons(dport);
 	uh->len = htons(l4len);
 	csum_udp4(uh, src, dst, &payload);
-	memcpy(data, in, dlen);
+	return (char *)uh + sizeof(*uh);
+}
 
+/**
+ * tap_udp4_send() - Send UDP over IPv4 packet
+ * @c:		Execution context
+ * @src:	IPv4 source address
+ * @sport:	UDP source port
+ * @dst:	IPv4 destination address
+ * @dport:	UDP destination port
+ * @in:	UDP payload contents (not including UDP header)
+ * @dlen:	UDP payload length (not including UDP header)
+ */
+void tap_udp4_send(const struct ctx *c, struct in_addr src, in_port_t sport,
+		   struct in_addr dst, in_port_t dport,
+		   const void *in, size_t dlen)
+{
+	size_t l4len = dlen + sizeof(struct udphdr);
+	char buf[USHRT_MAX];
+	struct iphdr *ip4h = tap_push_l2h(c, buf, ETH_P_IP);
+	struct udphdr *uh = tap_push_ip4h(ip4h, src, dst, l4len, IPPROTO_UDP);
+	char *data = tap_push_uh4(uh, src, sport, dst, dport, in, dlen);
+
+	memcpy(data, in, dlen);
 	tap_send_single(c, buf, dlen + (data - buf));
 }
 
