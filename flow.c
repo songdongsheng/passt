@@ -912,6 +912,21 @@ static int flow_migrate_source_rollback(struct ctx *c, unsigned bound, int ret)
 }
 
 /**
+ * flow_migrate_need_repair() - Do we need to set repair mode for any flow?
+ *
+ * Return: true if repair mode is needed, false otherwise
+ */
+static bool flow_migrate_need_repair(void)
+{
+	union flow *flow;
+
+	foreach_established_tcp_flow(flow)
+		return true;
+
+	return false;
+}
+
+/**
  * flow_migrate_repair_all() - Turn repair mode on or off for all flows
  * @c:		Execution context
  * @enable:	Switch repair mode on if set, off otherwise
@@ -965,6 +980,9 @@ int flow_migrate_source_pre(struct ctx *c, const struct migrate_stage *stage,
 
 	(void)stage;
 	(void)fd;
+
+	if (flow_migrate_need_repair())
+		repair_wait(c);
 
 	if ((rc = flow_migrate_repair_all(c, true)))
 		return -rc;
@@ -1082,6 +1100,8 @@ int flow_migrate_target(struct ctx *c, const struct migrate_stage *stage,
 
 	if (!count)
 		return 0;
+
+	repair_wait(c);
 
 	if ((rc = flow_migrate_repair_all(c, true)))
 		return -rc;
