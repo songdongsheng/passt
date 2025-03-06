@@ -159,7 +159,7 @@ void *tap_push_ip4h(struct iphdr *ip4h, struct in_addr src,
 	ip4h->saddr = src.s_addr;
 	ip4h->daddr = dst.s_addr;
 	ip4h->check = csum_ip4_header(l3len, proto, src, dst);
-	return ip4h + 1;
+	return (char *)ip4h + sizeof(*ip4h);
 }
 
 /**

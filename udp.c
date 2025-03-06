@@ -87,6 +87,7 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
+#include <netinet/ip_icmp.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -111,6 +112,9 @@
 #include "flow_table.h"
 #include "udp_internal.h"
 #include "udp_vu.h"
+
+/* Maximum UDP data to be returned in ICMP messages */
+#define ICMP4_MAX_DLEN 8
 
 /* "Spliced" sockets indexed by bound port (host order) */
 static int udp_splice_ns  [IP_VERSIONS][NUM_PORTS];
@@ -403,24 +407,75 @@ static void udp_tap_prepare(const struct mmsghdr *mmh,
 }
 
 /**
+ * udp_send_conn_fail_icmp4() - Construct and send ICMPv4 to local peer
+ * @c:		Execution context
+ * @ee:	Extended error descriptor
+ * @toside:	Destination side of flow
+ * @saddr:	Address of ICMP generating node
+ * @in:	First bytes (max 8) of original UDP message body
+ * @dlen:	Length of the read part of original UDP message body
+ */
+static void udp_send_conn_fail_icmp4(const struct ctx *c,
+				     const struct sock_extended_err *ee,
+				     const struct flowside *toside,
+				     struct in_addr saddr,
+				     const void *in, size_t dlen)
+{
+	struct in_addr oaddr = toside->oaddr.v4mapped.a4;
+	struct in_addr eaddr = toside->eaddr.v4mapped.a4;
+	in_port_t eport = toside->eport;
+	in_port_t oport = toside->oport;
+	struct {
+		struct icmphdr icmp4h;
+		struct iphdr ip4h;
+		struct udphdr uh;
+		char data[ICMP4_MAX_DLEN];
+	} __attribute__((packed, aligned(__alignof__(max_align_t)))) msg;
+	size_t msglen = sizeof(msg) - sizeof(msg.data) + dlen;
+	size_t l4len = dlen + sizeof(struct udphdr);
+
+	ASSERT(dlen <= ICMP4_MAX_DLEN);
+	memset(&msg, 0, sizeof(msg));
+	msg.icmp4h.type = ee->ee_type;
+	msg.icmp4h.code = ee->ee_code;
+	if (ee->ee_type == ICMP_DEST_UNREACH && ee->ee_code == ICMP_FRAG_NEEDED)
+		msg.icmp4h.un.frag.mtu = htons((uint16_t) ee->ee_info);
+
+	/* Reconstruct the original headers as returned in the ICMP message */
+	tap_push_ip4h(&msg.ip4h, eaddr, oaddr, l4len, IPPROTO_UDP);
+	tap_push_uh4(&msg.uh, eaddr, eport, oaddr, oport, in, dlen);
+	memcpy(&msg.data, in, dlen);
+
+	tap_icmp4_send(c, saddr, eaddr, &msg, msglen);
+}
+
+/**
  * udp_sock_recverr() - Receive and clear an error from a socket
- * @s:		Socket to receive from
+ * @c:		Execution context
+ * @ref:	epoll reference
  *
  * Return: 1 if error received and processed, 0 if no more errors in queue, < 0
  *         if there was an error reading the queue
  *
  * #syscalls recvmsg
  */
-static int udp_sock_recverr(int s)
+static int udp_sock_recverr(const struct ctx *c, union epoll_ref ref)
 {
 	const struct sock_extended_err *ee;
 	const struct cmsghdr *hdr;
+	union sockaddr_inany saddr;
 	char buf[CMSG_SPACE(sizeof(*ee))];
+	char data[ICMP4_MAX_DLEN];
+	int s = ref.fd;
+	struct iovec iov = {
+		.iov_base = data,
+		.iov_len = sizeof(data)
+	};
 	struct msghdr mh = {
-		.msg_name = NULL,
-		.msg_namelen = 0,
-		.msg_iov = NULL,
-		.msg_iovlen = 0,
+		.msg_name = &saddr,
+		.msg_namelen = sizeof(saddr),
+		.msg_iov = &iov,
+		.msg_iovlen = 1,
 		.msg_control = buf,
 		.msg_controllen = sizeof(buf),
 	};
@@ -450,8 +505,15 @@ static int udp_sock_recverr(int s)
 	}
 
 	ee = (const struct sock_extended_err *)CMSG_DATA(hdr);
+	if (ref.type == EPOLL_TYPE_UDP_REPLY) {
+		flow_sidx_t sidx = flow_sidx_opposite(ref.flowside);
+		const struct flowside *toside = flowside_at_sidx(sidx);
 
-	/* TODO: When possible propagate and otherwise handle errors */
+		udp_send_conn_fail_icmp4(c, ee, toside, saddr.sa4.sin_addr,
+					 data, rc);
+	} else {
+		trace("Ignoring received IP_RECVERR cmsg on listener socket");
+	}
 	debug("%s error on UDP socket %i: %s",
 	      str_ee_origin(ee), s, strerror_(ee->ee_errno));
 
@@ -461,15 +523,16 @@ static int udp_sock_recverr(int s)
 /**
  * udp_sock_errs() - Process errors on a socket
  * @c:		Execution context
- * @s:		Socket to receive from
+ * @ref:	epoll reference
  * @events:	epoll events bitmap
  *
  * Return: Number of errors handled, or < 0 if we have an unrecoverable error
  */
-int udp_sock_errs(const struct ctx *c, int s, uint32_t events)
+int udp_sock_errs(const struct ctx *c, union epoll_ref ref, uint32_t events)
 {
 	unsigned n_err = 0;
 	socklen_t errlen;
+	int s = ref.fd;
 	int rc, err;
 
 	ASSERT(!c->no_udp);
@@ -478,7 +541,7 @@ int udp_sock_errs(const struct ctx *c, int s, uint32_t events)
 		return 0; /* Nothing to do */
 
 	/* Empty the error queue */
-	while ((rc = udp_sock_recverr(s)) > 0)
+	while ((rc = udp_sock_recverr(c, ref)) > 0)
 		n_err += rc;
 
 	if (rc < 0)
@@ -558,7 +621,7 @@ static void udp_buf_listen_sock_handler(const struct ctx *c,
 	const socklen_t sasize = sizeof(udp_meta[0].s_in);
 	int n, i;
 
-	if (udp_sock_errs(c, ref.fd, events) < 0) {
+	if (udp_sock_errs(c, ref, events) < 0) {
 		err("UDP: Unrecoverable error on listening socket:"
 		    " (%s port %hu)", pif_name(ref.udp.pif), ref.udp.port);
 		/* FIXME: what now?  close/re-open socket? */
@@ -661,7 +724,7 @@ static void udp_buf_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 
 	from_s = uflow->s[ref.flowside.sidei];
 
-	if (udp_sock_errs(c, from_s, events) < 0) {
+	if (udp_sock_errs(c, ref, events) < 0) {
 		flow_err(uflow, "Unrecoverable error on reply socket");
 		flow_err_details(uflow);
 		udp_flow_close(c, uflow);

@@ -50,6 +50,8 @@ void *tap_push_ip4h(struct iphdr *ip4h, struct in_addr src,
 void *tap_push_uh4(struct udphdr *uh, struct in_addr src, in_port_t sport,
 		   struct in_addr dst, in_port_t dport,
 		   const void *in, size_t dlen);
+void *tap_push_ip4h(struct iphdr *ip4h, struct in_addr src,
+		    struct in_addr dst, size_t l4len, uint8_t proto);
 void tap_udp4_send(const struct ctx *c, struct in_addr src, in_port_t sport,
 		   struct in_addr dst, in_port_t dport,
 		   const void *in, size_t dlen);
