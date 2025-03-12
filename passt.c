@@ -223,7 +223,7 @@ int main(int argc, char **argv)
 	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
 		die_perror("Couldn't set disposition for SIGPIPE");
 
-	madvise(pkt_buf, TAP_BUF_BYTES, MADV_HUGEPAGE);
+	madvise(pkt_buf, sizeof(pkt_buf), MADV_HUGEPAGE);
 
 	c.epollfd = epoll_create1(EPOLL_CLOEXEC);
 	if (c.epollfd == -1)

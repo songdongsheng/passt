@@ -69,12 +69,11 @@ union epoll_ref {
 static_assert(sizeof(union epoll_ref) <= sizeof(union epoll_data),
 	      "epoll_ref must have same size as epoll_data");
 
-#define TAP_BUF_BYTES							\
+#define PKT_BUF_BYTES							\
 	ROUND_DOWN(((ETH_MAX_MTU + sizeof(uint32_t)) * 128), PAGE_SIZE)
 #define TAP_MSGS							\
-	DIV_ROUND_UP(TAP_BUF_BYTES, ETH_ZLEN - 2 * ETH_ALEN + sizeof(uint32_t))
+	DIV_ROUND_UP(PKT_BUF_BYTES, ETH_ZLEN - 2 * ETH_ALEN + sizeof(uint32_t))
 
-#define PKT_BUF_BYTES		MAX(TAP_BUF_BYTES, 0)
 extern char pkt_buf		[PKT_BUF_BYTES];
 
 extern char *epoll_type_str[];

@@ -1080,7 +1080,7 @@ static void tap_passt_input(struct ctx *c, const struct timespec *now)
 
 	do {
 		n = recv(c->fd_tap, pkt_buf + partial_len,
-			 TAP_BUF_BYTES - partial_len, MSG_DONTWAIT);
+			 sizeof(pkt_buf) - partial_len, MSG_DONTWAIT);
 	} while ((n < 0) && errno == EINTR);
 
 	if (n < 0) {
@@ -1151,7 +1151,7 @@ static void tap_pasta_input(struct ctx *c, const struct timespec *now)
 
 	tap_flush_pools();
 
-	for (n = 0; n <= (ssize_t)(TAP_BUF_BYTES - ETH_MAX_MTU); n += len) {
+	for (n = 0; n <= (ssize_t)(sizeof(pkt_buf) - ETH_MAX_MTU); n += len) {
 		len = read(c->fd_tap, pkt_buf + n, ETH_MAX_MTU);
 
 		if (len == 0) {
