@@ -992,6 +992,32 @@ pasta_opts:
 }
 
 /**
+ * conf_mode() - Determine passt/pasta's operating mode from command line
+ * @argc:	Argument count
+ * @argv:	Command line arguments
+ *
+ * Return: mode to operate in, PASTA or PASST
+ */
+/* cppcheck-suppress constParameter */
+enum passt_modes conf_mode(int argc, char *argv[])
+{
+	char argv0[PATH_MAX], *basearg0;
+
+	if (argc < 1)
+		die("Cannot determine argv[0]");
+
+	strncpy(argv0, argv[0], PATH_MAX - 1);
+	basearg0 = basename(argv0);
+	if (strstr(basearg0, "pasta"))
+		return MODE_PASTA;
+
+	if (strstr(basearg0, "passt"))
+		return MODE_PASST;
+
+	die("Cannot determine mode, invoke as \"passt\" or \"pasta\"");
+}
+
+/**
  * conf_print() - Print fundamental configuration parameters
  * @c:		Execution context
  */

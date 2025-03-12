@@ -6,6 +6,7 @@
 #ifndef CONF_H
 #define CONF_H
 
+enum passt_modes conf_mode(int argc, char *argv[]);
 void conf(struct ctx *c, int argc, char **argv);
 
 #endif /* CONF_H */

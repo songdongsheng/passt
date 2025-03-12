@@ -191,7 +191,6 @@ int main(int argc, char **argv)
 {
 	struct epoll_event events[EPOLL_EVENTS];
 	int nfds, i, devnull_fd = -1;
-	char argv0[PATH_MAX], *name;
 	struct ctx c = { 0 };
 	struct rlimit limit;
 	struct timespec now;
@@ -213,21 +212,12 @@ int main(int argc, char **argv)
 	sigaction(SIGTERM, &sa, NULL);
 	sigaction(SIGQUIT, &sa, NULL);
 
-	if (argc < 1)
-		_exit(EXIT_FAILURE);
+	c.mode = conf_mode(argc, argv);
 
-	strncpy(argv0, argv[0], PATH_MAX - 1);
-	name = basename(argv0);
-	if (strstr(name, "pasta")) {
+	if (c.mode == MODE_PASTA) {
 		sa.sa_handler = pasta_child_handler;
 		if (sigaction(SIGCHLD, &sa, NULL))
 			die_perror("Couldn't install signal handlers");
-
-		c.mode = MODE_PASTA;
-	} else if (strstr(name, "passt")) {
-		c.mode = MODE_PASST;
-	} else {
-		_exit(EXIT_FAILURE);
 	}
 
 	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
