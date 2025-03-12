@@ -62,6 +62,19 @@
 #include "vhost_user.h"
 #include "vu_common.h"
 
+/* Maximum allowed frame lengths (including L2 header) */
+
+/* Verify that an L2 frame length limit is large enough to contain the header,
+ * but small enough to fit in the packet pool
+ */
+#define CHECK_FRAME_LEN(len) \
+	static_assert((len) >= ETH_HLEN && (len) <= PACKET_MAX_LEN,	\
+		      #len " has bad value")
+
+CHECK_FRAME_LEN(L2_MAX_LEN_PASTA);
+CHECK_FRAME_LEN(L2_MAX_LEN_PASST);
+CHECK_FRAME_LEN(L2_MAX_LEN_VU);
+
 /* IPv4 (plus ARP) and IPv6 message batches from tap/guest to IP handlers */
 static PACKET_POOL_NOINIT(pool_tap4, TAP_MSGS, pkt_buf);
 static PACKET_POOL_NOINIT(pool_tap6, TAP_MSGS, pkt_buf);
@@ -1097,7 +1110,7 @@ static void tap_passt_input(struct ctx *c, const struct timespec *now)
 	while (n >= (ssize_t)sizeof(uint32_t)) {
 		uint32_t l2len = ntohl_unaligned(p);
 
-		if (l2len < sizeof(struct ethhdr) || l2len > ETH_MAX_MTU) {
+		if (l2len < sizeof(struct ethhdr) || l2len > L2_MAX_LEN_PASST) {
 			err("Bad frame size from guest, resetting connection");
 			tap_sock_reset(c);
 			return;
@@ -1151,8 +1164,10 @@ static void tap_pasta_input(struct ctx *c, const struct timespec *now)
 
 	tap_flush_pools();
 
-	for (n = 0; n <= (ssize_t)(sizeof(pkt_buf) - ETH_MAX_MTU); n += len) {
-		len = read(c->fd_tap, pkt_buf + n, ETH_MAX_MTU);
+	for (n = 0;
+	     n <= (ssize_t)(sizeof(pkt_buf) - L2_MAX_LEN_PASTA);
+	     n += len) {
+		len = read(c->fd_tap, pkt_buf + n, L2_MAX_LEN_PASTA);
 
 		if (len == 0) {
 			die("EOF on tap device, exiting");
@@ -1170,7 +1185,7 @@ static void tap_pasta_input(struct ctx *c, const struct timespec *now)
 
 		/* Ignore frames of bad length */
 		if (len < (ssize_t)sizeof(struct ethhdr) ||
-		    len > (ssize_t)ETH_MAX_MTU)
+		    len > (ssize_t)L2_MAX_LEN_PASTA)
 			continue;
 
 		tap_add_packet(c, len, pkt_buf + n);
