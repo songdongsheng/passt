@@ -1388,6 +1388,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		{"repair-path",	required_argument,	NULL,		28 },
 		{ 0 },
 	};
+	const char *optstring = "+dqfel:hs:F:I:p:P:m:a:n:M:g:i:o:D:S:H:461t:u:T:U:";
 	const char *logname = (c->mode == MODE_PASTA) ? "pasta" : "passt";
 	char userns[PATH_MAX] = { 0 }, netns[PATH_MAX] = { 0 };
 	bool copy_addrs_opt = false, copy_routes_opt = false;
@@ -1397,7 +1398,6 @@ void conf(struct ctx *c, int argc, char **argv)
 	struct fqdn *dnss = c->dns_search;
 	unsigned int ifi4 = 0, ifi6 = 0;
 	const char *logfile = NULL;
-	const char *optstring;
 	size_t logsize = 0;
 	char *runas = NULL;
 	long fd_tap_opt;
@@ -1408,9 +1408,6 @@ void conf(struct ctx *c, int argc, char **argv)
 	if (c->mode == MODE_PASTA) {
 		c->no_dhcp_dns = c->no_dhcp_dns_search = 1;
 		fwd_default = FWD_AUTO;
-		optstring = "+dqfel:hF:I:p:P:m:a:n:M:g:i:o:D:S:H:46t:u:T:U:";
-	} else {
-		optstring = "+dqfel:hs:F:p:P:m:a:n:M:g:i:o:D:S:H:461t:u:";
 	}
 
 	c->mtu = ROUND_DOWN(ETH_MAX_MTU - ETH_HLEN, sizeof(uint32_t));
@@ -1614,6 +1611,9 @@ void conf(struct ctx *c, int argc, char **argv)
 			c->foreground = 1;
 			break;
 		case 's':
+			if (c->mode == MODE_PASTA)
+				die("-s is for passt / vhost-user mode only");
+
 			ret = snprintf(c->sock_path, sizeof(c->sock_path), "%s",
 				       optarg);
 			if (ret <= 0 || ret >= (int)sizeof(c->sock_path))
@@ -1634,6 +1634,9 @@ void conf(struct ctx *c, int argc, char **argv)
 			*c->sock_path = 0;
 			break;
 		case 'I':
+			if (c->mode != MODE_PASTA)
+				die("-I is for pasta mode only");
+
 			ret = snprintf(c->pasta_ifn, IFNAMSIZ, "%s",
 				       optarg);
 			if (ret <= 0 || ret >= IFNAMSIZ)
@@ -1790,10 +1793,15 @@ void conf(struct ctx *c, int argc, char **argv)
 			break;
 		case 't':
 		case 'u':
-		case 'T':
-		case 'U':
 		case 'D':
 			/* Handle these later, once addresses are configured */
+			break;
+		case 'T':
+		case 'U':
+			if (c->mode != MODE_PASTA)
+				die("-%c is for pasta mode only", name);
+
+			/* Handle properly later, once addresses are configured */
 			break;
 		case 'h':
 			usage(argv[0], stdout, EXIT_SUCCESS);
