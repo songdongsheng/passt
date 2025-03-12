@@ -31,9 +31,6 @@
 #ifndef SECCOMP_RET_KILL_PROCESS
 #define SECCOMP_RET_KILL_PROCESS	SECCOMP_RET_KILL
 #endif
-#ifndef ETH_MAX_MTU
-#define ETH_MAX_MTU			USHRT_MAX
-#endif
 #ifndef IP_MAX_MTU
 #define IP_MAX_MTU			USHRT_MAX
 #endif

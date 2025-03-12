@@ -1434,6 +1434,7 @@ void conf(struct ctx *c, int argc, char **argv)
 	enum fwd_ports_mode fwd_default = FWD_NONE;
 	bool v4_only = false, v6_only = false;
 	unsigned dns4_idx = 0, dns6_idx = 0;
+	unsigned long max_mtu = IP_MAX_MTU;
 	struct fqdn *dnss = c->dns_search;
 	unsigned int ifi4 = 0, ifi6 = 0;
 	const char *logfile = NULL;
@@ -1449,7 +1450,9 @@ void conf(struct ctx *c, int argc, char **argv)
 		fwd_default = FWD_AUTO;
 	}
 
-	c->mtu = ROUND_DOWN(ETH_MAX_MTU - ETH_HLEN, sizeof(uint32_t));
+	if (tap_l2_max_len(c) - ETH_HLEN < max_mtu)
+		max_mtu = tap_l2_max_len(c) - ETH_HLEN;
+	c->mtu = ROUND_DOWN(max_mtu, sizeof(uint32_t));
 	c->tcp.fwd_in.mode = c->tcp.fwd_out.mode = FWD_UNSET;
 	c->udp.fwd_in.mode = c->udp.fwd_out.mode = FWD_UNSET;
 	memcpy(c->our_tap_mac, MAC_OUR_LAA, ETH_ALEN);
@@ -1711,9 +1714,9 @@ void conf(struct ctx *c, int argc, char **argv)
 			if (errno || *e)
 				die("Invalid MTU: %s", optarg);
 
-			if (mtu > ETH_MAX_MTU) {
-				die("MTU %lu too large (max %u)",
-				    mtu, ETH_MAX_MTU);
+			if (mtu > max_mtu) {
+				die("MTU %lu too large (max %lu)",
+				    mtu, max_mtu);
 			}
 
 			c->mtu = mtu;
