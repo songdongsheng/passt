@@ -998,10 +998,23 @@ pasta_opts:
  *
  * Return: mode to operate in, PASTA or PASST
  */
-/* cppcheck-suppress constParameter */
 enum passt_modes conf_mode(int argc, char *argv[])
 {
+	int vhost_user = 0;
+	const struct option optvu[] = {
+		{"vhost-user",	no_argument,		&vhost_user,	1 },
+		{ 0 },
+	};
 	char argv0[PATH_MAX], *basearg0;
+	int name;
+
+	optind = 0;
+	do {
+		name = getopt_long(argc, argv, "-:", optvu, NULL);
+	} while (name != -1);
+
+	if (vhost_user)
+		return MODE_VU;
 
 	if (argc < 1)
 		die("Cannot determine argv[0]");
@@ -1604,9 +1617,8 @@ void conf(struct ctx *c, int argc, char **argv)
 
 			die("Invalid host nameserver address: %s", optarg);
 		case 25:
-			if (c->mode == MODE_PASTA)
-				die("--vhost-user is for passt mode only");
-			c->mode = MODE_VU;
+			/* Already handled in conf_mode() */
+			ASSERT(c->mode == MODE_VU);
 			break;
 		case 26:
 			vu_print_capabilities();
@@ -1617,7 +1629,14 @@ void conf(struct ctx *c, int argc, char **argv)
 				die("Invalid FQDN: %s", optarg);
 			break;
 		case 28:
-			/* Handle this once we checked --vhost-user */
+			if (c->mode != MODE_VU && strcmp(optarg, "none"))
+				die("--repair-path is for vhost-user mode only");
+
+			if (snprintf_check(c->repair_path,
+					   sizeof(c->repair_path), "%s",
+					   optarg))
+				die("Invalid passt-repair path: %s", optarg);
+
 			break;
 		case 'd':
 			c->debug = 1;
@@ -1917,8 +1936,8 @@ void conf(struct ctx *c, int argc, char **argv)
 	if (c->ifi4 && IN4_IS_ADDR_UNSPECIFIED(&c->ip4.guest_gw))
 		c->no_dhcp = 1;
 
-	/* Inbound port options, DNS, and --repair-path can be parsed now, after
-	 * IPv4/IPv6 settings and --vhost-user.
+	/* Inbound port options and DNS can be parsed now, after IPv4/IPv6
+	 * settings
 	 */
 	fwd_probe_ephemeral();
 	udp_portmap_clear();
@@ -1964,16 +1983,6 @@ void conf(struct ctx *c, int argc, char **argv)
 			}
 
 			die("Cannot use DNS address %s", optarg);
-		} else if (name == 28) {
-			if (c->mode != MODE_VU && strcmp(optarg, "none"))
-				die("--repair-path is for vhost-user mode only");
-
-			if (snprintf_check(c->repair_path,
-					   sizeof(c->repair_path), "%s",
-					   optarg))
-				die("Invalid passt-repair path: %s", optarg);
-
-			break;
 		}
 	} while (name != -1);
 
