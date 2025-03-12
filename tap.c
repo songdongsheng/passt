@@ -83,6 +83,25 @@ static PACKET_POOL_NOINIT(pool_tap6, TAP_MSGS, pkt_buf);
 #define FRAGMENT_MSG_RATE	10  /* # seconds between fragment warnings */
 
 /**
+ * tap_l2_max_len() - Maximum frame size (including L2 header) for current mode
+ * @c:		Execution context
+ */
+unsigned long tap_l2_max_len(const struct ctx *c)
+{
+	/* NOLINTBEGIN(bugprone-branch-clone): values can be the same */
+	switch (c->mode) {
+	case MODE_PASST:
+		return L2_MAX_LEN_PASST;
+	case MODE_PASTA:
+		return L2_MAX_LEN_PASTA;
+	case MODE_VU:
+		return L2_MAX_LEN_VU;
+	}
+	/* NOLINTEND(bugprone-branch-clone) */
+	ASSERT(0);
+}
+
+/**
  * tap_send_single() - Send a single frame
  * @c:		Execution context
  * @data:	Packet buffer

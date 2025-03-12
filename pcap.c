@@ -33,32 +33,11 @@
 #include "log.h"
 #include "pcap.h"
 #include "iov.h"
+#include "tap.h"
 
 #define PCAP_VERSION_MINOR 4
 
 static int pcap_fd = -1;
-
-/* See pcap.h from libpcap, or pcap-savefile(5) */
-static const struct {
-	uint32_t magic;
-#define PCAP_MAGIC		0xa1b2c3d4
-
-	uint16_t major;
-#define PCAP_VERSION_MAJOR	2
-
-	uint16_t minor;
-#define PCAP_VERSION_MINOR	4
-
-	int32_t thiszone;
-	uint32_t sigfigs;
-	uint32_t snaplen;
-
-	uint32_t linktype;
-#define PCAP_LINKTYPE_ETHERNET	1
-} pcap_hdr = {
-	PCAP_MAGIC, PCAP_VERSION_MAJOR, PCAP_VERSION_MINOR, 0, 0, ETH_MAX_MTU,
-	PCAP_LINKTYPE_ETHERNET
-};
 
 struct pcap_pkthdr {
 	uint32_t tv_sec;
@@ -162,6 +141,29 @@ void pcap_iov(const struct iovec *iov, size_t iovcnt, size_t offset)
  */
 void pcap_init(struct ctx *c)
 {
+	/* See pcap.h from libpcap, or pcap-savefile(5) */
+#define PCAP_MAGIC		0xa1b2c3d4
+#define PCAP_VERSION_MAJOR	2
+#define PCAP_VERSION_MINOR	4
+#define PCAP_LINKTYPE_ETHERNET	1
+	const struct {
+		uint32_t magic;
+		uint16_t major;
+		uint16_t minor;
+
+		int32_t thiszone;
+		uint32_t sigfigs;
+		uint32_t snaplen;
+
+		uint32_t linktype;
+	} pcap_hdr = {
+		.magic = PCAP_MAGIC,
+		.major = PCAP_VERSION_MAJOR,
+		.minor = PCAP_VERSION_MINOR,
+		.snaplen = tap_l2_max_len(c),
+		.linktype = PCAP_LINKTYPE_ETHERNET
+	};
+
 	if (pcap_fd != -1)
 		return;
 
