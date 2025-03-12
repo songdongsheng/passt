@@ -6,6 +6,9 @@
 #ifndef PACKET_H
 #define PACKET_H
 
+/* Maximum size of a single packet stored in pool, including headers */
+#define PACKET_MAX_LEN	UINT16_MAX
+
 /**
  * struct pool - Generic pool of packets stored in a buffer
  * @buf:	Buffer storing packet descriptors,

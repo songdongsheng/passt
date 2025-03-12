@@ -83,7 +83,7 @@ void packet_add_do(struct pool *p, size_t len, const char *start,
 	if (packet_check_range(p, start, len, func, line))
 		return;
 
-	if (len > UINT16_MAX) {
+	if (len > PACKET_MAX_LEN) {
 		trace("add packet length %zu, %s:%i", len, func, line);
 		return;
 	}
@@ -119,7 +119,7 @@ void *packet_get_do(const struct pool *p, size_t idx, size_t offset,
 		return NULL;
 	}
 
-	if (len > UINT16_MAX) {
+	if (len > PACKET_MAX_LEN) {
 		if (func) {
 			trace("packet data length %zu, %s:%i",
 			      len, func, line);
