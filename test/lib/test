@@ -20,10 +20,7 @@ test_iperf3s() {
 	__sctx="${1}"
 	__port="${2}"
 
-	pane_or_context_run_bg "${__sctx}" 				\
-		 'iperf3 -s -p'${__port}' & echo $! > s.pid'		\
-
-	sleep 1		# Wait for server to be ready
+	pane_or_context_run "${__sctx}" 'iperf3 -s -p'${__port}' -D -I s.pid'
 }
 
 # test_iperf3k() - Kill iperf3 server
@@ -31,7 +28,7 @@ test_iperf3s() {
 test_iperf3k() {
 	__sctx="${1}"
 
-	pane_or_context_run "${__sctx}" 'kill -INT $(cat s.pid); rm s.pid'
+	pane_or_context_run "${__sctx}" 'kill -INT $(cat s.pid)'
 
 	sleep 1		# Wait for kernel to free up ports
 }
