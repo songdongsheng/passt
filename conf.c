@@ -124,6 +124,75 @@ static int parse_port_range(const char *s, char **endptr,
 }
 
 /**
+ * conf_ports_range_except() - Set up forwarding for a range of ports minus a
+ *                             bitmap of exclusions
+ * @c:		Execution context
+ * @optname:	Short option name, t, T, u, or U
+ * @optarg:	Option argument (port specification)
+ * @fwd:	Pointer to @fwd_ports to be updated
+ * @addr:	Listening address
+ * @ifname:	Listening interface
+ * @first:	First port to forward
+ * @last:	Last port to forward
+ * @exclude:	Bitmap of ports to exclude
+ * @to:		Port to translate @first to when forwarding
+ * @weak:	Ignore errors, as long as at least one port is mapped
+ */
+static void conf_ports_range_except(const struct ctx *c, char optname,
+				    const char *optarg, struct fwd_ports *fwd,
+				    const union inany_addr *addr,
+				    const char *ifname,
+				    uint16_t first, uint16_t last,
+				    const uint8_t *exclude, uint16_t to,
+				    bool weak)
+{
+	bool bound_one = false;
+	unsigned i;
+	int ret;
+
+	if (first == 0) {
+		die("Can't forward port 0 for option '-%c %s'",
+		    optname, optarg);
+	}
+
+	for (i = first; i <= last; i++) {
+		if (bitmap_isset(exclude, i))
+			continue;
+
+		if (bitmap_isset(fwd->map, i)) {
+			warn(
+"Altering mapping of already mapped port number: %s", optarg);
+		}
+
+		bitmap_set(fwd->map, i);
+		fwd->delta[i] = to - first;
+
+		if (optname == 't')
+			ret = tcp_sock_init(c, addr, ifname, i);
+		else if (optname == 'u')
+			ret = udp_sock_init(c, 0, addr, ifname, i);
+		else
+			/* No way to check in advance for -T and -U */
+			ret = 0;
+
+		if (ret == -ENFILE || ret == -EMFILE) {
+			die("Can't open enough sockets for port specifier: %s",
+			    optarg);
+		}
+
+		if (!ret) {
+			bound_one = true;
+		} else if (!weak) {
+			die("Failed to bind port %u (%s) for option '-%c %s'",
+			    i, strerror_(-ret), optname, optarg);
+		}
+	}
+
+	if (!bound_one)
+		die("Failed to bind any port for '-%c %s'", optname, optarg);
+}
+
+/**
  * conf_ports() - Parse port configuration options, initialise UDP/TCP sockets
  * @c:		Execution context
  * @optname:	Short option name, t, T, u, or U
@@ -135,10 +204,9 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 {
 	union inany_addr addr_buf = inany_any6, *addr = &addr_buf;
 	char buf[BUFSIZ], *spec, *ifname = NULL, *p;
-	bool exclude_only = true, bound_one = false;
 	uint8_t exclude[PORT_BITMAP_SIZE] = { 0 };
+	bool exclude_only = true;
 	unsigned i;
-	int ret;
 
 	if (!strcmp(optarg, "none")) {
 		if (fwd->mode)
@@ -173,32 +241,15 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 
 		fwd->mode = FWD_ALL;
 
-		/* Skip port 0.  It has special meaning for many socket APIs, so
-		 * trying to bind it is not really safe.
-		 */
-		for (i = 1; i < NUM_PORTS; i++) {
+		/* Exclude ephemeral ports */
+		for (i = 0; i < NUM_PORTS; i++)
 			if (fwd_port_is_ephemeral(i))
-				continue;
+				bitmap_set(exclude, i);
 
-			bitmap_set(fwd->map, i);
-			if (optname == 't') {
-				ret = tcp_sock_init(c, NULL, NULL, i);
-				if (ret == -ENFILE || ret == -EMFILE)
-					goto enfile;
-				if (!ret)
-					bound_one = true;
-			} else if (optname == 'u') {
-				ret = udp_sock_init(c, 0, NULL, NULL, i);
-				if (ret == -ENFILE || ret == -EMFILE)
-					goto enfile;
-				if (!ret)
-					bound_one = true;
-			}
-		}
-
-		if (!bound_one)
-			goto bind_all_fail;
-
+		conf_ports_range_except(c, optname, optarg, fwd,
+					NULL, NULL,
+					1, NUM_PORTS - 1, exclude,
+					1, true);
 		return;
 	}
 
@@ -275,37 +326,15 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 	} while ((p = next_chunk(p, ',')));
 
 	if (exclude_only) {
-		/* Skip port 0.  It has special meaning for many socket APIs, so
-		 * trying to bind it is not really safe.
-		 */
-		for (i = 1; i < NUM_PORTS; i++) {
-			if (fwd_port_is_ephemeral(i) ||
-			    bitmap_isset(exclude, i))
-				continue;
+		/* Exclude ephemeral ports */
+		for (i = 0; i < NUM_PORTS; i++)
+			if (fwd_port_is_ephemeral(i))
+				bitmap_set(exclude, i);
 
-			bitmap_set(fwd->map, i);
-
-			if (optname == 't') {
-				ret = tcp_sock_init(c, addr, ifname, i);
-				if (ret == -ENFILE || ret == -EMFILE)
-					goto enfile;
-				if (!ret)
-					bound_one = true;
-			} else if (optname == 'u') {
-				ret = udp_sock_init(c, 0, addr, ifname, i);
-				if (ret == -ENFILE || ret == -EMFILE)
-					goto enfile;
-				if (!ret)
-					bound_one = true;
-			} else {
-				/* No way to check in advance for -T and -U */
-				bound_one = true;
-			}
-		}
-
-		if (!bound_one)
-			goto bind_all_fail;
-
+		conf_ports_range_except(c, optname, optarg, fwd,
+					addr, ifname,
+					1, NUM_PORTS - 1, exclude,
+					1, true);
 		return;
 	}
 
@@ -334,40 +363,18 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		if ((*p != '\0')  && (*p != ',')) /* Garbage after the ranges */
 			goto bad;
 
-		for (i = orig_range.first; i <= orig_range.last; i++) {
-			if (bitmap_isset(fwd->map, i))
-				warn(
-"Altering mapping of already mapped port number: %s", optarg);
-
-			if (bitmap_isset(exclude, i))
-				continue;
-
-			bitmap_set(fwd->map, i);
-
-			fwd->delta[i] = mapped_range.first - orig_range.first;
-
-			ret = 0;
-			if (optname == 't')
-				ret = tcp_sock_init(c, addr, ifname, i);
-			else if (optname == 'u')
-				ret = udp_sock_init(c, 0, addr, ifname, i);
-			if (ret)
-				goto bind_fail;
-		}
+		conf_ports_range_except(c, optname, optarg, fwd,
+					addr, ifname,
+					orig_range.first, orig_range.last,
+					exclude,
+					mapped_range.first, false);
 	} while ((p = next_chunk(p, ',')));
 
 	return;
-enfile:
-	die("Can't open enough sockets for port specifier: %s", optarg);
 bad:
 	die("Invalid port specifier %s", optarg);
 mode_conflict:
 	die("Port forwarding mode '%s' conflicts with previous mode", optarg);
-bind_fail:
-	die("Failed to bind port %u (%s) for option '-%c %s', exiting",
-	    i, strerror_(-ret), optname, optarg);
-bind_all_fail:
-	die("Failed to bind any port for '-%c %s', exiting", optname, optarg);
 }
 
 /**
