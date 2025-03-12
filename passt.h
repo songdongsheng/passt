@@ -69,8 +69,8 @@ union epoll_ref {
 static_assert(sizeof(union epoll_ref) <= sizeof(union epoll_data),
 	      "epoll_ref must have same size as epoll_data");
 
-#define PKT_BUF_BYTES							\
-	ROUND_DOWN(((ETH_MAX_MTU + sizeof(uint32_t)) * 128), PAGE_SIZE)
+/* Large enough for ~128 maximum size frames */
+#define PKT_BUF_BYTES		(8UL << 20)
 #define TAP_MSGS							\
 	DIV_ROUND_UP(PKT_BUF_BYTES, ETH_ZLEN - 2 * ETH_ALEN + sizeof(uint32_t))
 
