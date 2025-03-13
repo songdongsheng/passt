@@ -125,7 +125,7 @@ static void tcp_revert_seq(const struct ctx *c, struct tcp_tap_conn **conns,
 
 		conn->seq_to_tap = seq;
 		peek_offset = conn->seq_to_tap - conn->seq_ack_from_tap;
-		if (tcp_set_peek_offset(conn->sock, peek_offset))
+		if (tcp_set_peek_offset(conn, peek_offset))
 			tcp_rst(c, conn);
 	}
 }
@@ -304,7 +304,7 @@ int tcp_buf_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 			   conn->seq_ack_from_tap, conn->seq_to_tap);
 		conn->seq_to_tap = conn->seq_ack_from_tap;
 		already_sent = 0;
-		if (tcp_set_peek_offset(s, 0)) {
+		if (tcp_set_peek_offset(conn, 0)) {
 			tcp_rst(c, conn);
 			return -1;
 		}

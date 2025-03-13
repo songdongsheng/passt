@@ -177,5 +177,6 @@ int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 int tcp_prepare_flags(const struct ctx *c, struct tcp_tap_conn *conn,
 		      int flags, struct tcphdr *th, struct tcp_syn_opts *opts,
 		      size_t *optlen);
+int tcp_set_peek_offset(const struct tcp_tap_conn *conn, int offset);
 
 #endif /* TCP_INTERNAL_H */

@@ -376,7 +376,7 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 			   conn->seq_ack_from_tap, conn->seq_to_tap);
 		conn->seq_to_tap = conn->seq_ack_from_tap;
 		already_sent = 0;
-		if (tcp_set_peek_offset(conn->sock, 0)) {
+		if (tcp_set_peek_offset(conn, 0)) {
 			tcp_rst(c, conn);
 			return -1;
 		}

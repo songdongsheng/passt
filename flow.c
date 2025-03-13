@@ -1037,8 +1037,8 @@ int flow_migrate_source(struct ctx *c, const struct migrate_stage *stage,
 	foreach_established_tcp_flow(flow) {
 		rc = tcp_flow_migrate_source(fd, &flow->tcp);
 		if (rc) {
-			err("Can't send data, flow %u: %s", FLOW_IDX(flow),
-			    strerror_(-rc));
+			flow_err(flow, "Can't send data: %s",
+				 strerror_(-rc));
 			if (!first)
 				die("Inconsistent migration state, exiting");
 
@@ -1064,8 +1064,8 @@ int flow_migrate_source(struct ctx *c, const struct migrate_stage *stage,
 	foreach_established_tcp_flow(flow) {
 		rc = tcp_flow_migrate_source_ext(fd, &flow->tcp);
 		if (rc) {
-			err("Extended data for flow %u: %s", FLOW_IDX(flow),
-			    strerror_(-rc));
+			flow_err(flow, "Can't send extended data: %s",
+				 strerror_(-rc));
 
 			if (rc == -EIO)
 				die("Inconsistent migration state, exiting");
@@ -1112,8 +1112,8 @@ int flow_migrate_target(struct ctx *c, const struct migrate_stage *stage,
 	for (i = 0; i < count; i++) {
 		rc = tcp_flow_migrate_target(c, fd);
 		if (rc) {
-			debug("Migration data failure at flow %u: %s, abort",
-			      i, strerror_(-rc));
+			flow_dbg(FLOW(i), "Migration data failure, abort: %s",
+				 strerror_(-rc));
 			return -rc;
 		}
 	}
@@ -1123,8 +1123,8 @@ int flow_migrate_target(struct ctx *c, const struct migrate_stage *stage,
 	for (i = 0; i < count; i++) {
 		rc = tcp_flow_migrate_target_ext(c, &flowtab[i].tcp, fd);
 		if (rc) {
-			debug("Migration data failure at flow %u: %s, abort",
-			      i, strerror_(-rc));
+			flow_dbg(FLOW(i), "Migration data failure, abort: %s",
+				 strerror_(-rc));
 			return -rc;
 		}
 	}

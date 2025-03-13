@@ -434,19 +434,20 @@ static struct tcp_tap_conn *conn_at_sidx(flow_sidx_t sidx)
 }
 
 /**
- * tcp_set_peek_offset() - Set SO_PEEK_OFF offset on a socket if supported
- * @s:          Socket to update
+ * tcp_set_peek_offset() - Set SO_PEEK_OFF offset on connection if supported
+ * @conn:	Pointer to the TCP connection structure
  * @offset:     Offset in bytes
  *
  * Return:      -1 when it fails, 0 otherwise.
  */
-int tcp_set_peek_offset(int s, int offset)
+int tcp_set_peek_offset(const struct tcp_tap_conn *conn, int offset)
 {
 	if (!peek_offset_cap)
 		return 0;
 
-	if (setsockopt(s, SOL_SOCKET, SO_PEEK_OFF, &offset, sizeof(offset))) {
-		err("Failed to set SO_PEEK_OFF to %i in socket %i", offset, s);
+	if (setsockopt(conn->sock, SOL_SOCKET, SO_PEEK_OFF,
+		       &offset, sizeof(offset))) {
+		flow_perror(conn, "Failed to set SO_PEEK_OFF to %i", offset);
 		return -1;
 	}
 	return 0;
@@ -1757,7 +1758,7 @@ static int tcp_data_from_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 			   "fast re-transmit, ACK: %u, previous sequence: %u",
 			   max_ack_seq, conn->seq_to_tap);
 		conn->seq_to_tap = max_ack_seq;
-		if (tcp_set_peek_offset(conn->sock, 0)) {
+		if (tcp_set_peek_offset(conn, 0)) {
 			tcp_rst(c, conn);
 			return -1;
 		}
@@ -1854,7 +1855,7 @@ static void tcp_conn_from_sock_finish(const struct ctx *c,
 	conn->seq_ack_to_tap = conn->seq_from_tap;
 
 	conn_event(c, conn, ESTABLISHED);
-	if (tcp_set_peek_offset(conn->sock, 0)) {
+	if (tcp_set_peek_offset(conn, 0)) {
 		tcp_rst(c, conn);
 		return;
 	}
@@ -2022,7 +2023,7 @@ int tcp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 			goto reset;
 
 		conn_event(c, conn, ESTABLISHED);
-		if (tcp_set_peek_offset(conn->sock, 0))
+		if (tcp_set_peek_offset(conn, 0))
 			goto reset;
 
 		if (th->fin) {
@@ -2286,7 +2287,7 @@ void tcp_timer_handler(const struct ctx *c, union epoll_ref ref)
 			conn->seq_to_tap = conn->seq_ack_from_tap;
 			if (!conn->wnd_from_tap)
 				conn->wnd_from_tap = 1; /* Zero-window probe */
-			if (tcp_set_peek_offset(conn->sock, 0)) {
+			if (tcp_set_peek_offset(conn, 0)) {
 				tcp_rst(c, conn);
 			} else {
 				tcp_data_from_sock(c, conn);
@@ -2810,20 +2811,21 @@ int tcp_flow_repair_off(struct ctx *c, const struct tcp_tap_conn *conn)
 
 /**
  * tcp_flow_dump_tinfo() - Dump window scale, tcpi_state, tcpi_options
- * @c:		Execution context
+ * @conn:	Pointer to the TCP connection structure
  * @t:		Extended migration data
  *
  * Return: 0 on success, negative error code on failure
  */
-static int tcp_flow_dump_tinfo(int s, struct tcp_tap_transfer_ext *t)
+static int tcp_flow_dump_tinfo(const struct tcp_tap_conn *conn,
+			       struct tcp_tap_transfer_ext *t)
 {
 	struct tcp_info tinfo;
 	socklen_t sl;
 
 	sl = sizeof(tinfo);
-	if (getsockopt(s, SOL_TCP, TCP_INFO, &tinfo, &sl)) {
+	if (getsockopt(conn->sock, SOL_TCP, TCP_INFO, &tinfo, &sl)) {
 		int rc = -errno;
-		err_perror("Querying TCP_INFO, socket %i", s);
+		flow_perror(conn, "Querying TCP_INFO");
 		return rc;
 	}
 
@@ -2837,18 +2839,19 @@ static int tcp_flow_dump_tinfo(int s, struct tcp_tap_transfer_ext *t)
 
 /**
  * tcp_flow_dump_mss() - Dump MSS clamp (not current MSS) via TCP_MAXSEG
- * @c:		Execution context
+ * @conn:	Pointer to the TCP connection structure
  * @t:		Extended migration data
  *
  * Return: 0 on success, negative error code on failure
  */
-static int tcp_flow_dump_mss(int s, struct tcp_tap_transfer_ext *t)
+static int tcp_flow_dump_mss(const struct tcp_tap_conn *conn,
+			     struct tcp_tap_transfer_ext *t)
 {
 	socklen_t sl = sizeof(t->mss);
 
-	if (getsockopt(s, SOL_TCP, TCP_MAXSEG, &t->mss, &sl)) {
+	if (getsockopt(conn->sock, SOL_TCP, TCP_MAXSEG, &t->mss, &sl)) {
 		int rc = -errno;
-		err_perror("Getting MSS, socket %i", s);
+		flow_perror(conn, "Getting MSS");
 		return rc;
 	}
 
@@ -2857,19 +2860,20 @@ static int tcp_flow_dump_mss(int s, struct tcp_tap_transfer_ext *t)
 
 /**
  * tcp_flow_dump_wnd() - Dump current tcp_repair_window parameters
- * @c:		Execution context
+ * @conn:	Pointer to the TCP connection structure
  * @t:		Extended migration data
  *
  * Return: 0 on success, negative error code on failure
  */
-static int tcp_flow_dump_wnd(int s, struct tcp_tap_transfer_ext *t)
+static int tcp_flow_dump_wnd(const struct tcp_tap_conn *conn,
+			     struct tcp_tap_transfer_ext *t)
 {
 	struct tcp_repair_window wnd;
 	socklen_t sl = sizeof(wnd);
 
-	if (getsockopt(s, IPPROTO_TCP, TCP_REPAIR_WINDOW, &wnd, &sl)) {
+	if (getsockopt(conn->sock, IPPROTO_TCP, TCP_REPAIR_WINDOW, &wnd, &sl)) {
 		int rc = -errno;
-		err_perror("Getting window repair data, socket %i", s);
+		flow_perror(conn, "Getting window repair data");
 		return rc;
 	}
 
@@ -2893,12 +2897,13 @@ static int tcp_flow_dump_wnd(int s, struct tcp_tap_transfer_ext *t)
 
 /**
  * tcp_flow_repair_wnd() - Restore window parameters from extended data
- * @c:		Execution context
+ * @conn:	Pointer to the TCP connection structure
  * @t:		Extended migration data
  *
  * Return: 0 on success, negative error code on failure
  */
-static int tcp_flow_repair_wnd(int s, const struct tcp_tap_transfer_ext *t)
+static int tcp_flow_repair_wnd(const struct tcp_tap_conn *conn,
+			       const struct tcp_tap_transfer_ext *t)
 {
 	struct tcp_repair_window wnd;
 
@@ -2908,9 +2913,10 @@ static int tcp_flow_repair_wnd(int s, const struct tcp_tap_transfer_ext *t)
 	wnd.rcv_wnd	= t->rcv_wnd;
 	wnd.rcv_wup	= t->rcv_wup;
 
-	if (setsockopt(s, IPPROTO_TCP, TCP_REPAIR_WINDOW, &wnd, sizeof(wnd))) {
+	if (setsockopt(conn->sock, IPPROTO_TCP, TCP_REPAIR_WINDOW,
+		       &wnd, sizeof(wnd))) {
 		int rc = -errno;
-		err_perror("Setting window data, socket %i", s);
+		flow_perror(conn, "Setting window data");
 		return rc;
 	}
 
@@ -2919,16 +2925,17 @@ static int tcp_flow_repair_wnd(int s, const struct tcp_tap_transfer_ext *t)
 
 /**
  * tcp_flow_select_queue() - Select queue (receive or send) for next operation
- * @s:		Socket
+ * @conn:	Connection to select queue for
  * @queue:	TCP_RECV_QUEUE or TCP_SEND_QUEUE
  *
  * Return: 0 on success, negative error code on failure
  */
-static int tcp_flow_select_queue(int s, int queue)
+static int tcp_flow_select_queue(const struct tcp_tap_conn *conn, int queue)
 {
-	if (setsockopt(s, SOL_TCP, TCP_REPAIR_QUEUE, &queue, sizeof(queue))) {
+	if (setsockopt(conn->sock, SOL_TCP, TCP_REPAIR_QUEUE,
+		       &queue, sizeof(queue))) {
 		int rc = -errno;
-		err_perror("Selecting TCP_SEND_QUEUE, socket %i", s);
+		flow_perror(conn, "Selecting TCP_SEND_QUEUE");
 		return rc;
 	}
 
@@ -2937,26 +2944,28 @@ static int tcp_flow_select_queue(int s, int queue)
 
 /**
  * tcp_flow_dump_sndqueue() - Dump send queue, length of sent and not sent data
- * @s:		Socket
+ * @conn:	Connection to dump queue for
  * @t:		Extended migration data
  *
  * Return: 0 on success, negative error code on failure
  *
  * #syscalls:vu ioctl
  */
-static int tcp_flow_dump_sndqueue(int s, struct tcp_tap_transfer_ext *t)
+static int tcp_flow_dump_sndqueue(const struct tcp_tap_conn *conn,
+				  struct tcp_tap_transfer_ext *t)
 {
+	int s = conn->sock;
 	ssize_t rc;
 
 	if (ioctl(s, SIOCOUTQ, &t->sndq) < 0) {
 		rc = -errno;
-		err_perror("Getting send queue size, socket %i", s);
+		flow_perror(conn, "Getting send queue size");
 		return rc;
 	}
 
 	if (ioctl(s, SIOCOUTQNSD, &t->notsent) < 0) {
 		rc = -errno;
-		err_perror("Getting not sent count, socket %i", s);
+		flow_perror(conn, "Getting not sent count");
 		return rc;
 	}
 
@@ -2975,14 +2984,16 @@ static int tcp_flow_dump_sndqueue(int s, struct tcp_tap_transfer_ext *t)
 	}
 
 	if (t->notsent > t->sndq) {
-		err("Invalid notsent count socket %i, send: %u, not sent: %u",
-		    s, t->sndq, t->notsent);
+		flow_err(conn,
+			 "Invalid notsent count socket %i, send: %u, not sent: %u",
+			 s, t->sndq, t->notsent);
 		return -EINVAL;
 	}
 
 	if (t->sndq > TCP_MIGRATE_SND_QUEUE_MAX) {
-		err("Send queue too large to migrate socket %i: %u bytes",
-		    s, t->sndq);
+		flow_err(conn,
+			 "Send queue too large to migrate socket %i: %u bytes",
+			 s, t->sndq);
 		return -ENOBUFS;
 	}
 
@@ -2993,13 +3004,13 @@ static int tcp_flow_dump_sndqueue(int s, struct tcp_tap_transfer_ext *t)
 			rc = 0;
 		} else {
 			rc = -errno;
-			err_perror("Can't read send queue, socket %i", s);
+			flow_perror(conn, "Can't read send queue");
 			return rc;
 		}
 	}
 
 	if ((uint32_t)rc < t->sndq) {
-		err("Short read migrating send queue");
+		flow_err(conn, "Short read migrating send queue");
 		return -ENXIO;
 	}
 
@@ -3010,19 +3021,20 @@ static int tcp_flow_dump_sndqueue(int s, struct tcp_tap_transfer_ext *t)
 
 /**
  * tcp_flow_repair_queue() - Restore contents of a given (pre-selected) queue
- * @s:		Socket
+ * @conn:	Connection to repair queue for
  * @len:	Length of data to be restored
  * @buf:	Buffer with content of pending data queue
  *
  * Return: 0 on success, negative error code on failure
  */
-static int tcp_flow_repair_queue(int s, size_t len, uint8_t *buf)
+static int tcp_flow_repair_queue(const struct tcp_tap_conn *conn,
+				 size_t len, uint8_t *buf)
 {
 	size_t chunk = len;
 	uint8_t *p = buf;
 
 	while (len > 0) {
-		ssize_t rc = send(s, p, MIN(len, chunk), 0);
+		ssize_t rc = send(conn->sock, p, MIN(len, chunk), 0);
 
 		if (rc < 0) {
 			if ((errno == ENOBUFS || errno == ENOMEM) &&
@@ -3032,7 +3044,7 @@ static int tcp_flow_repair_queue(int s, size_t len, uint8_t *buf)
 			}
 
 			rc = -errno;
-			err_perror("Can't write queue, socket %i", s);
+			flow_perror(conn, "Can't write queue");
 			return rc;
 		}
 
@@ -3045,18 +3057,18 @@ static int tcp_flow_repair_queue(int s, size_t len, uint8_t *buf)
 
 /**
  * tcp_flow_dump_seq() - Dump current sequence of pre-selected queue
- * @s:		Socket
+ * @conn:	Pointer to the TCP connection structure
  * @v:		Sequence value, set on return
  *
  * Return: 0 on success, negative error code on failure
  */
-static int tcp_flow_dump_seq(int s, uint32_t *v)
+static int tcp_flow_dump_seq(const struct tcp_tap_conn *conn, uint32_t *v)
 {
 	socklen_t sl = sizeof(*v);
 
-	if (getsockopt(s, SOL_TCP, TCP_QUEUE_SEQ, v, &sl)) {
+	if (getsockopt(conn->sock, SOL_TCP, TCP_QUEUE_SEQ, v, &sl)) {
 		int rc = -errno;
-		err_perror("Dumping sequence, socket %i", s);
+		flow_perror(conn, "Dumping sequence");
 		return rc;
 	}
 
@@ -3065,16 +3077,17 @@ static int tcp_flow_dump_seq(int s, uint32_t *v)
 
 /**
  * tcp_flow_repair_seq() - Restore sequence for pre-selected queue
- * @s:		Socket
+ * @conn:	Connection to repair sequences for
  * @v:		Sequence value to be set
  *
  * Return: 0 on success, negative error code on failure
  */
-static int tcp_flow_repair_seq(int s, const uint32_t *v)
+static int tcp_flow_repair_seq(const struct tcp_tap_conn *conn,
+			       const uint32_t *v)
 {
-	if (setsockopt(s, SOL_TCP, TCP_QUEUE_SEQ, v, sizeof(*v))) {
+	if (setsockopt(conn->sock, SOL_TCP, TCP_QUEUE_SEQ, v, sizeof(*v))) {
 		int rc = -errno;
-		err_perror("Setting sequence, socket %i", s);
+		flow_perror(conn, "Setting sequence");
 		return rc;
 	}
 
@@ -3083,15 +3096,17 @@ static int tcp_flow_repair_seq(int s, const uint32_t *v)
 
 /**
  * tcp_flow_dump_rcvqueue() - Dump receive queue and its length, seal/block it
- * @s:		Socket
+ * @conn:	Pointer to the TCP connection structure
  * @t:		Extended migration data
  *
  * Return: 0 on success, negative error code on failure
  *
  * #syscalls:vu ioctl
  */
-static int tcp_flow_dump_rcvqueue(int s, struct tcp_tap_transfer_ext *t)
+static int tcp_flow_dump_rcvqueue(const struct tcp_tap_conn *conn,
+				  struct tcp_tap_transfer_ext *t)
 {
+	int s = conn->sock;
 	ssize_t rc;
 
 	if (ioctl(s, SIOCINQ, &t->rcvq) < 0) {
@@ -3111,8 +3126,9 @@ static int tcp_flow_dump_rcvqueue(int s, struct tcp_tap_transfer_ext *t)
 		t->rcvq--;
 
 	if (t->rcvq > TCP_MIGRATE_RCV_QUEUE_MAX) {
-		err("Receive queue too large to migrate socket %i: %u bytes",
-		    s, t->rcvq);
+		flow_err(conn,
+			 "Receive queue too large to migrate socket: %u bytes",
+			 t->rcvq);
 		return -ENOBUFS;
 	}
 
@@ -3122,13 +3138,13 @@ static int tcp_flow_dump_rcvqueue(int s, struct tcp_tap_transfer_ext *t)
 			rc = 0;
 		} else {
 			rc = -errno;
-			err_perror("Can't read receive queue for socket %i", s);
+			flow_perror(conn, "Can't read receive queue");
 			return rc;
 		}
 	}
 
 	if ((uint32_t)rc < t->rcvq) {
-		err("Short read migrating receive queue");
+		flow_err(conn, "Short read migrating receive queue");
 		return -ENXIO;
 	}
 
@@ -3137,12 +3153,13 @@ static int tcp_flow_dump_rcvqueue(int s, struct tcp_tap_transfer_ext *t)
 
 /**
  * tcp_flow_repair_opt() - Set repair "options" (MSS, scale, SACK, timestamps)
- * @s:		Socket
+ * @conn:	Pointer to the TCP connection structure
  * @t:		Extended migration data
  *
  * Return: 0 on success, negative error code on failure
  */
-static int tcp_flow_repair_opt(int s, const struct tcp_tap_transfer_ext *t)
+static int tcp_flow_repair_opt(const struct tcp_tap_conn *conn,
+			       const struct tcp_tap_transfer_ext *t)
 {
 	const struct tcp_repair_opt opts[] = {
 		{ TCPOPT_WINDOW,		t->snd_ws + (t->rcv_ws << 16) },
@@ -3156,9 +3173,9 @@ static int tcp_flow_repair_opt(int s, const struct tcp_tap_transfer_ext *t)
 				!!(t->tcpi_options & TCPI_OPT_SACK) +
 				!!(t->tcpi_options & TCPI_OPT_TIMESTAMPS));
 
-	if (setsockopt(s, SOL_TCP, TCP_REPAIR_OPTIONS, opts, sl)) {
+	if (setsockopt(conn->sock, SOL_TCP, TCP_REPAIR_OPTIONS, opts, sl)) {
 		int rc = -errno;
-		err_perror("Setting repair options, socket %i", s);
+		flow_perror(conn, "Setting repair options");
 		return rc;
 	}
 
@@ -3229,36 +3246,36 @@ int tcp_flow_migrate_source_ext(int fd, const struct tcp_tap_conn *conn)
 	/* Disable SO_PEEK_OFF, it will make accessing the queues in repair mode
 	 * weird.
 	 */
-	if (tcp_set_peek_offset(s, -1)) {
+	if (tcp_set_peek_offset(conn, -1)) {
 		rc = -errno;
 		goto fail;
 	}
 
-	if ((rc = tcp_flow_dump_tinfo(s, t)))
+	if ((rc = tcp_flow_dump_tinfo(conn, t)))
 		goto fail;
 
-	if ((rc = tcp_flow_dump_mss(s, t)))
+	if ((rc = tcp_flow_dump_mss(conn, t)))
 		goto fail;
 
-	if ((rc = tcp_flow_dump_wnd(s, t)))
+	if ((rc = tcp_flow_dump_wnd(conn, t)))
 		goto fail;
 
-	if ((rc = tcp_flow_select_queue(s, TCP_SEND_QUEUE)))
+	if ((rc = tcp_flow_select_queue(conn, TCP_SEND_QUEUE)))
 		goto fail;
 
-	if ((rc = tcp_flow_dump_sndqueue(s, t)))
+	if ((rc = tcp_flow_dump_sndqueue(conn, t)))
 		goto fail;
 
-	if ((rc = tcp_flow_dump_seq(s, &t->seq_snd)))
+	if ((rc = tcp_flow_dump_seq(conn, &t->seq_snd)))
 		goto fail;
 
-	if ((rc = tcp_flow_select_queue(s, TCP_RECV_QUEUE)))
+	if ((rc = tcp_flow_select_queue(conn, TCP_RECV_QUEUE)))
 		goto fail;
 
-	if ((rc = tcp_flow_dump_rcvqueue(s, t)))
+	if ((rc = tcp_flow_dump_rcvqueue(conn, t)))
 		goto fail;
 
-	if ((rc = tcp_flow_dump_seq(s, &t->seq_rcv)))
+	if ((rc = tcp_flow_dump_seq(conn, &t->seq_rcv)))
 		goto fail;
 
 	close(s);
@@ -3269,14 +3286,14 @@ int tcp_flow_migrate_source_ext(int fd, const struct tcp_tap_conn *conn)
 	t->seq_rcv	-= t->rcvq;
 	t->seq_snd	-= t->sndq;
 
-	debug("Extended migration data, socket %i sequences send %u receive %u",
-	      s, t->seq_snd, t->seq_rcv);
-	debug("  pending queues: send %u not sent %u receive %u",
-	      t->sndq, t->notsent, t->rcvq);
-	debug("  window: snd_wl1 %u snd_wnd %u max %u rcv_wnd %u rcv_wup %u",
-	      t->snd_wl1, t->snd_wnd, t->max_window, t->rcv_wnd, t->rcv_wup);
-	debug("  SO_PEEK_OFF %s  offset=%"PRIu32,
-	      peek_offset_cap ? "enabled" : "disabled", peek_offset);
+	flow_dbg(conn, "Extended migration data, socket %i sequences send %u receive %u",
+		 s, t->seq_snd, t->seq_rcv);
+	flow_dbg(conn, "  pending queues: send %u not sent %u receive %u",
+		 t->sndq, t->notsent, t->rcvq);
+	flow_dbg(conn, "  window: snd_wl1 %u snd_wnd %u max %u rcv_wnd %u rcv_wup %u",
+		 t->snd_wl1, t->snd_wnd, t->max_window, t->rcv_wnd, t->rcv_wup);
+	flow_dbg(conn, "  SO_PEEK_OFF %s  offset=%"PRIu32,
+		 peek_offset_cap ? "enabled" : "disabled", peek_offset);
 
 	/* Endianness fix-ups */
 	t->seq_snd	= htonl(t->seq_snd);
@@ -3292,17 +3309,17 @@ int tcp_flow_migrate_source_ext(int fd, const struct tcp_tap_conn *conn)
 	t->rcv_wup	= htonl(t->rcv_wup);
 
 	if (write_all_buf(fd, t, sizeof(*t))) {
-		err_perror("Failed to write extended data, socket %i", s);
+		flow_perror(conn, "Failed to write extended data");
 		return -EIO;
 	}
 
 	if (write_all_buf(fd, tcp_migrate_snd_queue, ntohl(t->sndq))) {
-		err_perror("Failed to write send queue data, socket %i", s);
+		flow_perror(conn, "Failed to write send queue data");
 		return -EIO;
 	}
 
 	if (write_all_buf(fd, tcp_migrate_rcv_queue, ntohl(t->rcvq))) {
-		err_perror("Failed to write receive queue data, socket %i", s);
+		flow_perror(conn, "Failed to write receive queue data");
 		return -EIO;
 	}
 
@@ -3317,7 +3334,7 @@ fail:
 	t->tcpi_state = 0; /* Not defined: tell the target to skip this flow */
 
 	if (write_all_buf(fd, t, sizeof(*t))) {
-		err_perror("Failed to write extended data, socket %i", s);
+		flow_perror(conn, "Failed to write extended data");
 		return -EIO;
 	}
 
@@ -3347,19 +3364,20 @@ static int tcp_flow_repair_socket(struct ctx *c, struct tcp_tap_conn *conn)
 	if ((conn->sock = socket(af, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC,
 				 IPPROTO_TCP)) < 0) {
 		rc = -errno;
-		err_perror("Failed to create socket for migrated flow");
+		flow_perror(conn, "Failed to create socket for migrated flow");
 		return rc;
 	}
 	s = conn->sock;
 
 	if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &(int){ 1 }, sizeof(int)))
-		debug_perror("Setting SO_REUSEADDR on socket %i", s);
+		flow_dbg_perror(conn, "Failed to set SO_REUSEADDR on socket %i",
+				s);
 
 	tcp_sock_set_nodelay(s);
 
 	if (bind(s, &a.sa, sizeof(a))) {
 		rc = -errno;
-		err_perror("Failed to bind socket for migrated flow");
+		flow_perror(conn, "Failed to bind socket for migrated flow");
 		goto err;
 	}
 
@@ -3390,7 +3408,7 @@ static int tcp_flow_repair_connect(const struct ctx *c,
 	rc = flowside_connect(c, conn->sock, PIF_HOST, tgt);
 	if (rc) {
 		rc = -errno;
-		err_perror("Failed to connect migrated socket %i", conn->sock);
+		flow_perror(conn, "Failed to connect migrated socket");
 		return rc;
 	}
 
@@ -3421,8 +3439,8 @@ int tcp_flow_migrate_target(struct ctx *c, int fd)
 	}
 
 	if (read_all_buf(fd, &t, sizeof(t))) {
+		flow_perror(flow, "Failed to receive migration data");
 		flow_alloc_cancel(flow);
-		err_perror("Failed to receive migration data");
 		return -errno;
 	}
 
@@ -3481,7 +3499,7 @@ int tcp_flow_migrate_target_ext(struct ctx *c, struct tcp_tap_conn *conn, int fd
 
 	if (read_all_buf(fd, &t, sizeof(t))) {
 		rc = -errno;
-		err_perror("Failed to read extended data for socket %i", s);
+		flow_perror(conn, "Failed to read extended data");
 		return rc;
 	}
 
@@ -3503,31 +3521,34 @@ int tcp_flow_migrate_target_ext(struct ctx *c, struct tcp_tap_conn *conn, int fd
 	t.rcv_wnd	= ntohl(t.rcv_wnd);
 	t.rcv_wup	= ntohl(t.rcv_wup);
 
-	debug("Extended migration data, socket %i sequences send %u receive %u",
-	      s, t.seq_snd, t.seq_rcv);
-	debug("  pending queues: send %u not sent %u receive %u",
-	      t.sndq, t.notsent, t.rcvq);
-	debug("  window: snd_wl1 %u snd_wnd %u max %u rcv_wnd %u rcv_wup %u",
-	      t.snd_wl1, t.snd_wnd, t.max_window, t.rcv_wnd, t.rcv_wup);
-	debug("  SO_PEEK_OFF %s  offset=%"PRIu32,
-	      peek_offset_cap ? "enabled" : "disabled", peek_offset);
+	flow_dbg(conn,
+		 "Extended migration data, socket %i sequences send %u receive %u",
+		 s, t.seq_snd, t.seq_rcv);
+	flow_dbg(conn, "  pending queues: send %u not sent %u receive %u",
+		 t.sndq, t.notsent, t.rcvq);
+	flow_dbg(conn,
+		 "  window: snd_wl1 %u snd_wnd %u max %u rcv_wnd %u rcv_wup %u",
+		 t.snd_wl1, t.snd_wnd, t.max_window, t.rcv_wnd, t.rcv_wup);
+	flow_dbg(conn, "  SO_PEEK_OFF %s  offset=%"PRIu32,
+		 peek_offset_cap ? "enabled" : "disabled", peek_offset);
 
 	if (t.sndq > TCP_MIGRATE_SND_QUEUE_MAX || t.notsent > t.sndq ||
 	    t.rcvq > TCP_MIGRATE_RCV_QUEUE_MAX) {
-		err("Bad queues socket %i, send: %u, not sent: %u, receive: %u",
-		    s, t.sndq, t.notsent, t.rcvq);
+		flow_err(conn,
+			 "Bad queues socket %i, send: %u, not sent: %u, receive: %u",
+			 s, t.sndq, t.notsent, t.rcvq);
 		return -EINVAL;
 	}
 
 	if (read_all_buf(fd, tcp_migrate_snd_queue, t.sndq)) {
 		rc = -errno;
-		err_perror("Failed to read send queue data, socket %i", s);
+		flow_perror(conn, "Failed to read send queue data");
 		return rc;
 	}
 
 	if (read_all_buf(fd, tcp_migrate_rcv_queue, t.rcvq)) {
 		rc = -errno;
-		err_perror("Failed to read receive queue data, socket %i", s);
+		flow_perror(conn, "Failed to read receive queue data");
 		return rc;
 	}
 
@@ -3535,32 +3556,32 @@ int tcp_flow_migrate_target_ext(struct ctx *c, struct tcp_tap_conn *conn, int fd
 		/* We weren't able to create the socket, discard flow */
 		goto fail;
 
-	if (tcp_flow_select_queue(s, TCP_SEND_QUEUE))
+	if (tcp_flow_select_queue(conn, TCP_SEND_QUEUE))
 		goto fail;
 
-	if (tcp_flow_repair_seq(s, &t.seq_snd))
+	if (tcp_flow_repair_seq(conn, &t.seq_snd))
 		goto fail;
 
-	if (tcp_flow_select_queue(s, TCP_RECV_QUEUE))
+	if (tcp_flow_select_queue(conn, TCP_RECV_QUEUE))
 		goto fail;
 
-	if (tcp_flow_repair_seq(s, &t.seq_rcv))
+	if (tcp_flow_repair_seq(conn, &t.seq_rcv))
 		goto fail;
 
 	if (tcp_flow_repair_connect(c, conn))
 		goto fail;
 
-	if (tcp_flow_repair_queue(s, t.rcvq, tcp_migrate_rcv_queue))
+	if (tcp_flow_repair_queue(conn, t.rcvq, tcp_migrate_rcv_queue))
 		goto fail;
 
-	if (tcp_flow_select_queue(s, TCP_SEND_QUEUE))
+	if (tcp_flow_select_queue(conn, TCP_SEND_QUEUE))
 		goto fail;
 
-	if (tcp_flow_repair_queue(s, t.sndq - t.notsent,
+	if (tcp_flow_repair_queue(conn, t.sndq - t.notsent,
 				  tcp_migrate_snd_queue))
 		goto fail;
 
-	if (tcp_flow_repair_opt(s, &t))
+	if (tcp_flow_repair_opt(conn, &t))
 		goto fail;
 
 	/* If we sent a FIN sent and it was acknowledged (TCP_FIN_WAIT2), don't
@@ -3575,19 +3596,19 @@ int tcp_flow_migrate_target_ext(struct ctx *c, struct tcp_tap_conn *conn, int fd
 
 		v = TCP_SEND_QUEUE;
 		if (setsockopt(s, SOL_TCP, TCP_REPAIR_QUEUE, &v, sizeof(v)))
-			debug_perror("Selecting repair queue, socket %i", s);
+			flow_perror(conn, "Selecting repair queue");
 		else
 			shutdown(s, SHUT_WR);
 	}
 
-	if (tcp_flow_repair_wnd(s, &t))
+	if (tcp_flow_repair_wnd(conn, &t))
 		goto fail;
 
 	tcp_flow_repair_off(c, conn);
 	repair_flush(c);
 
 	if (t.notsent) {
-		if (tcp_flow_repair_queue(s, t.notsent,
+		if (tcp_flow_repair_queue(conn, t.notsent,
 					  tcp_migrate_snd_queue +
 					  (t.sndq - t.notsent))) {
 			/* This sometimes seems to fail for unclear reasons.
@@ -3607,15 +3628,16 @@ int tcp_flow_migrate_target_ext(struct ctx *c, struct tcp_tap_conn *conn, int fd
 	if (t.tcpi_state == TCP_FIN_WAIT1)
 		shutdown(s, SHUT_WR);
 
-	if (tcp_set_peek_offset(conn->sock, peek_offset))
+	if (tcp_set_peek_offset(conn, peek_offset))
 		goto fail;
 
 	tcp_send_flag(c, conn, ACK);
 	tcp_data_from_sock(c, conn);
 
 	if ((rc = tcp_epoll_ctl(c, conn))) {
-		debug("Failed to subscribe to epoll for migrated socket %i: %s",
-		      conn->sock, strerror_(-rc));
+		flow_dbg(conn,
+			 "Failed to subscribe to epoll for migrated socket: %s",
+			 strerror_(-rc));
 		goto fail;
 	}
 
