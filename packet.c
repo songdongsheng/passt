@@ -129,9 +129,13 @@ void *packet_get_try_do(const struct pool *p, size_t idx, size_t offset,
 {
 	char *ptr;
 
-	if (idx >= p->size || idx >= p->count) {
-		trace("packet %zu from pool size: %zu, count: %zu, %s:%i",
-		      idx, p->size, p->count, func, line);
+	ASSERT_WITH_MSG(p->count <= p->size,
+			"Corrupt pool count: %zu, size: %zu, %s:%i",
+			p->count, p->size, func, line);
+
+	if (idx >= p->count) {
+		trace("packet %zu from pool count: %zu, %s:%i",
+		      idx, p->count, func, line);
 		return NULL;
 	}
 
@@ -141,8 +145,8 @@ void *packet_get_try_do(const struct pool *p, size_t idx, size_t offset,
 
 	ptr = (char *)p->pkt[idx].iov_base + offset;
 
-	if (packet_check_range(p, ptr, len, func, line))
-		return NULL;
+	ASSERT_WITH_MSG(!packet_check_range(p, ptr, len, func, line),
+			"Corrupt packet pool, %s:%i", func, line);
 
 	if (left)
 		*left = p->pkt[idx].iov_len - offset - len;
