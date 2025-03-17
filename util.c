@@ -1017,3 +1017,22 @@ void encode_domain_name(char *buf, const char *domain_name)
 	}
 	p[i] = 0L;
 }
+
+/**
+ * abort_with_msg() - Print error message and abort
+ * @fmt:	Format string
+ * @...:	Format parameters
+ */
+void abort_with_msg(const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	vlogmsg(true, false, LOG_CRIT, fmt, ap);
+	va_end(ap);
+
+	/* This may actually cause a SIGSYS instead of SIGABRT, due to seccomp,
+	 * but that will still get the job done.
+	 */
+	abort();
+}
