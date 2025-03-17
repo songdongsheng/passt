@@ -89,7 +89,7 @@ bool pool_full(const struct pool *p)
  * @p:		Existing pool
  * @len:	Length of new descriptor
  * @start:	Start of data
- * @func:	For tracing: name of calling function, NULL means no trace()
+ * @func:	For tracing: name of calling function
  * @line:	For tracing: caller line of function call
  */
 void packet_add_do(struct pool *p, size_t len, const char *start,
@@ -113,39 +113,31 @@ void packet_add_do(struct pool *p, size_t len, const char *start,
 }
 
 /**
- * packet_get_do() - Get data range from packet descriptor from given pool
+ * packet_get_try_do() - Get data range from packet descriptor from given pool
  * @p:		Packet pool
  * @idx:	Index of packet descriptor in pool
  * @offset:	Offset of data range in packet descriptor
  * @len:	Length of desired data range
  * @left:	Length of available data after range, set on return, can be NULL
- * @func:	For tracing: name of calling function, NULL means no trace()
+ * @func:	For tracing: name of calling function
  * @line:	For tracing: caller line of function call
  *
  * Return: pointer to start of data range, NULL on invalid range or descriptor
  */
-void *packet_get_do(const struct pool *p, size_t idx, size_t offset,
-		    size_t len, size_t *left, const char *func, int line)
+void *packet_get_try_do(const struct pool *p, size_t idx, size_t offset,
+			size_t len, size_t *left, const char *func, int line)
 {
 	char *ptr;
 
 	if (idx >= p->size || idx >= p->count) {
-		if (func) {
-			trace("packet %zu from pool size: %zu, count: %zu, "
-			      "%s:%i", idx, p->size, p->count, func, line);
-		}
+		trace("packet %zu from pool size: %zu, count: %zu, %s:%i",
+		      idx, p->size, p->count, func, line);
 		return NULL;
 	}
 
 	if (offset > p->pkt[idx].iov_len ||
-	    len > (p->pkt[idx].iov_len - offset)) {
-		if (func) {
-			trace("data length %zu, offset %zu from length %zu, "
-			      "%s:%i", len, offset, p->pkt[idx].iov_len,
-			      func, line);
-		}
+	    len > (p->pkt[idx].iov_len - offset))
 		return NULL;
-	}
 
 	ptr = (char *)p->pkt[idx].iov_base + offset;
 
@@ -156,6 +148,33 @@ void *packet_get_do(const struct pool *p, size_t idx, size_t offset,
 		*left = p->pkt[idx].iov_len - offset - len;
 
 	return ptr;
+}
+
+/**
+ * packet_get_do() - Get data range from packet descriptor from given pool
+ * @p:		Packet pool
+ * @idx:	Index of packet descriptor in pool
+ * @offset:	Offset of data range in packet descriptor
+ * @len:	Length of desired data range
+ * @left:	Length of available data after range, set on return, can be NULL
+ * @func:	For tracing: name of calling function
+ * @line:	For tracing: caller line of function call
+ *
+ * Return: as packet_get_try_do() but log a trace message when returning NULL
+ */
+void *packet_get_do(const struct pool *p, const size_t idx,
+		    size_t offset, size_t len, size_t *left,
+		    const char *func, int line)
+{
+	void *r = packet_get_try_do(p, idx, offset, len, left, func, line);
+
+	if (!r) {
+		trace("missing packet data length %zu, offset %zu from "
+		      "length %zu, %s:%i",
+		      len, offset, p->pkt[idx].iov_len, func, line);
+	}
+
+	return r;
 }
 
 /**
