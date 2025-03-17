@@ -144,7 +144,8 @@ void *packet_get_do(const struct pool *p, size_t idx, size_t offset,
 		return NULL;
 	}
 
-	if (len + offset > p->pkt[idx].iov_len) {
+	if (offset > p->pkt[idx].iov_len ||
+	    len > (p->pkt[idx].iov_len - offset)) {
 		if (func) {
 			trace("data length %zu, offset %zu from length %zu, "
 			      "%s:%i", len, offset, p->pkt[idx].iov_len,
