@@ -36,7 +36,7 @@ static int packet_check_range(const struct pool *p, const char *ptr, size_t len,
 			      const char *func, int line)
 {
 	if (len > PACKET_MAX_LEN) {
-		trace("packet range length %zu (max %zu), %s:%i",
+		debug("packet range length %zu (max %zu), %s:%i",
 		      len, PACKET_MAX_LEN, func, line);
 		return -1;
 	}
@@ -47,25 +47,25 @@ static int packet_check_range(const struct pool *p, const char *ptr, size_t len,
 		ret = vu_packet_check_range((void *)p->buf, ptr, len);
 
 		if (ret == -1)
-			trace("cannot find region, %s:%i", func, line);
+			debug("cannot find region, %s:%i", func, line);
 
 		return ret;
 	}
 
 	if (ptr < p->buf) {
-		trace("packet range start %p before buffer start %p, %s:%i",
+		debug("packet range start %p before buffer start %p, %s:%i",
 		      (void *)ptr, (void *)p->buf, func, line);
 		return -1;
 	}
 
 	if (len > p->buf_size) {
-		trace("packet range length %zu larger than buffer %zu, %s:%i",
+		debug("packet range length %zu larger than buffer %zu, %s:%i",
 		      len, p->buf_size, func, line);
 		return -1;
 	}
 
 	if ((size_t)(ptr - p->buf) > p->buf_size - len) {
-		trace("packet range %p, len %zu after buffer end %p, %s:%i",
+		debug("packet range %p, len %zu after buffer end %p, %s:%i",
 		      (void *)ptr, len, (void *)(p->buf + p->buf_size),
 		      func, line);
 		return -1;
@@ -98,7 +98,7 @@ void packet_add_do(struct pool *p, size_t len, const char *start,
 	size_t idx = p->count;
 
 	if (pool_full(p)) {
-		trace("add packet index %zu to pool with size %zu, %s:%i",
+		debug("add packet index %zu to pool with size %zu, %s:%i",
 		      idx, p->size, func, line);
 		return;
 	}
@@ -134,7 +134,7 @@ void *packet_get_try_do(const struct pool *p, size_t idx, size_t offset,
 			p->count, p->size, func, line);
 
 	if (idx >= p->count) {
-		trace("packet %zu from pool count: %zu, %s:%i",
+		debug("packet %zu from pool count: %zu, %s:%i",
 		      idx, p->count, func, line);
 		return NULL;
 	}
