@@ -75,12 +75,28 @@ CHECK_FRAME_LEN(L2_MAX_LEN_PASTA);
 CHECK_FRAME_LEN(L2_MAX_LEN_PASST);
 CHECK_FRAME_LEN(L2_MAX_LEN_VU);
 
-#define TAP_MSGS							\
-	DIV_ROUND_UP(sizeof(pkt_buf), ETH_ZLEN - 2 * ETH_ALEN + sizeof(uint32_t))
+/* We try size the packet pools so that we can use a single batch for the entire
+ * packet buffer.  This might be exceeded for vhost-user, though, which uses its
+ * own buffers rather than pkt_buf.
+ *
+ * This is just a tuning parameter, the code will work with slightly more
+ * overhead if it's incorrect.  So, we estimate based on the minimum practical
+ * frame size - an empty UDP datagram - rather than the minimum theoretical
+ * frame size.
+ *
+ * FIXME: Profile to work out how big this actually needs to be to amortise
+ *        per-batch syscall overheads
+ */
+#define TAP_MSGS_IP4							\
+	DIV_ROUND_UP(sizeof(pkt_buf),					\
+		     ETH_HLEN + sizeof(struct iphdr) + sizeof(struct udphdr))
+#define TAP_MSGS_IP6							\
+	DIV_ROUND_UP(sizeof(pkt_buf),					\
+		     ETH_HLEN + sizeof(struct ipv6hdr) + sizeof(struct udphdr))
 
 /* IPv4 (plus ARP) and IPv6 message batches from tap/guest to IP handlers */
-static PACKET_POOL_NOINIT(pool_tap4, TAP_MSGS, pkt_buf);
-static PACKET_POOL_NOINIT(pool_tap6, TAP_MSGS, pkt_buf);
+static PACKET_POOL_NOINIT(pool_tap4, TAP_MSGS_IP4, pkt_buf);
+static PACKET_POOL_NOINIT(pool_tap6, TAP_MSGS_IP6, pkt_buf);
 
 #define TAP_SEQS		128 /* Different L4 tuples in one batch */
 #define FRAGMENT_MSG_RATE	10  /* # seconds between fragment warnings */
@@ -1418,8 +1434,8 @@ void tap_sock_update_pool(void *base, size_t size)
 {
 	int i;
 
-	pool_tap4_storage = PACKET_INIT(pool_tap4, TAP_MSGS, base, size);
-	pool_tap6_storage = PACKET_INIT(pool_tap6, TAP_MSGS, base, size);
+	pool_tap4_storage = PACKET_INIT(pool_tap4, TAP_MSGS_IP4, base, size);
+	pool_tap6_storage = PACKET_INIT(pool_tap6, TAP_MSGS_IP6, base, size);
 
 	for (i = 0; i < TAP_SEQS; i++) {
 		tap4_l4[i].p = PACKET_INIT(pool_l4, UIO_MAXIOV, base, size);
