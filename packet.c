@@ -35,6 +35,12 @@
 static int packet_check_range(const struct pool *p, const char *ptr, size_t len,
 			      const char *func, int line)
 {
+	if (len > PACKET_MAX_LEN) {
+		trace("packet range length %zu (max %zu), %s:%i",
+		      len, PACKET_MAX_LEN, func, line);
+		return -1;
+	}
+
 	if (p->buf_size == 0) {
 		int ret;
 
@@ -100,11 +106,6 @@ void packet_add_do(struct pool *p, size_t len, const char *start,
 	if (packet_check_range(p, start, len, func, line))
 		return;
 
-	if (len > PACKET_MAX_LEN) {
-		trace("add packet length %zu, %s:%i", len, func, line);
-		return;
-	}
-
 	p->pkt[idx].iov_base = (void *)start;
 	p->pkt[idx].iov_len = len;
 
@@ -132,14 +133,6 @@ void *packet_get_do(const struct pool *p, size_t idx, size_t offset,
 		if (func) {
 			trace("packet %zu from pool size: %zu, count: %zu, "
 			      "%s:%i", idx, p->size, p->count, func, line);
-		}
-		return NULL;
-	}
-
-	if (len > PACKET_MAX_LEN) {
-		if (func) {
-			trace("packet data length %zu, %s:%i",
-			      len, func, line);
 		}
 		return NULL;
 	}
