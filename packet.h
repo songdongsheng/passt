@@ -6,6 +6,8 @@
 #ifndef PACKET_H
 #define PACKET_H
 
+#include <stdbool.h>
+
 /* Maximum size of a single packet stored in pool, including headers */
 #define PACKET_MAX_LEN	UINT16_MAX
 
@@ -33,6 +35,7 @@ void packet_add_do(struct pool *p, size_t len, const char *start,
 void *packet_get_do(const struct pool *p, const size_t idx,
 		    size_t offset, size_t len, size_t *left,
 		    const char *func, int line);
+bool pool_full(const struct pool *p);
 void pool_flush(struct pool *p);
 
 #define packet_add(p, len, start)					\

@@ -71,8 +71,6 @@ static_assert(sizeof(union epoll_ref) <= sizeof(union epoll_data),
 
 /* Large enough for ~128 maximum size frames */
 #define PKT_BUF_BYTES		(8UL << 20)
-#define TAP_MSGS							\
-	DIV_ROUND_UP(PKT_BUF_BYTES, ETH_ZLEN - 2 * ETH_ALEN + sizeof(uint32_t))
 
 extern char pkt_buf		[PKT_BUF_BYTES];
 

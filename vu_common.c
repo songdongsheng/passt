@@ -195,7 +195,7 @@ static void vu_handle_tx(struct vu_dev *vdev, int index,
 			tap_add_packet(vdev->context,
 				       elem[count].out_sg[0].iov_len - hdrlen,
 				       (char *)elem[count].out_sg[0].iov_base +
-				        hdrlen);
+				       hdrlen, now);
 		} else {
 			/* vnet header can be in a separate iovec */
 			if (elem[count].out_num != 2) {
@@ -207,7 +207,8 @@ static void vu_handle_tx(struct vu_dev *vdev, int index,
 			} else {
 				tap_add_packet(vdev->context,
 					       elem[count].out_sg[1].iov_len,
-					       (char *)elem[count].out_sg[1].iov_base);
+					       (char *)elem[count].out_sg[1].iov_base,
+					       now);
 			}
 		}
 

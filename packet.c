@@ -68,6 +68,17 @@ static int packet_check_range(const struct pool *p, const char *ptr, size_t len,
 	return 0;
 }
 /**
+ * pool_full() - Is a packet pool full?
+ * @p:		Pointer to packet pool
+ *
+ * Return: true if the pool is full, false if more packets can be added
+ */
+bool pool_full(const struct pool *p)
+{
+	return p->count >= p->size;
+}
+
+/**
  * packet_add_do() - Add data as packet descriptor to given pool
  * @p:		Existing pool
  * @len:	Length of new descriptor
@@ -80,7 +91,7 @@ void packet_add_do(struct pool *p, size_t len, const char *start,
 {
 	size_t idx = p->count;
 
-	if (idx >= p->size) {
+	if (pool_full(p)) {
 		trace("add packet index %zu to pool with size %zu, %s:%i",
 		      idx, p->size, func, line);
 		return;

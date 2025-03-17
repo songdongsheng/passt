@@ -75,6 +75,9 @@ CHECK_FRAME_LEN(L2_MAX_LEN_PASTA);
 CHECK_FRAME_LEN(L2_MAX_LEN_PASST);
 CHECK_FRAME_LEN(L2_MAX_LEN_VU);
 
+#define TAP_MSGS							\
+	DIV_ROUND_UP(sizeof(pkt_buf), ETH_ZLEN - 2 * ETH_ALEN + sizeof(uint32_t))
+
 /* IPv4 (plus ARP) and IPv6 message batches from tap/guest to IP handlers */
 static PACKET_POOL_NOINIT(pool_tap4, TAP_MSGS, pkt_buf);
 static PACKET_POOL_NOINIT(pool_tap6, TAP_MSGS, pkt_buf);
@@ -1042,8 +1045,10 @@ void tap_handler(struct ctx *c, const struct timespec *now)
  * @c:		Execution context
  * @l2len:	Total L2 packet length
  * @p:		Packet buffer
+ * @now:	Current timestamp
  */
-void tap_add_packet(struct ctx *c, ssize_t l2len, char *p)
+void tap_add_packet(struct ctx *c, ssize_t l2len, char *p,
+		    const struct timespec *now)
 {
 	const struct ethhdr *eh;
 
@@ -1059,9 +1064,17 @@ void tap_add_packet(struct ctx *c, ssize_t l2len, char *p)
 	switch (ntohs(eh->h_proto)) {
 	case ETH_P_ARP:
 	case ETH_P_IP:
+		if (pool_full(pool_tap4)) {
+			tap4_handler(c, pool_tap4, now);
+			pool_flush(pool_tap4);
+		}
 		packet_add(pool_tap4, l2len, p);
 		break;
 	case ETH_P_IPV6:
+		if (pool_full(pool_tap6)) {
+			tap6_handler(c, pool_tap6, now);
+			pool_flush(pool_tap6);
+		}
 		packet_add(pool_tap6, l2len, p);
 		break;
 	default:
@@ -1142,7 +1155,7 @@ static void tap_passt_input(struct ctx *c, const struct timespec *now)
 		p += sizeof(uint32_t);
 		n -= sizeof(uint32_t);
 
-		tap_add_packet(c, l2len, p);
+		tap_add_packet(c, l2len, p, now);
 
 		p += l2len;
 		n -= l2len;
@@ -1207,7 +1220,7 @@ static void tap_pasta_input(struct ctx *c, const struct timespec *now)
 		    len > (ssize_t)L2_MAX_LEN_PASTA)
 			continue;
 
-		tap_add_packet(c, len, pkt_buf + n);
+		tap_add_packet(c, len, pkt_buf + n, now);
 	}
 
 	tap_handler(c, now);
