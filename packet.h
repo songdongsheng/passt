@@ -9,7 +9,7 @@
 #include <stdbool.h>
 
 /* Maximum size of a single packet stored in pool, including headers */
-#define PACKET_MAX_LEN	UINT16_MAX
+#define PACKET_MAX_LEN	((size_t)UINT16_MAX)
 
 /**
  * struct pool - Generic pool of packets stored in a buffer
