@@ -36,11 +36,15 @@ int vu_packet_check_range(void *buf, const char *ptr, size_t len)
 	struct vu_dev_region *dev_region;
 
 	for (dev_region = buf; dev_region->mmap_addr; dev_region++) {
-		/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
-		char *m = (char *)(uintptr_t)dev_region->mmap_addr +
+		uintptr_t base_addr = dev_region->mmap_addr +
 			dev_region->mmap_offset;
+		/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
+		const char *base = (const char *)base_addr;
 
-		if (m <= ptr && ptr + len <= m + dev_region->size)
+		ASSERT(base_addr >= dev_region->mmap_addr);
+
+		if (len <= dev_region->size && base <= ptr &&
+		    (size_t)(ptr - base) <= dev_region->size - len)
 			return 0;
 	}
 

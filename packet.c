@@ -52,9 +52,15 @@ static int packet_check_range(const struct pool *p, const char *ptr, size_t len,
 		return -1;
 	}
 
-	if (ptr + len > p->buf + p->buf_size) {
-		trace("packet range end %p after buffer end %p, %s:%i",
-		      (void *)(ptr + len), (void *)(p->buf + p->buf_size),
+	if (len > p->buf_size) {
+		trace("packet range length %zu larger than buffer %zu, %s:%i",
+		      len, p->buf_size, func, line);
+		return -1;
+	}
+
+	if ((size_t)(ptr - p->buf) > p->buf_size - len) {
+		trace("packet range %p, len %zu after buffer end %p, %s:%i",
+		      (void *)ptr, len, (void *)(p->buf + p->buf_size),
 		      func, line);
 		return -1;
 	}
