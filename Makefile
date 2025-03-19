@@ -29,7 +29,7 @@ ifeq ($(shell $(CC) -O2 -dM -E - < /dev/null 2>&1 | grep ' _FORTIFY_SOURCE ' > /
 FORTIFY_FLAG := -D_FORTIFY_SOURCE=2
 endif
 
-FLAGS := -Wall -Wextra -Wno-format-zero-length
+FLAGS := -Wall -Wextra -Wno-format-zero-length -Wformat-security
 FLAGS += -pedantic -std=c11 -D_XOPEN_SOURCE=700 -D_GNU_SOURCE
 FLAGS +=  $(FORTIFY_FLAG) -O2 -pie -fPIE
 FLAGS += -DPAGE_SIZE=$(shell getconf PAGE_SIZE)
