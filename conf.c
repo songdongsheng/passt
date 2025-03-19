@@ -16,6 +16,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <libgen.h>
 #include <string.h>
 #include <sched.h>
 #include <sys/types.h>
