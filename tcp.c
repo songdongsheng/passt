@@ -2848,12 +2848,15 @@ static int tcp_flow_dump_mss(const struct tcp_tap_conn *conn,
 			     struct tcp_tap_transfer_ext *t)
 {
 	socklen_t sl = sizeof(t->mss);
+	int val;
 
-	if (getsockopt(conn->sock, SOL_TCP, TCP_MAXSEG, &t->mss, &sl)) {
+	if (getsockopt(conn->sock, SOL_TCP, TCP_MAXSEG, &val, &sl)) {
 		int rc = -errno;
 		flow_perror(conn, "Getting MSS");
 		return rc;
 	}
+
+	t->mss = (uint32_t)val;
 
 	return 0;
 }
@@ -3301,6 +3304,7 @@ int tcp_flow_migrate_source_ext(int fd, const struct tcp_tap_conn *conn)
 	t->sndq		= htonl(t->sndq);
 	t->notsent	= htonl(t->notsent);
 	t->rcvq		= htonl(t->rcvq);
+	t->mss		= htonl(t->mss);
 
 	t->snd_wl1	= htonl(t->snd_wl1);
 	t->snd_wnd	= htonl(t->snd_wnd);
@@ -3514,6 +3518,7 @@ int tcp_flow_migrate_target_ext(struct ctx *c, struct tcp_tap_conn *conn, int fd
 	t.sndq		= ntohl(t.sndq);
 	t.notsent	= ntohl(t.notsent);
 	t.rcvq		= ntohl(t.rcvq);
+	t.mss		= ntohl(t.mss);
 
 	t.snd_wl1	= ntohl(t.snd_wl1);
 	t.snd_wnd	= ntohl(t.snd_wnd);
