@@ -2861,6 +2861,57 @@ static int tcp_flow_dump_mss(const struct tcp_tap_conn *conn,
 	return 0;
 }
 
+
+/**
+ * tcp_flow_dump_timestamp() - Dump RFC 7323 timestamp via TCP_TIMESTAMP
+ * @conn:	Pointer to the TCP connection structure
+ * @t:		Extended migration data (tcpi_options must be populated)
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+static int tcp_flow_dump_timestamp(const struct tcp_tap_conn *conn,
+				   struct tcp_tap_transfer_ext *t)
+{
+	int val = 0;
+
+	if (t->tcpi_options & TCPI_OPT_TIMESTAMPS) {
+		socklen_t sl = sizeof(val);
+
+		if (getsockopt(conn->sock, SOL_TCP, TCP_TIMESTAMP, &val, &sl)) {
+			int rc = -errno;
+			flow_perror(conn, "Getting RFC 7323 timestamp");
+			return rc;
+		}
+	}
+
+	t->timestamp = (uint32_t)val;
+	return 0;
+}
+
+/**
+ * tcp_flow_repair_timestamp() - Restore RFC 7323 timestamp via TCP_TIMESTAMP
+ * @conn:	Pointer to the TCP connection structure
+ * @t:		Extended migration data
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+static int tcp_flow_repair_timestamp(const struct tcp_tap_conn *conn,
+				   const struct tcp_tap_transfer_ext *t)
+{
+	int val = (int)t->timestamp;
+
+	if (t->tcpi_options & TCPI_OPT_TIMESTAMPS) {
+		if (setsockopt(conn->sock, SOL_TCP, TCP_TIMESTAMP,
+			       &val, sizeof(val))) {
+			int rc = -errno;
+			flow_perror(conn, "Setting RFC 7323 timestamp");
+			return rc;
+		}
+	}
+
+	return 0;
+}
+
 /**
  * tcp_flow_dump_wnd() - Dump current tcp_repair_window parameters
  * @conn:	Pointer to the TCP connection structure
@@ -3260,6 +3311,9 @@ int tcp_flow_migrate_source_ext(int fd, const struct tcp_tap_conn *conn)
 	if ((rc = tcp_flow_dump_mss(conn, t)))
 		goto fail;
 
+	if ((rc = tcp_flow_dump_timestamp(conn, t)))
+		goto fail;
+
 	if ((rc = tcp_flow_dump_wnd(conn, t)))
 		goto fail;
 
@@ -3305,6 +3359,7 @@ int tcp_flow_migrate_source_ext(int fd, const struct tcp_tap_conn *conn)
 	t->notsent	= htonl(t->notsent);
 	t->rcvq		= htonl(t->rcvq);
 	t->mss		= htonl(t->mss);
+	t->timestamp	= htonl(t->timestamp);
 
 	t->snd_wl1	= htonl(t->snd_wl1);
 	t->snd_wnd	= htonl(t->snd_wnd);
@@ -3519,6 +3574,7 @@ int tcp_flow_migrate_target_ext(struct ctx *c, struct tcp_tap_conn *conn, int fd
 	t.notsent	= ntohl(t.notsent);
 	t.rcvq		= ntohl(t.rcvq);
 	t.mss		= ntohl(t.mss);
+	t.timestamp	= ntohl(t.timestamp);
 
 	t.snd_wl1	= ntohl(t.snd_wl1);
 	t.snd_wnd	= ntohl(t.snd_wnd);
@@ -3559,6 +3615,9 @@ int tcp_flow_migrate_target_ext(struct ctx *c, struct tcp_tap_conn *conn, int fd
 
 	if (conn->sock < 0)
 		/* We weren't able to create the socket, discard flow */
+		goto fail;
+
+	if (tcp_flow_repair_timestamp(conn, &t))
 		goto fail;
 
 	if (tcp_flow_select_queue(conn, TCP_SEND_QUEUE))
