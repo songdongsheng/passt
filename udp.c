@@ -812,9 +812,7 @@ void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 	if (events & EPOLLERR) {
 		if (udp_sock_errs(c, ref) < 0) {
 			flow_err(uflow, "Unrecoverable error on reply socket");
-			flow_err_details(uflow);
-			udp_flow_close(c, uflow);
-			return;
+			goto fail;
 		}
 	}
 
@@ -829,12 +827,15 @@ void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 			ret = udp_buf_reply_sock_data(c, s, tosidx, now);
 
 		if (!ret) {
-			flow_err(uflow,
-				 "No support for forwarding UDP from %s to %s",
-				 pif_name(pif_at_sidx(ref.flowside)),
-				 pif_name(pif_at_sidx(tosidx)));
+			flow_err(uflow, "Unable to forward UDP");
+			goto fail;
 		}
 	}
+	return;
+
+fail:
+	flow_err_details(uflow);
+	udp_flow_close(c, uflow);
 }
 
 /**
