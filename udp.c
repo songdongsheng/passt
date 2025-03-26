@@ -752,24 +752,25 @@ void udp_listen_sock_handler(const struct ctx *c,
 /**
  * udp_buf_reply_sock_data() - Handle new data from flow specific socket
  * @c:		Execution context
- * @ref:	epoll reference
+ * @s:		Socket to read data from
+ * @tosidx:	Flow & side to forward data from @s to
  * @now:	Current timestamp
+ *
+ * Return: true on success, false if can't forward from socket to flow's pif
  *
  * #syscalls recvmmsg
  */
-static void udp_buf_reply_sock_data(const struct ctx *c, union epoll_ref ref,
+static bool udp_buf_reply_sock_data(const struct ctx *c,
+				    int s, flow_sidx_t tosidx,
 				    const struct timespec *now)
 {
-	flow_sidx_t tosidx = flow_sidx_opposite(ref.flowside);
 	const struct flowside *toside = flowside_at_sidx(tosidx);
-	struct udp_flow *uflow = udp_at_sidx(ref.flowside);
+	struct udp_flow *uflow = udp_at_sidx(tosidx);
 	uint8_t topif = pif_at_sidx(tosidx);
-	int n, i, from_s;
+	int n, i;
 
-	from_s = uflow->s[ref.flowside.sidei];
-
-	if ((n = udp_sock_recv(c, from_s, udp_mh_recv)) <= 0)
-		return;
+	if ((n = udp_sock_recv(c, s, udp_mh_recv)) <= 0)
+		return true;
 
 	flow_trace(uflow, "Received %d datagrams on reply socket", n);
 	uflow->ts = now->tv_sec;
@@ -788,11 +789,10 @@ static void udp_buf_reply_sock_data(const struct ctx *c, union epoll_ref ref,
 	} else if (topif == PIF_TAP) {
 		tap_send_frames(c, &udp_l2_iov[0][0], UDP_NUM_IOVS, n);
 	} else {
-		uint8_t frompif = pif_at_sidx(ref.flowside);
-
-		flow_err(uflow, "No support for forwarding UDP from %s to %s",
-			 pif_name(frompif), pif_name(topif));
+		return false;
 	}
+
+	return true;
 }
 
 /**
@@ -819,10 +819,21 @@ void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 	}
 
 	if (events & EPOLLIN) {
+		flow_sidx_t tosidx = flow_sidx_opposite(ref.flowside);
+		int s = ref.fd;
+		bool ret;
+
 		if (c->mode == MODE_VU)
-			udp_vu_reply_sock_data(c, ref, now);
+			ret = udp_vu_reply_sock_data(c, s, tosidx, now);
 		else
-			udp_buf_reply_sock_data(c, ref, now);
+			ret = udp_buf_reply_sock_data(c, s, tosidx, now);
+
+		if (!ret) {
+			flow_err(uflow,
+				 "No support for forwarding UDP from %s to %s",
+				 pif_name(pif_at_sidx(ref.flowside)),
+				 pif_name(pif_at_sidx(tosidx)));
+		}
 	}
 }
 

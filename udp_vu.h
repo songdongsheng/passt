@@ -8,6 +8,7 @@
 
 void udp_vu_listen_sock_data(const struct ctx *c, union epoll_ref ref,
 			     const struct timespec *now);
-void udp_vu_reply_sock_data(const struct ctx *c, union epoll_ref ref,
+bool udp_vu_reply_sock_data(const struct ctx *c, int s, flow_sidx_t tosidx,
 			    const struct timespec *now);
+
 #endif /* UDP_VU_H */

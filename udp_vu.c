@@ -273,38 +273,32 @@ void udp_vu_listen_sock_data(const struct ctx *c, union epoll_ref ref,
 /**
  * udp_vu_reply_sock_data() - Handle new data from flow specific socket
  * @c:		Execution context
- * @ref:	epoll reference
+ * @s:		Socket to read data from
+ * @tosidx:	Flow & side to forward data from @s to
  * @now:	Current timestamp
+ *
+ * Return: true on success, false if can't forward from socket to flow's pif
  */
-void udp_vu_reply_sock_data(const struct ctx *c, union epoll_ref ref,
+bool udp_vu_reply_sock_data(const struct ctx *c, int s, flow_sidx_t tosidx,
 			    const struct timespec *now)
 {
-	flow_sidx_t tosidx = flow_sidx_opposite(ref.flowside);
 	const struct flowside *toside = flowside_at_sidx(tosidx);
 	bool v6 = !(inany_v4(&toside->eaddr) && inany_v4(&toside->oaddr));
-	struct udp_flow *uflow = udp_at_sidx(ref.flowside);
-	int from_s = uflow->s[ref.flowside.sidei];
+	struct udp_flow *uflow = udp_at_sidx(tosidx);
 	struct vu_dev *vdev = c->vdev;
 	struct vu_virtq *vq = &vdev->vq[VHOST_USER_RX_QUEUE];
-	uint8_t topif = pif_at_sidx(tosidx);
 	int i;
 
 	ASSERT(uflow);
 
-	if (topif != PIF_TAP) {
-		uint8_t frompif = pif_at_sidx(ref.flowside);
-
-		flow_err(uflow,
-			 "No support for forwarding UDP from %s to %s",
-			 pif_name(frompif), pif_name(topif));
-		return;
-	}
+	if (pif_at_sidx(tosidx) != PIF_TAP)
+		return false;
 
 	for (i = 0; i < UDP_MAX_FRAMES; i++) {
 		ssize_t dlen;
 		int iov_used;
 
-		iov_used = udp_vu_sock_recv(c, from_s, v6, &dlen);
+		iov_used = udp_vu_sock_recv(c, s, v6, &dlen);
 		if (iov_used <= 0)
 			break;
 		flow_trace(uflow, "Received 1 datagram on reply socket");
@@ -318,4 +312,6 @@ void udp_vu_reply_sock_data(const struct ctx *c, union epoll_ref ref,
 		}
 		vu_flush(vdev, vq, elem, iov_used);
 	}
+
+	return true;
 }
