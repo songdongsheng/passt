@@ -510,10 +510,13 @@ static void udp_send_conn_fail_icmp6(const struct ctx *c,
  */
 static int udp_sock_recverr(const struct ctx *c, union epoll_ref ref)
 {
-	const struct sock_extended_err *ee;
+	struct errhdr {
+		struct sock_extended_err ee;
+		union sockaddr_inany saddr;
+	};
+	const struct errhdr *eh;
 	const struct cmsghdr *hdr;
-	union sockaddr_inany saddr;
-	char buf[CMSG_SPACE(sizeof(*ee))];
+	char buf[CMSG_SPACE(sizeof(struct errhdr))];
 	char data[ICMP6_MAX_DLEN];
 	int s = ref.fd;
 	struct iovec iov = {
@@ -521,8 +524,6 @@ static int udp_sock_recverr(const struct ctx *c, union epoll_ref ref)
 		.iov_len = sizeof(data)
 	};
 	struct msghdr mh = {
-		.msg_name = &saddr,
-		.msg_namelen = sizeof(saddr),
 		.msg_iov = &iov,
 		.msg_iovlen = 1,
 		.msg_control = buf,
@@ -553,7 +554,7 @@ static int udp_sock_recverr(const struct ctx *c, union epoll_ref ref)
 		return -1;
 	}
 
-	ee = (const struct sock_extended_err *)CMSG_DATA(hdr);
+	eh = (const struct errhdr *)CMSG_DATA(hdr);
 	if (ref.type == EPOLL_TYPE_UDP_REPLY) {
 		flow_sidx_t sidx = flow_sidx_opposite(ref.flowside);
 		const struct flowside *toside = flowside_at_sidx(sidx);
@@ -561,18 +562,19 @@ static int udp_sock_recverr(const struct ctx *c, union epoll_ref ref)
 
 		if (hdr->cmsg_level == IPPROTO_IP) {
 			dlen = MIN(dlen, ICMP4_MAX_DLEN);
-			udp_send_conn_fail_icmp4(c, ee, toside, saddr.sa4.sin_addr,
+			udp_send_conn_fail_icmp4(c, &eh->ee, toside,
+						 eh->saddr.sa4.sin_addr,
 						 data, dlen);
 		} else if (hdr->cmsg_level == IPPROTO_IPV6) {
-			udp_send_conn_fail_icmp6(c, ee, toside,
-						 &saddr.sa6.sin6_addr,
+			udp_send_conn_fail_icmp6(c, &eh->ee, toside,
+						 &eh->saddr.sa6.sin6_addr,
 						 data, dlen, sidx.flowi);
 		}
 	} else {
 		trace("Ignoring received IP_RECVERR cmsg on listener socket");
 	}
 	debug("%s error on UDP socket %i: %s",
-	      str_ee_origin(ee), s, strerror_(ee->ee_errno));
+	      str_ee_origin(&eh->ee), s, strerror_(eh->ee.ee_errno));
 
 	return 1;
 }
