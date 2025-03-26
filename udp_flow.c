@@ -62,6 +62,61 @@ void udp_flow_close(const struct ctx *c, struct udp_flow *uflow)
 }
 
 /**
+ * udp_flow_sock() - Create, bind and connect a flow specific UDP socket
+ * @c:		Execution context
+ * @uflow:	UDP flow to open socket for
+ * @sidei:	Side of @uflow to open socket for
+ *
+ * Return: fd of new socket on success, -ve error code on failure
+ */
+static int udp_flow_sock(const struct ctx *c,
+			 const struct udp_flow *uflow, unsigned sidei)
+{
+	const struct flowside *side = &uflow->f.side[sidei];
+	struct mmsghdr discard[UIO_MAXIOV] = { 0 };
+	uint8_t pif = uflow->f.pif[sidei];
+	union {
+		flow_sidx_t sidx;
+		uint32_t data;
+	} fref = { .sidx = FLOW_SIDX(uflow, sidei) };
+	int rc, s;
+
+	s = flowside_sock_l4(c, EPOLL_TYPE_UDP_REPLY, pif, side, fref.data);
+	if (s < 0) {
+		flow_dbg_perror(uflow, "Couldn't open flow specific socket");
+		return s;
+	}
+
+	if (flowside_connect(c, s, pif, side) < 0) {
+		rc = -errno;
+		flow_dbg_perror(uflow, "Couldn't connect flow socket");
+		return rc;
+	}
+
+	/* It's possible, if unlikely, that we could receive some unrelated
+	 * packets in between the bind() and connect() of this socket.  For now
+	 * we just discard these.
+	 *
+	 * FIXME: Redirect these to an appropriate handler
+	 */
+	rc = recvmmsg(s, discard, ARRAY_SIZE(discard), MSG_DONTWAIT, NULL);
+	if (rc >= ARRAY_SIZE(discard)) {
+		flow_dbg(uflow, "Too many (%d) spurious reply datagrams", rc);
+		return -E2BIG;
+	}
+
+	if (rc > 0) {
+		flow_trace(uflow, "Discarded %d spurious reply datagrams", rc);
+	} else if (errno != EAGAIN) {
+		rc = -errno;
+		flow_perror(uflow, "Unexpected error discarding datagrams");
+		return rc;
+	}
+
+	return s;
+}
+
+/**
  * udp_flow_new() - Common setup for a new UDP flow
  * @c:		Execution context
  * @flow:	Initiated flow
@@ -74,13 +129,10 @@ static flow_sidx_t udp_flow_new(const struct ctx *c, union flow *flow,
 				int s_ini, const struct timespec *now)
 {
 	struct udp_flow *uflow = NULL;
-	const struct flowside *tgt;
 	unsigned sidei;
-	uint8_t tgtpif;
 
-	if (!(tgt = flow_target(c, flow, IPPROTO_UDP)))
+	if (!flow_target(c, flow, IPPROTO_UDP))
 		goto cancel;
-	tgtpif = flow->f.pif[TGTSIDE];
 
 	uflow = FLOW_SET_TYPE(flow, FLOW_UDP, udp);
 	uflow->ts = now->tv_sec;
@@ -98,49 +150,9 @@ static flow_sidx_t udp_flow_new(const struct ctx *c, union flow *flow,
 		}
 	}
 
-	if (pif_is_socket(tgtpif)) {
-		struct mmsghdr discard[UIO_MAXIOV] = { 0 };
-		union {
-			flow_sidx_t sidx;
-			uint32_t data;
-		} fref = {
-			.sidx = FLOW_SIDX(flow, TGTSIDE),
-		};
-		int rc;
-
-		uflow->s[TGTSIDE] = flowside_sock_l4(c, EPOLL_TYPE_UDP_REPLY,
-						     tgtpif, tgt, fref.data);
-		if (uflow->s[TGTSIDE] < 0) {
-			flow_dbg_perror(uflow,
-					"Couldn't open socket for spliced flow");
+	if (pif_is_socket(flow->f.pif[TGTSIDE]))
+		if ((uflow->s[TGTSIDE] = udp_flow_sock(c, uflow, TGTSIDE)) < 0)
 			goto cancel;
-		}
-
-		if (flowside_connect(c, uflow->s[TGTSIDE], tgtpif, tgt) < 0) {
-			flow_dbg_perror(uflow, "Couldn't connect flow socket");
-			goto cancel;
-		}
-
-		/* It's possible, if unlikely, that we could receive some
-		 * unrelated packets in between the bind() and connect() of this
-		 * socket.  For now we just discard these.  We could consider
-		 * trying to redirect these to an appropriate handler, if we
-		 * need to.
-		 */
-		rc = recvmmsg(uflow->s[TGTSIDE], discard, ARRAY_SIZE(discard),
-			      MSG_DONTWAIT, NULL);
-		if (rc >= ARRAY_SIZE(discard)) {
-			flow_dbg(uflow,
-				 "Too many (%d) spurious reply datagrams", rc);
-			goto cancel;
-		} else if (rc > 0) {
-			flow_trace(uflow,
-				   "Discarded %d spurious reply datagrams", rc);
-		} else if (errno != EAGAIN) {
-			flow_perror(uflow,
-				    "Unexpected error discarding datagrams");
-		}
-	}
 
 	/* Tap sides always need to be looked up by hash.  Socket sides don't
 	 * always, but sometimes do (receiving packets on a socket not specific
