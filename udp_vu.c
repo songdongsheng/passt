@@ -227,12 +227,6 @@ void udp_vu_listen_sock_handler(const struct ctx *c, union epoll_ref ref,
 	struct vu_virtq *vq = &vdev->vq[VHOST_USER_RX_QUEUE];
 	int i;
 
-	if (udp_sock_errs(c, ref, events) < 0) {
-		err("UDP: Unrecoverable error on listening socket:"
-		    " (%s port %hu)", pif_name(ref.udp.pif), ref.udp.port);
-		return;
-	}
-
 	for (i = 0; i < UDP_MAX_FRAMES; i++) {
 		const struct flowside *toside;
 		union sockaddr_inany s_in;
@@ -299,15 +293,6 @@ void udp_vu_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 	struct vu_dev *vdev = c->vdev;
 	struct vu_virtq *vq = &vdev->vq[VHOST_USER_RX_QUEUE];
 	int i;
-
-	ASSERT(!c->no_udp);
-
-	if (udp_sock_errs(c, ref, events) < 0) {
-		flow_err(uflow, "Unrecoverable error on reply socket");
-		flow_err_details(uflow);
-		udp_flow_close(c, uflow);
-		return;
-	}
 
 	for (i = 0; i < UDP_MAX_FRAMES; i++) {
 		uint8_t topif = pif_at_sidx(tosidx);

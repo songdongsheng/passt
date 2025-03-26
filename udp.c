@@ -585,7 +585,8 @@ static int udp_sock_recverr(const struct ctx *c, union epoll_ref ref)
  *
  * Return: Number of errors handled, or < 0 if we have an unrecoverable error
  */
-int udp_sock_errs(const struct ctx *c, union epoll_ref ref, uint32_t events)
+static int udp_sock_errs(const struct ctx *c, union epoll_ref ref,
+			 uint32_t events)
 {
 	unsigned n_err = 0;
 	socklen_t errlen;
@@ -678,13 +679,6 @@ static void udp_buf_listen_sock_handler(const struct ctx *c,
 	const socklen_t sasize = sizeof(udp_meta[0].s_in);
 	int n, i;
 
-	if (udp_sock_errs(c, ref, events) < 0) {
-		err("UDP: Unrecoverable error on listening socket:"
-		    " (%s port %hu)", pif_name(ref.udp.pif), ref.udp.port);
-		/* FIXME: what now?  close/re-open socket? */
-		return;
-	}
-
 	if ((n = udp_sock_recv(c, ref.fd, events, udp_mh_recv)) <= 0)
 		return;
 
@@ -750,6 +744,13 @@ void udp_listen_sock_handler(const struct ctx *c,
 			     union epoll_ref ref, uint32_t events,
 			     const struct timespec *now)
 {
+	if (udp_sock_errs(c, ref, events) < 0) {
+		err("UDP: Unrecoverable error on listening socket:"
+		    " (%s port %hu)", pif_name(ref.udp.pif), ref.udp.port);
+		/* FIXME: what now?  close/re-open socket? */
+		return;
+	}
+
 	if (c->mode == MODE_VU) {
 		udp_vu_listen_sock_handler(c, ref, events, now);
 		return;
@@ -777,16 +778,7 @@ static void udp_buf_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 	uint8_t topif = pif_at_sidx(tosidx);
 	int n, i, from_s;
 
-	ASSERT(!c->no_udp && uflow);
-
 	from_s = uflow->s[ref.flowside.sidei];
-
-	if (udp_sock_errs(c, ref, events) < 0) {
-		flow_err(uflow, "Unrecoverable error on reply socket");
-		flow_err_details(uflow);
-		udp_flow_close(c, uflow);
-		return;
-	}
 
 	if ((n = udp_sock_recv(c, from_s, events, udp_mh_recv)) <= 0)
 		return;
@@ -825,6 +817,17 @@ static void udp_buf_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 			    uint32_t events, const struct timespec *now)
 {
+	struct udp_flow *uflow = udp_at_sidx(ref.flowside);
+
+	ASSERT(!c->no_udp && uflow);
+
+	if (udp_sock_errs(c, ref, events) < 0) {
+		flow_err(uflow, "Unrecoverable error on reply socket");
+		flow_err_details(uflow);
+		udp_flow_close(c, uflow);
+		return;
+	}
+
 	if (c->mode == MODE_VU) {
 		udp_vu_reply_sock_handler(c, ref, events, now);
 		return;
