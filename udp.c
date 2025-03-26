@@ -581,12 +581,10 @@ static int udp_sock_recverr(const struct ctx *c, union epoll_ref ref)
  * udp_sock_errs() - Process errors on a socket
  * @c:		Execution context
  * @ref:	epoll reference
- * @events:	epoll events bitmap
  *
  * Return: Number of errors handled, or < 0 if we have an unrecoverable error
  */
-static int udp_sock_errs(const struct ctx *c, union epoll_ref ref,
-			 uint32_t events)
+static int udp_sock_errs(const struct ctx *c, union epoll_ref ref)
 {
 	unsigned n_err = 0;
 	socklen_t errlen;
@@ -594,9 +592,6 @@ static int udp_sock_errs(const struct ctx *c, union epoll_ref ref,
 	int rc, err;
 
 	ASSERT(!c->no_udp);
-
-	if (!(events & EPOLLERR))
-		return 0; /* Nothing to do */
 
 	/* Empty the error queue */
 	while ((rc = udp_sock_recverr(c, ref)) > 0)
@@ -630,15 +625,13 @@ static int udp_sock_errs(const struct ctx *c, union epoll_ref ref,
  * udp_sock_recv() - Receive datagrams from a socket
  * @c:		Execution context
  * @s:		Socket to receive from
- * @events:	epoll events bitmap
  * @mmh		mmsghdr array to receive into
  *
  * Return: Number of datagrams received
  *
  * #syscalls recvmmsg arm:recvmmsg_time64 i686:recvmmsg_time64
  */
-static int udp_sock_recv(const struct ctx *c, int s, uint32_t events,
-			 struct mmsghdr *mmh)
+static int udp_sock_recv(const struct ctx *c, int s, struct mmsghdr *mmh)
 {
 	/* For not entirely clear reasons (data locality?) pasta gets better
 	 * throughput if we receive tap datagrams one at a atime.  For small
@@ -651,9 +644,6 @@ static int udp_sock_recv(const struct ctx *c, int s, uint32_t events,
 
 	ASSERT(!c->no_udp);
 
-	if (!(events & EPOLLIN))
-		return 0;
-
 	n = recvmmsg(s, mmh, n, 0, NULL);
 	if (n < 0) {
 		err_perror("Error receiving datagrams");
@@ -664,22 +654,20 @@ static int udp_sock_recv(const struct ctx *c, int s, uint32_t events,
 }
 
 /**
- * udp_buf_listen_sock_handler() - Handle new data from socket
+ * udp_buf_listen_sock_data() - Handle new data from socket
  * @c:		Execution context
  * @ref:	epoll reference
- * @events:	epoll events bitmap
  * @now:	Current timestamp
  *
  * #syscalls recvmmsg
  */
-static void udp_buf_listen_sock_handler(const struct ctx *c,
-					union epoll_ref ref, uint32_t events,
-					const struct timespec *now)
+static void udp_buf_listen_sock_data(const struct ctx *c, union epoll_ref ref,
+				     const struct timespec *now)
 {
 	const socklen_t sasize = sizeof(udp_meta[0].s_in);
 	int n, i;
 
-	if ((n = udp_sock_recv(c, ref.fd, events, udp_mh_recv)) <= 0)
+	if ((n = udp_sock_recv(c, ref.fd, udp_mh_recv)) <= 0)
 		return;
 
 	/* We divide datagrams into batches based on how we need to send them,
@@ -744,33 +732,33 @@ void udp_listen_sock_handler(const struct ctx *c,
 			     union epoll_ref ref, uint32_t events,
 			     const struct timespec *now)
 {
-	if (udp_sock_errs(c, ref, events) < 0) {
-		err("UDP: Unrecoverable error on listening socket:"
-		    " (%s port %hu)", pif_name(ref.udp.pif), ref.udp.port);
-		/* FIXME: what now?  close/re-open socket? */
-		return;
+	if (events & EPOLLERR) {
+		if (udp_sock_errs(c, ref) < 0) {
+			err("UDP: Unrecoverable error on listening socket:"
+			    " (%s port %hu)", pif_name(ref.udp.pif), ref.udp.port);
+			/* FIXME: what now?  close/re-open socket? */
+			return;
+		}
 	}
 
-	if (c->mode == MODE_VU) {
-		udp_vu_listen_sock_handler(c, ref, events, now);
-		return;
+	if (events & EPOLLIN) {
+		if (c->mode == MODE_VU)
+			udp_vu_listen_sock_data(c, ref, now);
+		else
+			udp_buf_listen_sock_data(c, ref, now);
 	}
-
-	udp_buf_listen_sock_handler(c, ref, events, now);
 }
 
 /**
- * udp_buf_reply_sock_handler() - Handle new data from flow specific socket
+ * udp_buf_reply_sock_data() - Handle new data from flow specific socket
  * @c:		Execution context
  * @ref:	epoll reference
- * @events:	epoll events bitmap
  * @now:	Current timestamp
  *
  * #syscalls recvmmsg
  */
-static void udp_buf_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
-				       uint32_t events,
-				       const struct timespec *now)
+static void udp_buf_reply_sock_data(const struct ctx *c, union epoll_ref ref,
+				    const struct timespec *now)
 {
 	flow_sidx_t tosidx = flow_sidx_opposite(ref.flowside);
 	const struct flowside *toside = flowside_at_sidx(tosidx);
@@ -780,7 +768,7 @@ static void udp_buf_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 
 	from_s = uflow->s[ref.flowside.sidei];
 
-	if ((n = udp_sock_recv(c, from_s, events, udp_mh_recv)) <= 0)
+	if ((n = udp_sock_recv(c, from_s, udp_mh_recv)) <= 0)
 		return;
 
 	flow_trace(uflow, "Received %d datagrams on reply socket", n);
@@ -821,19 +809,21 @@ void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 
 	ASSERT(!c->no_udp && uflow);
 
-	if (udp_sock_errs(c, ref, events) < 0) {
-		flow_err(uflow, "Unrecoverable error on reply socket");
-		flow_err_details(uflow);
-		udp_flow_close(c, uflow);
-		return;
+	if (events & EPOLLERR) {
+		if (udp_sock_errs(c, ref) < 0) {
+			flow_err(uflow, "Unrecoverable error on reply socket");
+			flow_err_details(uflow);
+			udp_flow_close(c, uflow);
+			return;
+		}
 	}
 
-	if (c->mode == MODE_VU) {
-		udp_vu_reply_sock_handler(c, ref, events, now);
-		return;
+	if (events & EPOLLIN) {
+		if (c->mode == MODE_VU)
+			udp_vu_reply_sock_data(c, ref, now);
+		else
+			udp_buf_reply_sock_data(c, ref, now);
 	}
-
-	udp_buf_reply_sock_handler(c, ref, events, now);
 }
 
 /**

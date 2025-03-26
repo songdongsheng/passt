@@ -78,14 +78,12 @@ static int udp_vu_sock_info(int s, union sockaddr_inany *s_in)
  * udp_vu_sock_recv() - Receive datagrams from socket into vhost-user buffers
  * @c:		Execution context
  * @s:		Socket to receive from
- * @events:	epoll events bitmap
  * @v6:		Set for IPv6 connections
  * @dlen:	Size of received data (output)
  *
  * Return: Number of iov entries used to store the datagram
  */
-static int udp_vu_sock_recv(const struct ctx *c, int s, uint32_t events,
-			    bool v6, ssize_t *dlen)
+static int udp_vu_sock_recv(const struct ctx *c, int s, bool v6, ssize_t *dlen)
 {
 	struct vu_dev *vdev = c->vdev;
 	struct vu_virtq *vq = &vdev->vq[VHOST_USER_RX_QUEUE];
@@ -94,9 +92,6 @@ static int udp_vu_sock_recv(const struct ctx *c, int s, uint32_t events,
 	size_t off, hdrlen;
 
 	ASSERT(!c->no_udp);
-
-	if (!(events & EPOLLIN))
-		return 0;
 
 	/* compute L2 header length */
 	hdrlen = udp_vu_hdrlen(v6);
@@ -214,14 +209,13 @@ static void udp_vu_csum(const struct flowside *toside, int iov_used)
 }
 
 /**
- * udp_vu_listen_sock_handler() - Handle new data from socket
+ * udp_vu_listen_sock_data() - Handle new data from socket
  * @c:		Execution context
  * @ref:	epoll reference
- * @events:	epoll events bitmap
  * @now:	Current timestamp
  */
-void udp_vu_listen_sock_handler(const struct ctx *c, union epoll_ref ref,
-				uint32_t events, const struct timespec *now)
+void udp_vu_listen_sock_data(const struct ctx *c, union epoll_ref ref,
+			     const struct timespec *now)
 {
 	struct vu_dev *vdev = c->vdev;
 	struct vu_virtq *vq = &vdev->vq[VHOST_USER_RX_QUEUE];
@@ -262,7 +256,7 @@ void udp_vu_listen_sock_handler(const struct ctx *c, union epoll_ref ref,
 
 		v6 = !(inany_v4(&toside->eaddr) && inany_v4(&toside->oaddr));
 
-		iov_used = udp_vu_sock_recv(c, ref.fd, events, v6, &dlen);
+		iov_used = udp_vu_sock_recv(c, ref.fd, v6, &dlen);
 		if (iov_used <= 0)
 			break;
 
@@ -277,14 +271,13 @@ void udp_vu_listen_sock_handler(const struct ctx *c, union epoll_ref ref,
 }
 
 /**
- * udp_vu_reply_sock_handler() - Handle new data from flow specific socket
+ * udp_vu_reply_sock_data() - Handle new data from flow specific socket
  * @c:		Execution context
  * @ref:	epoll reference
- * @events:	epoll events bitmap
  * @now:	Current timestamp
  */
-void udp_vu_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
-			        uint32_t events, const struct timespec *now)
+void udp_vu_reply_sock_data(const struct ctx *c, union epoll_ref ref,
+			    const struct timespec *now)
 {
 	flow_sidx_t tosidx = flow_sidx_opposite(ref.flowside);
 	const struct flowside *toside = flowside_at_sidx(tosidx);
@@ -313,7 +306,7 @@ void udp_vu_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 
 		v6 = !(inany_v4(&toside->eaddr) && inany_v4(&toside->oaddr));
 
-		iov_used = udp_vu_sock_recv(c, from_s, events, v6, &dlen);
+		iov_used = udp_vu_sock_recv(c, from_s, v6, &dlen);
 		if (iov_used <= 0)
 			break;
 		flow_trace(uflow, "Received 1 datagram on reply socket");
