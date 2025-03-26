@@ -41,24 +41,22 @@ struct udp_flow *udp_at_sidx(flow_sidx_t sidx)
  */
 void udp_flow_close(const struct ctx *c, struct udp_flow *uflow)
 {
+	unsigned sidei;
+
 	if (uflow->closed)
 		return; /* Nothing to do */
 
-	if (uflow->s[INISIDE] >= 0) {
-		/* The listening socket needs to stay in epoll */
-		close(uflow->s[INISIDE]);
-		uflow->s[INISIDE] = -1;
+	flow_foreach_sidei(sidei) {
+		flow_hash_remove(c, FLOW_SIDX(uflow, sidei));
+		if (uflow->s[sidei] >= 0) {
+			/* The listening socket needs to stay in epoll, but the
+			 * flow specific one needs to be removed */
+			if (sidei == TGTSIDE)
+				epoll_del(c, uflow->s[sidei]);
+			close(uflow->s[sidei]);
+			uflow->s[sidei] = -1;
+		}
 	}
-
-	if (uflow->s[TGTSIDE] >= 0) {
-		/* But the flow specific one needs to be removed */
-		epoll_del(c, uflow->s[TGTSIDE]);
-		close(uflow->s[TGTSIDE]);
-		uflow->s[TGTSIDE] = -1;
-	}
-	flow_hash_remove(c, FLOW_SIDX(uflow, INISIDE));
-	if (!pif_is_socket(uflow->f.pif[TGTSIDE]))
-		flow_hash_remove(c, FLOW_SIDX(uflow, TGTSIDE));
 
 	uflow->closed = true;
 }
@@ -77,6 +75,7 @@ static flow_sidx_t udp_flow_new(const struct ctx *c, union flow *flow,
 {
 	struct udp_flow *uflow = NULL;
 	const struct flowside *tgt;
+	unsigned sidei;
 	uint8_t tgtpif;
 
 	if (!(tgt = flow_target(c, flow, IPPROTO_UDP)))
@@ -143,14 +142,14 @@ static flow_sidx_t udp_flow_new(const struct ctx *c, union flow *flow,
 		}
 	}
 
-	flow_hash_insert(c, FLOW_SIDX(uflow, INISIDE));
-
-	/* If the target side is a socket, it will be a reply socket that knows
-	 * its own flowside.  But if it's tap, then we need to look it up by
-	 * hash.
+	/* Tap sides always need to be looked up by hash.  Socket sides don't
+	 * always, but sometimes do (receiving packets on a socket not specific
+	 * to one flow).  Unconditionally hash both sides so all our bases are
+	 * covered
 	 */
-	if (!pif_is_socket(tgtpif))
-		flow_hash_insert(c, FLOW_SIDX(uflow, TGTSIDE));
+	flow_foreach_sidei(sidei)
+		flow_hash_insert(c, FLOW_SIDX(uflow, sidei));
+
 	FLOW_ACTIVATE(uflow);
 
 	return FLOW_SIDX(uflow, TGTSIDE);
