@@ -20,6 +20,7 @@ $(if $(TARGET),,$(error Failed to get target architecture))
 # Get 'uname -m'-like architecture description for target
 TARGET_ARCH := $(firstword $(subst -, ,$(TARGET)))
 TARGET_ARCH := $(patsubst [:upper:],[:lower:],$(TARGET_ARCH))
+TARGET_ARCH := $(patsubst arm%,arm,$(TARGET_ARCH))
 TARGET_ARCH := $(subst powerpc,ppc,$(TARGET_ARCH))
 
 # On some systems enabling optimization also enables source fortification,
