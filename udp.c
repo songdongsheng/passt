@@ -560,7 +560,10 @@ static int udp_sock_recverr(const struct ctx *c, union epoll_ref ref)
 		const struct flowside *toside = flowside_at_sidx(sidx);
 		size_t dlen = rc;
 
-		if (hdr->cmsg_level == IPPROTO_IP) {
+		if (pif_is_socket(pif_at_sidx(sidx))) {
+			/* XXX Is there any way to propagate ICMPs from socket
+			 * to socket? */
+		} else if (hdr->cmsg_level == IPPROTO_IP) {
 			dlen = MIN(dlen, ICMP4_MAX_DLEN);
 			udp_send_conn_fail_icmp4(c, &eh->ee, toside,
 						 eh->saddr.sa4.sin_addr,
