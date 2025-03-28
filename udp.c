@@ -411,7 +411,7 @@ static void udp_tap_prepare(const struct mmsghdr *mmh,
 }
 
 /**
- * udp_send_conn_fail_icmp4() - Construct and send ICMPv4 to local peer
+ * udp_send_tap_icmp4() - Construct and send ICMPv4 to local peer
  * @c:		Execution context
  * @ee:	Extended error descriptor
  * @toside:	Destination side of flow
@@ -419,11 +419,11 @@ static void udp_tap_prepare(const struct mmsghdr *mmh,
  * @in:	First bytes (max 8) of original UDP message body
  * @dlen:	Length of the read part of original UDP message body
  */
-static void udp_send_conn_fail_icmp4(const struct ctx *c,
-				     const struct sock_extended_err *ee,
-				     const struct flowside *toside,
-				     struct in_addr saddr,
-				     const void *in, size_t dlen)
+static void udp_send_tap_icmp4(const struct ctx *c,
+			       const struct sock_extended_err *ee,
+			       const struct flowside *toside,
+			       struct in_addr saddr,
+			       const void *in, size_t dlen)
 {
 	struct in_addr oaddr = toside->oaddr.v4mapped.a4;
 	struct in_addr eaddr = toside->eaddr.v4mapped.a4;
@@ -455,7 +455,7 @@ static void udp_send_conn_fail_icmp4(const struct ctx *c,
 
 
 /**
- * udp_send_conn_fail_icmp6() - Construct and send ICMPv6 to local peer
+ * udp_send_tap_icmp6() - Construct and send ICMPv6 to local peer
  * @c:		Execution context
  * @ee:	Extended error descriptor
  * @toside:	Destination side of flow
@@ -464,11 +464,11 @@ static void udp_send_conn_fail_icmp4(const struct ctx *c,
  * @dlen:	Length of the read part of original UDP message body
  * @flow:	IPv6 flow identifier
  */
-static void udp_send_conn_fail_icmp6(const struct ctx *c,
-				     const struct sock_extended_err *ee,
-				     const struct flowside *toside,
-				     const struct in6_addr *saddr,
-				     void *in, size_t dlen, uint32_t flow)
+static void udp_send_tap_icmp6(const struct ctx *c,
+			       const struct sock_extended_err *ee,
+			       const struct flowside *toside,
+			       const struct in6_addr *saddr,
+			       void *in, size_t dlen, uint32_t flow)
 {
 	const struct in6_addr *oaddr = &toside->oaddr.a6;
 	const struct in6_addr *eaddr = &toside->eaddr.a6;
@@ -565,13 +565,12 @@ static int udp_sock_recverr(const struct ctx *c, union epoll_ref ref)
 			 * to socket? */
 		} else if (hdr->cmsg_level == IPPROTO_IP) {
 			dlen = MIN(dlen, ICMP4_MAX_DLEN);
-			udp_send_conn_fail_icmp4(c, &eh->ee, toside,
-						 eh->saddr.sa4.sin_addr,
-						 data, dlen);
+			udp_send_tap_icmp4(c, &eh->ee, toside,
+					   eh->saddr.sa4.sin_addr, data, dlen);
 		} else if (hdr->cmsg_level == IPPROTO_IPV6) {
-			udp_send_conn_fail_icmp6(c, &eh->ee, toside,
-						 &eh->saddr.sa6.sin6_addr,
-						 data, dlen, sidx.flowi);
+			udp_send_tap_icmp6(c, &eh->ee, toside,
+					   &eh->saddr.sa6.sin6_addr, data,
+					   dlen, sidx.flowi);
 		}
 	} else {
 		trace("Ignoring received IP_RECVERR cmsg on listener socket");
