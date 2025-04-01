@@ -272,6 +272,8 @@ static void udp_splice_prepare(struct mmsghdr *mmh, unsigned idx)
  * @dst:	Destination port for datagrams (target side)
  * @ref:	epoll reference for origin socket
  * @now:	Timestamp
+ *
+ * #syscalls sendmmsg
  */
 static void udp_splice_send(const struct ctx *c, size_t start, size_t n,
 			    flow_sidx_t tosidx)
@@ -662,8 +664,6 @@ static int udp_sock_recv(const struct ctx *c, int s, struct mmsghdr *mmh)
  * @c:		Execution context
  * @ref:	epoll reference
  * @now:	Current timestamp
- *
- * #syscalls recvmmsg
  */
 static void udp_buf_listen_sock_data(const struct ctx *c, union epoll_ref ref,
 				     const struct timespec *now)
@@ -760,8 +760,6 @@ void udp_listen_sock_handler(const struct ctx *c,
  * @tosidx:	Flow & side to forward data from @s to
  *
  * Return: true on success, false if can't forward from socket to flow's pif
- *
- * #syscalls recvmmsg
  */
 static bool udp_buf_reply_sock_data(const struct ctx *c,
 				    int s, flow_sidx_t tosidx)
