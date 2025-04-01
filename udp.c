@@ -907,7 +907,7 @@ int udp_tap_handler(const struct ctx *c, uint8_t pif,
 	}
 	toside = flowside_at_sidx(tosidx);
 
-	s = udp_at_sidx(tosidx)->s[tosidx.sidei];
+	s = uflow->s[tosidx.sidei];
 	ASSERT(s >= 0);
 
 	pif_sockaddr(c, &to_sa, &sl, topif, &toside->eaddr, toside->eport);
