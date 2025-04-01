@@ -758,26 +758,20 @@ void udp_listen_sock_handler(const struct ctx *c,
  * @c:		Execution context
  * @s:		Socket to read data from
  * @tosidx:	Flow & side to forward data from @s to
- * @now:	Current timestamp
  *
  * Return: true on success, false if can't forward from socket to flow's pif
  *
  * #syscalls recvmmsg
  */
 static bool udp_buf_reply_sock_data(const struct ctx *c,
-				    int s, flow_sidx_t tosidx,
-				    const struct timespec *now)
+				    int s, flow_sidx_t tosidx)
 {
 	const struct flowside *toside = flowside_at_sidx(tosidx);
-	struct udp_flow *uflow = udp_at_sidx(tosidx);
 	uint8_t topif = pif_at_sidx(tosidx);
 	int n, i;
 
 	if ((n = udp_sock_recv(c, s, udp_mh_recv)) <= 0)
 		return true;
-
-	flow_trace(uflow, "Received %d datagrams on reply socket", n);
-	uflow->ts = now->tv_sec;
 
 	for (i = 0; i < n; i++) {
 		if (pif_is_socket(topif))
@@ -825,10 +819,13 @@ void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 		int s = ref.fd;
 		bool ret;
 
+		flow_trace(uflow, "Received data on reply socket");
+		uflow->ts = now->tv_sec;
+
 		if (c->mode == MODE_VU)
-			ret = udp_vu_reply_sock_data(c, s, tosidx, now);
+			ret = udp_vu_reply_sock_data(c, s, tosidx);
 		else
-			ret = udp_buf_reply_sock_data(c, s, tosidx, now);
+			ret = udp_buf_reply_sock_data(c, s, tosidx);
 
 		if (!ret) {
 			flow_err(uflow, "Unable to forward UDP");

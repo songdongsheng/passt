@@ -275,21 +275,16 @@ void udp_vu_listen_sock_data(const struct ctx *c, union epoll_ref ref,
  * @c:		Execution context
  * @s:		Socket to read data from
  * @tosidx:	Flow & side to forward data from @s to
- * @now:	Current timestamp
  *
  * Return: true on success, false if can't forward from socket to flow's pif
  */
-bool udp_vu_reply_sock_data(const struct ctx *c, int s, flow_sidx_t tosidx,
-			    const struct timespec *now)
+bool udp_vu_reply_sock_data(const struct ctx *c, int s, flow_sidx_t tosidx)
 {
 	const struct flowside *toside = flowside_at_sidx(tosidx);
 	bool v6 = !(inany_v4(&toside->eaddr) && inany_v4(&toside->oaddr));
-	struct udp_flow *uflow = udp_at_sidx(tosidx);
 	struct vu_dev *vdev = c->vdev;
 	struct vu_virtq *vq = &vdev->vq[VHOST_USER_RX_QUEUE];
 	int i;
-
-	ASSERT(uflow);
 
 	if (pif_at_sidx(tosidx) != PIF_TAP)
 		return false;
@@ -301,8 +296,6 @@ bool udp_vu_reply_sock_data(const struct ctx *c, int s, flow_sidx_t tosidx,
 		iov_used = udp_vu_sock_recv(c, s, v6, &dlen);
 		if (iov_used <= 0)
 			break;
-		flow_trace(uflow, "Received 1 datagram on reply socket");
-		uflow->ts = now->tv_sec;
 
 		udp_vu_prepare(c, toside, dlen);
 		if (*c->pcap) {
