@@ -46,13 +46,13 @@
 /* Different cases for receiving socket configuration */
 enum sock_type {
 	/* Socket is bound to 0.0.0.0:DSTPORT and not connected */
-	SOCK_BOUND_ANY = 0,
+	SOCK_BOUND_ANY,
 
 	/* Socket is bound to 127.0.0.1:DSTPORT and not connected */
-	SOCK_BOUND_LO = 1,
+	SOCK_BOUND_LO,
 
 	/* Socket is bound to 0.0.0.0:DSTPORT and connected to 127.0.0.1:SRCPORT */
-	SOCK_CONNECTED = 2,
+	SOCK_CONNECTED,
 
 	NUM_SOCK_TYPES,
 };
