@@ -3,8 +3,8 @@
 # Copyright Red Hat
 # Author: David Gibson <david@gibson.dropbear.id.au>
 
-TARGETS = reuseaddr-priority recv-zero udp-close-dup
-SRCS = reuseaddr-priority.c recv-zero.c udp-close-dup.c
+TARGETS = reuseaddr-priority recv-zero udp-close-dup listen-vs-repair
+SRCS = reuseaddr-priority.c recv-zero.c udp-close-dup.c listen-vs-repair.c
 CFLAGS = -Wall
 
 all: cppcheck clang-tidy $(TARGETS:%=check-%)
