@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+__attribute__((format(printf, 1, 2), noreturn))
 static inline void die(const char *fmt, ...)
 {
 	va_list ap;
