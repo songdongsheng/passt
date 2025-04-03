@@ -137,6 +137,7 @@ int main(int argc, char **argv)
 				fprintf(stderr, "inotify read: %i", errno);
 				_exit(1);
 			}
+			buf[n - 1] = '\0';
 
 			if (n < (ssize_t)sizeof(*ev)) {
 				fprintf(stderr, "Short inotify read: %zi", n);
