@@ -630,6 +630,30 @@ static int udp_sock_errs(const struct ctx *c, union epoll_ref ref)
 }
 
 /**
+ * udp_peek_addr() - Get source address for next packet
+ * @s:		Socket to get information from
+ * @src:	Socket address (output)
+ *
+ * Return: 0 on success, -1 otherwise
+ */
+int udp_peek_addr(int s, union sockaddr_inany *src)
+{
+	struct msghdr msg = {
+		.msg_name = src,
+		.msg_namelen = sizeof(*src),
+	};
+	int rc;
+
+	rc = recvmsg(s, &msg, MSG_PEEK | MSG_DONTWAIT);
+	if (rc < 0) {
+		if (errno != EAGAIN && errno != EWOULDBLOCK)
+			warn_perror("Error peeking at socket address");
+		return rc;
+	}
+	return 0;
+}
+
+/**
  * udp_sock_recv() - Receive datagrams from a socket
  * @c:		Execution context
  * @s:		Socket to receive from

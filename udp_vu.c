@@ -58,23 +58,6 @@ static size_t udp_vu_hdrlen(bool v6)
 }
 
 /**
- * udp_vu_sock_info() - get socket information
- * @s:		Socket to get information from
- * @s_in:	Socket address (output)
- *
- * Return: 0 if socket address can be read, -1 otherwise
- */
-static int udp_vu_sock_info(int s, union sockaddr_inany *s_in)
-{
-	struct msghdr msg = {
-		.msg_name = s_in,
-		.msg_namelen = sizeof(union sockaddr_inany),
-	};
-
-	return recvmsg(s, &msg, MSG_PEEK | MSG_DONTWAIT);
-}
-
-/**
  * udp_vu_sock_recv() - Receive datagrams from socket into vhost-user buffers
  * @c:		Execution context
  * @s:		Socket to receive from
@@ -230,7 +213,7 @@ void udp_vu_listen_sock_data(const struct ctx *c, union epoll_ref ref,
 		int iov_used;
 		bool v6;
 
-		if (udp_vu_sock_info(ref.fd, &s_in) < 0)
+		if (udp_peek_addr(ref.fd, &s_in) < 0)
 			break;
 
 		sidx = udp_flow_from_sock(c, ref, &s_in, now);
