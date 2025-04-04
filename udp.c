@@ -138,20 +138,15 @@ static struct ethhdr udp4_eth_hdr;
 static struct ethhdr udp6_eth_hdr;
 
 /**
- * struct udp_meta_t - Pre-cooked headers and metadata for UDP packets
+ * struct udp_meta_t - Pre-cooked headers for UDP packets
  * @ip6h:	Pre-filled IPv6 header (except for payload_len and addresses)
  * @ip4h:	Pre-filled IPv4 header (except for tot_len and saddr)
  * @taph:	Tap backend specific header
- * @s_in:	Source socket address, filled in by recvmmsg()
- * @tosidx:	sidx for the destination side of this datagram's flow
  */
 static struct udp_meta_t {
 	struct ipv6hdr ip6h;
 	struct iphdr ip4h;
 	struct tap_hdr taph;
-
-	union sockaddr_inany s_in;
-	flow_sidx_t tosidx;
 }
 #ifdef __AVX2__
 __attribute__ ((aligned(32)))
@@ -234,8 +229,6 @@ static void udp_iov_init_one(const struct ctx *c, size_t i)
 	tiov[UDP_IOV_TAP] = tap_hdr_iov(c, &meta->taph);
 	tiov[UDP_IOV_PAYLOAD].iov_base = payload;
 
-	mh->msg_name	= &meta->s_in;
-	mh->msg_namelen	= sizeof(meta->s_in);
 	mh->msg_iov	= siov;
 	mh->msg_iovlen	= 1;
 }
@@ -686,60 +679,32 @@ static int udp_sock_recv(const struct ctx *c, int s, struct mmsghdr *mmh, int n)
 static void udp_buf_listen_sock_data(const struct ctx *c, union epoll_ref ref,
 				     const struct timespec *now)
 {
-	const socklen_t sasize = sizeof(udp_meta[0].s_in);
-	/* See udp_buf_sock_data() comment */
-	int n = (c->mode == MODE_PASTA ? 1 : UDP_MAX_FRAMES), i;
+	union sockaddr_inany src;
 
-	if ((n = udp_sock_recv(c, ref.fd, udp_mh_recv, n)) <= 0)
-		return;
+	while (udp_peek_addr(ref.fd, &src) == 0) {
+		flow_sidx_t tosidx = udp_flow_from_sock(c, ref, &src, now);
+		uint8_t topif = pif_at_sidx(tosidx);
 
-	/* We divide datagrams into batches based on how we need to send them,
-	 * determined by udp_meta[i].tosidx.  To avoid either two passes through
-	 * the array, or recalculating tosidx for a single entry, we have to
-	 * populate it one entry *ahead* of the loop counter.
-	 */
-	udp_meta[0].tosidx = udp_flow_from_sock(c, ref, &udp_meta[0].s_in, now);
-	udp_mh_recv[0].msg_hdr.msg_namelen = sasize;
-	for (i = 0; i < n; ) {
-		flow_sidx_t batchsidx = udp_meta[i].tosidx;
-		uint8_t batchpif = pif_at_sidx(batchsidx);
-		int batchstart = i;
+		if (udp_sock_recv(c, ref.fd, udp_mh_recv, 1) <= 0)
+			break;
 
-		do {
-			if (pif_is_socket(batchpif)) {
-				udp_splice_prepare(udp_mh_recv, i);
-			} else if (batchpif == PIF_TAP) {
-				udp_tap_prepare(udp_mh_recv, i,
-						flowside_at_sidx(batchsidx),
-						false);
-			}
-
-			if (++i >= n)
-				break;
-
-			udp_meta[i].tosidx = udp_flow_from_sock(c, ref,
-								&udp_meta[i].s_in,
-								now);
-			udp_mh_recv[i].msg_hdr.msg_namelen = sasize;
-		} while (flow_sidx_eq(udp_meta[i].tosidx, batchsidx));
-
-		if (pif_is_socket(batchpif)) {
-			udp_splice_send(c, batchstart, i - batchstart,
-					batchsidx);
-		} else if (batchpif == PIF_TAP) {
-			tap_send_frames(c, &udp_l2_iov[batchstart][0],
-					UDP_NUM_IOVS, i - batchstart);
-		} else if (flow_sidx_valid(batchsidx)) {
-			flow_sidx_t fromsidx = flow_sidx_opposite(batchsidx);
-			struct udp_flow *uflow = udp_at_sidx(batchsidx);
+		if (pif_is_socket(topif)) {
+			udp_splice_prepare(udp_mh_recv, 0);
+			udp_splice_send(c, 0, 1, tosidx);
+		} else if (topif == PIF_TAP) {
+			udp_tap_prepare(udp_mh_recv, 0, flowside_at_sidx(tosidx),
+					false);
+			tap_send_frames(c, &udp_l2_iov[0][0], UDP_NUM_IOVS, 1);
+		} else if (flow_sidx_valid(tosidx)) {
+			flow_sidx_t fromsidx = flow_sidx_opposite(tosidx);
+			struct udp_flow *uflow = udp_at_sidx(tosidx);
 
 			flow_err(uflow,
 				 "No support for forwarding UDP from %s to %s",
 				 pif_name(pif_at_sidx(fromsidx)),
-				 pif_name(batchpif));
+				 pif_name(topif));
 		} else {
-			debug("Discarding %d datagrams without flow",
-			      i - batchstart);
+			debug("Discarding datagram without flow");
 		}
 	}
 }
@@ -801,8 +766,6 @@ static bool udp_buf_reply_sock_data(const struct ctx *c,
 			udp_splice_prepare(udp_mh_recv, i);
 		else if (topif == PIF_TAP)
 			udp_tap_prepare(udp_mh_recv, i, toside, false);
-		/* Restore sockaddr length clobbered by recvmsg() */
-		udp_mh_recv[i].msg_hdr.msg_namelen = sizeof(udp_meta[i].s_in);
 	}
 
 	if (pif_is_socket(topif)) {
