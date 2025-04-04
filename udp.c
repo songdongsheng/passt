@@ -741,22 +741,17 @@ void udp_listen_sock_handler(const struct ctx *c,
  * udp_buf_reply_sock_data() - Handle new data from flow specific socket
  * @c:		Execution context
  * @s:		Socket to read data from
+ * @n:		Maximum number of datagrams to forward
  * @tosidx:	Flow & side to forward data from @s to
  *
  * Return: true on success, false if can't forward from socket to flow's pif
  */
-static bool udp_buf_reply_sock_data(const struct ctx *c,
-				    int s, flow_sidx_t tosidx)
+static bool udp_buf_reply_sock_data(const struct ctx *c, int s, int n,
+				    flow_sidx_t tosidx)
 {
 	const struct flowside *toside = flowside_at_sidx(tosidx);
 	uint8_t topif = pif_at_sidx(tosidx);
-	/* For not entirely clear reasons (data locality?) pasta gets better
-	 * throughput if we receive tap datagrams one at a time.  For small
-	 * splice datagrams throughput is slightly better if we do batch, but
-	 * it's slightly worse for large splice datagrams.  Since we don't know
-	 * the size before we receive, always go one at a time for pasta mode.
-	 */
-	int n = (c->mode == MODE_PASTA ? 1 : UDP_MAX_FRAMES), i;
+	int i;
 
 	if ((n = udp_sock_recv(c, s, udp_mh_recv, n)) <= 0)
 		return true;
@@ -801,6 +796,14 @@ void udp_sock_handler(const struct ctx *c, union epoll_ref ref,
 	}
 
 	if (events & EPOLLIN) {
+		/* For not entirely clear reasons (data locality?) pasta gets
+		 * better throughput if we receive tap datagrams one at a
+		 * time.  For small splice datagrams throughput is slightly
+		 * better if we do batch, but it's slightly worse for large
+		 * splice datagrams.  Since we don't know the size before we
+		 * receive, always go one at a time for pasta mode.
+		 */
+		size_t n = (c->mode == MODE_PASTA ? 1 : UDP_MAX_FRAMES);
 		flow_sidx_t tosidx = flow_sidx_opposite(ref.flowside);
 		int s = ref.fd;
 		bool ret;
@@ -808,10 +811,12 @@ void udp_sock_handler(const struct ctx *c, union epoll_ref ref,
 		flow_trace(uflow, "Received data on reply socket");
 		uflow->ts = now->tv_sec;
 
-		if (c->mode == MODE_VU)
-			ret = udp_vu_reply_sock_data(c, s, tosidx);
-		else
-			ret = udp_buf_reply_sock_data(c, s, tosidx);
+		if (c->mode == MODE_VU) {
+			ret = udp_vu_reply_sock_data(c, s, UDP_MAX_FRAMES,
+						     tosidx);
+		} else {
+			ret = udp_buf_reply_sock_data(c, s, n, tosidx);
+		}
 
 		if (!ret) {
 			flow_err(uflow, "Unable to forward UDP");

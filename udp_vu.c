@@ -257,11 +257,13 @@ void udp_vu_listen_sock_data(const struct ctx *c, union epoll_ref ref,
  * udp_vu_reply_sock_data() - Handle new data from flow specific socket
  * @c:		Execution context
  * @s:		Socket to read data from
+ * @n:		Maximum number of datagrams to forward
  * @tosidx:	Flow & side to forward data from @s to
  *
  * Return: true on success, false if can't forward from socket to flow's pif
  */
-bool udp_vu_reply_sock_data(const struct ctx *c, int s, flow_sidx_t tosidx)
+bool udp_vu_reply_sock_data(const struct ctx *c, int s, int n,
+			    flow_sidx_t tosidx)
 {
 	const struct flowside *toside = flowside_at_sidx(tosidx);
 	bool v6 = !(inany_v4(&toside->eaddr) && inany_v4(&toside->oaddr));
@@ -272,7 +274,7 @@ bool udp_vu_reply_sock_data(const struct ctx *c, int s, flow_sidx_t tosidx)
 	if (pif_at_sidx(tosidx) != PIF_TAP)
 		return false;
 
-	for (i = 0; i < UDP_MAX_FRAMES; i++) {
+	for (i = 0; i < n; i++) {
 		ssize_t dlen;
 		int iov_used;
 
