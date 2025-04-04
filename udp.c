@@ -39,27 +39,30 @@
  * could receive packets from multiple flows, so we use a hash table match to
  * find the specific flow for a datagram.
  *
- * When a UDP flow is initiated from a listening socket we take a duplicate of
- * the socket and store it in uflow->s[INISIDE].  This will last for the
+ * Flow sockets
+ * ============
+ *
+ * When a UDP flow targets a socket, we create a "flow" socket in
+ * uflow->s[TGTSIDE] both to deliver datagrams to the target side and receive
+ * replies on the target side.  This socket is both bound and connected and has
+ * EPOLL_TYPE_UDP.  The connect() means it will only receive datagrams
+ * associated with this flow, so the epoll reference directly points to the flow
+ * and we don't need a hash lookup.
+ *
+ * When a flow is initiated from a listening socket, we create a "flow" socket
+ * with the same bound address as the listening socket, but also connect()ed to
+ * the flow's peer.  This is stored in uflow->s[INISIDE] and will last for the
  * lifetime of the flow, even if the original listening socket is closed due to
  * port auto-probing.  The duplicate is used to deliver replies back to the
  * originating side.
  *
- * Reply sockets
- * =============
- *
- * When a UDP flow targets a socket, we create a "reply" socket in
- * uflow->s[TGTSIDE] both to deliver datagrams to the target side and receive
- * replies on the target side.  This socket is both bound and connected and has
- * EPOLL_TYPE_UDP_REPLY.  The connect() means it will only receive datagrams
- * associated with this flow, so the epoll reference directly points to the flow
- * and we don't need a hash lookup.
- *
- * NOTE: it's possible that the reply socket could have a bound address
- * overlapping with an unrelated listening socket.  We assume datagrams for the
- * flow will come to the reply socket in preference to a listening socket.  The
- * sample program doc/platform-requirements/reuseaddr-priority.c documents and
- * tests that assumption.
+ * NOTE: A flow socket can have a bound address overlapping with a listening
+ * socket.  That will happen naturally for flows initiated from a socket, but is
+ * also possible (though unlikely) for tap initiated flows, depending on the
+ * source port.  We assume datagrams for the flow will come to a connect()ed
+ * socket in preference to a listening socket.  The sample program
+ * doc/platform-requirements/reuseaddr-priority.c documents and tests that
+ * assumption.
  *
  * "Spliced" flows
  * ===============
@@ -71,8 +74,7 @@
  * actually used; it doesn't make sense for datagrams and instead a pair of
  * recvmmsg() and sendmmsg() is used to forward the datagrams.
  *
- * Note that a spliced flow will have *both* a duplicated listening socket and a
- * reply socket (see above).
+ * Note that a spliced flow will have two flow sockets (see above).
  */
 
 #include <sched.h>
@@ -557,7 +559,7 @@ static int udp_sock_recverr(const struct ctx *c, union epoll_ref ref)
 	}
 
 	eh = (const struct errhdr *)CMSG_DATA(hdr);
-	if (ref.type == EPOLL_TYPE_UDP_REPLY) {
+	if (ref.type == EPOLL_TYPE_UDP) {
 		flow_sidx_t sidx = flow_sidx_opposite(ref.flowside);
 		const struct flowside *toside = flowside_at_sidx(sidx);
 		size_t dlen = rc;
@@ -792,14 +794,14 @@ static bool udp_buf_reply_sock_data(const struct ctx *c,
 }
 
 /**
- * udp_reply_sock_handler() - Handle new data from flow specific socket
+ * udp_sock_handler() - Handle new data from flow specific socket
  * @c:		Execution context
  * @ref:	epoll reference
  * @events:	epoll events bitmap
  * @now:	Current timestamp
  */
-void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
-			    uint32_t events, const struct timespec *now)
+void udp_sock_handler(const struct ctx *c, union epoll_ref ref,
+		      uint32_t events, const struct timespec *now)
 {
 	struct udp_flow *uflow = udp_at_sidx(ref.flowside);
 
@@ -807,7 +809,7 @@ void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 
 	if (events & EPOLLERR) {
 		if (udp_sock_errs(c, ref) < 0) {
-			flow_err(uflow, "Unrecoverable error on reply socket");
+			flow_err(uflow, "Unrecoverable error on flow socket");
 			goto fail;
 		}
 	}

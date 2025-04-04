@@ -68,7 +68,7 @@ char *epoll_type_str[] = {
 	[EPOLL_TYPE_TCP_LISTEN]		= "listening TCP socket",
 	[EPOLL_TYPE_TCP_TIMER]		= "TCP timer",
 	[EPOLL_TYPE_UDP_LISTEN]		= "listening UDP socket",
-	[EPOLL_TYPE_UDP_REPLY]		= "UDP reply socket",
+	[EPOLL_TYPE_UDP]		= "UDP flow socket",
 	[EPOLL_TYPE_PING]	= "ICMP/ICMPv6 ping socket",
 	[EPOLL_TYPE_NSQUIT_INOTIFY]	= "namespace inotify watch",
 	[EPOLL_TYPE_NSQUIT_TIMER]	= "namespace timer watch",
@@ -339,8 +339,8 @@ loop:
 		case EPOLL_TYPE_UDP_LISTEN:
 			udp_listen_sock_handler(&c, ref, eventmask, &now);
 			break;
-		case EPOLL_TYPE_UDP_REPLY:
-			udp_reply_sock_handler(&c, ref, eventmask, &now);
+		case EPOLL_TYPE_UDP:
+			udp_sock_handler(&c, ref, eventmask, &now);
 			break;
 		case EPOLL_TYPE_PING:
 			icmp_sock_handler(&c, ref);

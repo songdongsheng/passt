@@ -49,10 +49,7 @@ void udp_flow_close(const struct ctx *c, struct udp_flow *uflow)
 	flow_foreach_sidei(sidei) {
 		flow_hash_remove(c, FLOW_SIDX(uflow, sidei));
 		if (uflow->s[sidei] >= 0) {
-			/* The listening socket needs to stay in epoll, but the
-			 * flow specific one needs to be removed */
-			if (sidei == TGTSIDE)
-				epoll_del(c, uflow->s[sidei]);
+			epoll_del(c, uflow->s[sidei]);
 			close(uflow->s[sidei]);
 			uflow->s[sidei] = -1;
 		}
@@ -81,7 +78,7 @@ static int udp_flow_sock(const struct ctx *c,
 	} fref = { .sidx = FLOW_SIDX(uflow, sidei) };
 	int rc, s;
 
-	s = flowside_sock_l4(c, EPOLL_TYPE_UDP_REPLY, pif, side, fref.data);
+	s = flowside_sock_l4(c, EPOLL_TYPE_UDP, pif, side, fref.data);
 	if (s < 0) {
 		flow_dbg_perror(uflow, "Couldn't open flow specific socket");
 		return s;
@@ -120,13 +117,12 @@ static int udp_flow_sock(const struct ctx *c,
  * udp_flow_new() - Common setup for a new UDP flow
  * @c:		Execution context
  * @flow:	Initiated flow
- * @s_ini:	Initiating socket (or -1)
  * @now:	Timestamp
  *
  * Return: UDP specific flow, if successful, NULL on failure
  */
 static flow_sidx_t udp_flow_new(const struct ctx *c, union flow *flow,
-				int s_ini, const struct timespec *now)
+				const struct timespec *now)
 {
 	struct udp_flow *uflow = NULL;
 	unsigned sidei;
@@ -139,21 +135,11 @@ static flow_sidx_t udp_flow_new(const struct ctx *c, union flow *flow,
 	uflow->s[INISIDE] = uflow->s[TGTSIDE] = -1;
 	uflow->ttl[INISIDE] = uflow->ttl[TGTSIDE] = 0;
 
-	if (s_ini >= 0) {
-		/* When using auto port-scanning the listening port could go
-		 * away, so we need to duplicate the socket
-		 */
-		uflow->s[INISIDE] = fcntl(s_ini, F_DUPFD_CLOEXEC, 0);
-		if (uflow->s[INISIDE] < 0) {
-			flow_perror(uflow,
-				    "Couldn't duplicate listening socket");
-			goto cancel;
-		}
+	flow_foreach_sidei(sidei) {
+		if (pif_is_socket(uflow->f.pif[sidei]))
+			if ((uflow->s[sidei] = udp_flow_sock(c, uflow, sidei)) < 0)
+				goto cancel;
 	}
-
-	if (pif_is_socket(flow->f.pif[TGTSIDE]))
-		if ((uflow->s[TGTSIDE] = udp_flow_sock(c, uflow, TGTSIDE)) < 0)
-			goto cancel;
 
 	/* Tap sides always need to be looked up by hash.  Socket sides don't
 	 * always, but sometimes do (receiving packets on a socket not specific
@@ -225,7 +211,7 @@ flow_sidx_t udp_flow_from_sock(const struct ctx *c, union epoll_ref ref,
 		return FLOW_SIDX_NONE;
 	}
 
-	return udp_flow_new(c, flow, ref.fd, now);
+	return udp_flow_new(c, flow, now);
 }
 
 /**
@@ -281,7 +267,7 @@ flow_sidx_t udp_flow_from_tap(const struct ctx *c,
 		return FLOW_SIDX_NONE;
 	}
 
-	return udp_flow_new(c, flow, -1, now);
+	return udp_flow_new(c, flow, now);
 }
 
 /**

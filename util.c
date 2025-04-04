@@ -71,7 +71,7 @@ int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 	case EPOLL_TYPE_UDP_LISTEN:
 		freebind = c->freebind;
 		/* fallthrough */
-	case EPOLL_TYPE_UDP_REPLY:
+	case EPOLL_TYPE_UDP:
 		proto = IPPROTO_UDP;
 		socktype = SOCK_DGRAM | SOCK_NONBLOCK;
 		break;
