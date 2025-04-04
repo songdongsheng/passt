@@ -251,43 +251,6 @@ static void udp_iov_init(const struct ctx *c)
 }
 
 /**
- * udp_splice_prepare() - Prepare one datagram for splicing
- * @mmh:	Receiving mmsghdr array
- * @idx:	Index of the datagram to prepare
- */
-static void udp_splice_prepare(struct mmsghdr *mmh, unsigned idx)
-{
-	udp_mh_splice[idx].msg_hdr.msg_iov->iov_len = mmh[idx].msg_len;
-}
-
-/**
- * udp_splice_send() - Send a batch of datagrams from socket to socket
- * @c:		Execution context
- * @start:	Index of batch's first datagram in udp[46]_l2_buf
- * @n:		Number of datagrams in batch
- * @src:	Source port for datagram (target side)
- * @dst:	Destination port for datagrams (target side)
- * @ref:	epoll reference for origin socket
- * @now:	Timestamp
- *
- * #syscalls sendmmsg
- */
-static void udp_splice_send(const struct ctx *c, size_t start, size_t n,
-			    flow_sidx_t tosidx)
-{
-	const struct flowside *toside = flowside_at_sidx(tosidx);
-	const struct udp_flow *uflow = udp_at_sidx(tosidx);
-	uint8_t topif = pif_at_sidx(tosidx);
-	int s = uflow->s[tosidx.sidei];
-	socklen_t sl;
-
-	pif_sockaddr(c, &udp_splice_to, &sl, topif,
-		     &toside->eaddr, toside->eport);
-
-	sendmmsg(s, udp_mh_splice + start, n, MSG_NOSIGNAL);
-}
-
-/**
  * udp_update_hdr4() - Update headers for one IPv4 datagram
  * @ip4h:		Pre-filled IPv4 header (except for tot_len and saddr)
  * @bp:			Pointer to udp_payload_t to update
@@ -678,19 +641,31 @@ static int udp_sock_recv(const struct ctx *c, int s, struct mmsghdr *mmh, int n)
  * @from_s:	Socket to receive datagrams from
  * @n:		Maximum number of datagrams to forward
  * @tosidx:	Flow & side to forward datagrams to
+ *
+ * #syscalls sendmmsg
  */
 static void udp_sock_to_sock(const struct ctx *c, int from_s, int n,
 			     flow_sidx_t tosidx)
 {
+	const struct flowside *toside = flowside_at_sidx(tosidx);
+	const struct udp_flow *uflow = udp_at_sidx(tosidx);
+	uint8_t topif = pif_at_sidx(tosidx);
+	int to_s = uflow->s[tosidx.sidei];
+	socklen_t sl;
 	int i;
 
 	if ((n = udp_sock_recv(c, from_s, udp_mh_recv, n)) <= 0)
 		return;
 
-	for (i = 0; i < n; i++)
-		udp_splice_prepare(udp_mh_recv, i);
+	for (i = 0; i < n; i++) {
+		udp_mh_splice[i].msg_hdr.msg_iov->iov_len
+			= udp_mh_recv[i].msg_len;
+	}
 
-	udp_splice_send(c, 0, n, tosidx);
+	pif_sockaddr(c, &udp_splice_to, &sl, topif,
+		     &toside->eaddr, toside->eport);
+
+	sendmmsg(to_s, udp_mh_splice, n, MSG_NOSIGNAL);
 }
 
 /**
