@@ -716,37 +716,36 @@ static void udp_buf_sock_to_tap(const struct ctx *c, int s, int n,
 }
 
 /**
- * udp_listen_sock_data() - Handle new data from listening socket
+ * udp_sock_fwd() - Forward datagrams from a possibly unconnected socket
  * @c:		Execution context
- * @ref:	epoll reference
+ * @s:		Socket to forward from
+ * @frompif:	Interface to which @s belongs
+ * @port:	Our (local) port number of @s
  * @now:	Current timestamp
  */
-static void udp_listen_sock_data(const struct ctx *c, union epoll_ref ref,
-				     const struct timespec *now)
+static void udp_sock_fwd(const struct ctx *c, int s, uint8_t frompif,
+			 in_port_t port, const struct timespec *now)
 {
 	union sockaddr_inany src;
 
-	while (udp_peek_addr(ref.fd, &src) == 0) {
-		flow_sidx_t tosidx = udp_flow_from_sock(c, ref.udp.pif,
-							ref.udp.port, &src,
-							now);
+	while (udp_peek_addr(s, &src) == 0) {
+		flow_sidx_t tosidx = udp_flow_from_sock(c, frompif, port,
+							&src, now);
 		uint8_t topif = pif_at_sidx(tosidx);
 
 		if (pif_is_socket(topif)) {
-			udp_sock_to_sock(c, ref.fd, 1, tosidx);
+			udp_sock_to_sock(c, s, 1, tosidx);
 		} else if (topif == PIF_TAP) {
 			if (c->mode == MODE_VU)
-				udp_vu_sock_to_tap(c, ref.fd, 1, tosidx);
+				udp_vu_sock_to_tap(c, s, 1, tosidx);
 			else
-				udp_buf_sock_to_tap(c, ref.fd, 1, tosidx);
+				udp_buf_sock_to_tap(c, s, 1, tosidx);
 		} else if (flow_sidx_valid(tosidx)) {
-			flow_sidx_t fromsidx = flow_sidx_opposite(tosidx);
 			struct udp_flow *uflow = udp_at_sidx(tosidx);
 
 			flow_err(uflow,
 				 "No support for forwarding UDP from %s to %s",
-				 pif_name(pif_at_sidx(fromsidx)),
-				 pif_name(topif));
+				 pif_name(frompif), pif_name(topif));
 		} else {
 			debug("Discarding datagram without flow");
 		}
@@ -774,7 +773,7 @@ void udp_listen_sock_handler(const struct ctx *c,
 	}
 
 	if (events & EPOLLIN)
-		udp_listen_sock_data(c, ref, now);
+		udp_sock_fwd(c, ref.fd, ref.udp.pif, ref.udp.port, now);
 }
 
 /**
