@@ -634,22 +634,14 @@ static int udp_sock_errs(const struct ctx *c, union epoll_ref ref)
  * @c:		Execution context
  * @s:		Socket to receive from
  * @mmh		mmsghdr array to receive into
+ * @n:		Maximum number of datagrams to receive
  *
  * Return: Number of datagrams received
  *
  * #syscalls recvmmsg arm:recvmmsg_time64 i686:recvmmsg_time64
  */
-static int udp_sock_recv(const struct ctx *c, int s, struct mmsghdr *mmh)
+static int udp_sock_recv(const struct ctx *c, int s, struct mmsghdr *mmh, int n)
 {
-	/* For not entirely clear reasons (data locality?) pasta gets better
-	 * throughput if we receive tap datagrams one at a atime.  For small
-	 * splice datagrams throughput is slightly better if we do batch, but
-	 * it's slightly worse for large splice datagrams.  Since we don't know
-	 * before we receive whether we'll use tap or splice, always go one at a
-	 * time for pasta mode.
-	 */
-	int n = (c->mode == MODE_PASTA ? 1 : UDP_MAX_FRAMES);
-
 	ASSERT(!c->no_udp);
 
 	n = recvmmsg(s, mmh, n, 0, NULL);
@@ -671,9 +663,10 @@ static void udp_buf_listen_sock_data(const struct ctx *c, union epoll_ref ref,
 				     const struct timespec *now)
 {
 	const socklen_t sasize = sizeof(udp_meta[0].s_in);
-	int n, i;
+	/* See udp_buf_sock_data() comment */
+	int n = (c->mode == MODE_PASTA ? 1 : UDP_MAX_FRAMES), i;
 
-	if ((n = udp_sock_recv(c, ref.fd, udp_mh_recv)) <= 0)
+	if ((n = udp_sock_recv(c, ref.fd, udp_mh_recv, n)) <= 0)
 		return;
 
 	/* We divide datagrams into batches based on how we need to send them,
@@ -768,9 +761,15 @@ static bool udp_buf_reply_sock_data(const struct ctx *c,
 {
 	const struct flowside *toside = flowside_at_sidx(tosidx);
 	uint8_t topif = pif_at_sidx(tosidx);
-	int n, i;
+	/* For not entirely clear reasons (data locality?) pasta gets better
+	 * throughput if we receive tap datagrams one at a time.  For small
+	 * splice datagrams throughput is slightly better if we do batch, but
+	 * it's slightly worse for large splice datagrams.  Since we don't know
+	 * the size before we receive, always go one at a time for pasta mode.
+	 */
+	int n = (c->mode == MODE_PASTA ? 1 : UDP_MAX_FRAMES), i;
 
-	if ((n = udp_sock_recv(c, s, udp_mh_recv)) <= 0)
+	if ((n = udp_sock_recv(c, s, udp_mh_recv, n)) <= 0)
 		return true;
 
 	for (i = 0; i < n; i++) {
