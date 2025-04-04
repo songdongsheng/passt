@@ -671,6 +671,49 @@ static int udp_sock_recv(const struct ctx *c, int s, struct mmsghdr *mmh, int n)
 }
 
 /**
+ * udp_sock_to_sock() - Forward datagrams from socket to socket
+ * @c:		Execution context
+ * @from_s:	Socket to receive datagrams from
+ * @n:		Maximum number of datagrams to forward
+ * @tosidx:	Flow & side to forward datagrams to
+ */
+static void udp_sock_to_sock(const struct ctx *c, int from_s, int n,
+			     flow_sidx_t tosidx)
+{
+	int i;
+
+	if ((n = udp_sock_recv(c, from_s, udp_mh_recv, n)) <= 0)
+		return;
+
+	for (i = 0; i < n; i++)
+		udp_splice_prepare(udp_mh_recv, i);
+
+	udp_splice_send(c, 0, n, tosidx);
+}
+
+/**
+ * udp_buf_sock_to_tap() - Forward datagrams from socket to tap
+ * @c:		Execution context
+ * @s:		Socket to read data from
+ * @n:		Maximum number of datagrams to forward
+ * @tosidx:	Flow & side to forward data from @s to
+ */
+static void udp_buf_sock_to_tap(const struct ctx *c, int s, int n,
+				flow_sidx_t tosidx)
+{
+	const struct flowside *toside = flowside_at_sidx(tosidx);
+	int i;
+
+	if ((n = udp_sock_recv(c, s, udp_mh_recv, n)) <= 0)
+		return;
+
+	for (i = 0; i < n; i++)
+		udp_tap_prepare(udp_mh_recv, i, toside, false);
+
+	tap_send_frames(c, &udp_l2_iov[0][0], UDP_NUM_IOVS, n);
+}
+
+/**
  * udp_buf_listen_sock_data() - Handle new data from socket
  * @c:		Execution context
  * @ref:	epoll reference
@@ -738,43 +781,6 @@ void udp_listen_sock_handler(const struct ctx *c,
 }
 
 /**
- * udp_buf_reply_sock_data() - Handle new data from flow specific socket
- * @c:		Execution context
- * @s:		Socket to read data from
- * @n:		Maximum number of datagrams to forward
- * @tosidx:	Flow & side to forward data from @s to
- *
- * Return: true on success, false if can't forward from socket to flow's pif
- */
-static bool udp_buf_reply_sock_data(const struct ctx *c, int s, int n,
-				    flow_sidx_t tosidx)
-{
-	const struct flowside *toside = flowside_at_sidx(tosidx);
-	uint8_t topif = pif_at_sidx(tosidx);
-	int i;
-
-	if ((n = udp_sock_recv(c, s, udp_mh_recv, n)) <= 0)
-		return true;
-
-	for (i = 0; i < n; i++) {
-		if (pif_is_socket(topif))
-			udp_splice_prepare(udp_mh_recv, i);
-		else if (topif == PIF_TAP)
-			udp_tap_prepare(udp_mh_recv, i, toside, false);
-	}
-
-	if (pif_is_socket(topif)) {
-		udp_splice_send(c, 0, n, tosidx);
-	} else if (topif == PIF_TAP) {
-		tap_send_frames(c, &udp_l2_iov[0][0], UDP_NUM_IOVS, n);
-	} else {
-		return false;
-	}
-
-	return true;
-}
-
-/**
  * udp_sock_handler() - Handle new data from flow specific socket
  * @c:		Execution context
  * @ref:	epoll reference
@@ -805,21 +811,26 @@ void udp_sock_handler(const struct ctx *c, union epoll_ref ref,
 		 */
 		size_t n = (c->mode == MODE_PASTA ? 1 : UDP_MAX_FRAMES);
 		flow_sidx_t tosidx = flow_sidx_opposite(ref.flowside);
+		uint8_t topif = pif_at_sidx(tosidx);
 		int s = ref.fd;
-		bool ret;
 
 		flow_trace(uflow, "Received data on reply socket");
 		uflow->ts = now->tv_sec;
 
-		if (c->mode == MODE_VU) {
-			ret = udp_vu_reply_sock_data(c, s, UDP_MAX_FRAMES,
-						     tosidx);
+		if (pif_is_socket(topif)) {
+			udp_sock_to_sock(c, ref.fd, n, tosidx);
+		} else if (topif == PIF_TAP) {
+			if (c->mode == MODE_VU) {
+				udp_vu_sock_to_tap(c, s, UDP_MAX_FRAMES,
+						   tosidx);
+			} else {
+				udp_buf_sock_to_tap(c, s, n, tosidx);
+			}
 		} else {
-			ret = udp_buf_reply_sock_data(c, s, n, tosidx);
-		}
-
-		if (!ret) {
-			flow_err(uflow, "Unable to forward UDP");
+			flow_err(uflow,
+				 "No support for forwarding UDP from %s to %s",
+				 pif_name(pif_at_sidx(ref.flowside)),
+				 pif_name(topif));
 			goto fail;
 		}
 	}

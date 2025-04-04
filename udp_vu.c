@@ -254,25 +254,19 @@ void udp_vu_listen_sock_data(const struct ctx *c, union epoll_ref ref,
 }
 
 /**
- * udp_vu_reply_sock_data() - Handle new data from flow specific socket
+ * udp_vu_sock_to_tap() - Forward datagrams from socket to tap
  * @c:		Execution context
  * @s:		Socket to read data from
  * @n:		Maximum number of datagrams to forward
  * @tosidx:	Flow & side to forward data from @s to
- *
- * Return: true on success, false if can't forward from socket to flow's pif
  */
-bool udp_vu_reply_sock_data(const struct ctx *c, int s, int n,
-			    flow_sidx_t tosidx)
+void udp_vu_sock_to_tap(const struct ctx *c, int s, int n, flow_sidx_t tosidx)
 {
 	const struct flowside *toside = flowside_at_sidx(tosidx);
 	bool v6 = !(inany_v4(&toside->eaddr) && inany_v4(&toside->oaddr));
 	struct vu_dev *vdev = c->vdev;
 	struct vu_virtq *vq = &vdev->vq[VHOST_USER_RX_QUEUE];
 	int i;
-
-	if (pif_at_sidx(tosidx) != PIF_TAP)
-		return false;
 
 	for (i = 0; i < n; i++) {
 		ssize_t dlen;
@@ -290,6 +284,4 @@ bool udp_vu_reply_sock_data(const struct ctx *c, int s, int n,
 		}
 		vu_flush(vdev, vq, elem, iov_used);
 	}
-
-	return true;
 }
