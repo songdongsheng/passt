@@ -698,8 +698,8 @@ static void udp_buf_sock_to_tap(const struct ctx *c, int s, int n,
  * @port:	Our (local) port number of @s
  * @now:	Current timestamp
  */
-static void udp_sock_fwd(const struct ctx *c, int s, uint8_t frompif,
-			 in_port_t port, const struct timespec *now)
+void udp_sock_fwd(const struct ctx *c, int s, uint8_t frompif,
+		  in_port_t port, const struct timespec *now)
 {
 	union sockaddr_inany src;
 

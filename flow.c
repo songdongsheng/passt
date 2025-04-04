@@ -850,7 +850,7 @@ void flow_defer_handler(const struct ctx *c, const struct timespec *now)
 				closed = icmp_ping_timer(c, &flow->ping, now);
 			break;
 		case FLOW_UDP:
-			closed = udp_flow_defer(&flow->udp);
+			closed = udp_flow_defer(c, &flow->udp, now);
 			if (!closed && timer)
 				closed = udp_flow_timer(c, &flow->udp, now);
 			break;

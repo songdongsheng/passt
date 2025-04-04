@@ -11,6 +11,8 @@
  * struct udp_flow - Descriptor for a flow of UDP packets
  * @f:		Generic flow information
  * @closed:	Flow is already closed
+ * @flush0:	@s[0] may have datagrams queued for other flows
+ * @flush1:	@s[1] may have datagrams queued for other flows
  * @ts:		Activity timestamp
  * @s:		Socket fd (or -1) for each side of the flow
  * @ttl:	TTL or hop_limit for both sides
@@ -20,6 +22,7 @@ struct udp_flow {
 	struct flow_common f;
 
 	bool closed :1;
+	bool flush0, flush1 :1;
 	time_t ts;
 	int s[SIDES];
 	uint8_t ttl[SIDES];
@@ -35,7 +38,8 @@ flow_sidx_t udp_flow_from_tap(const struct ctx *c,
 			      in_port_t srcport, in_port_t dstport,
 			      const struct timespec *now);
 void udp_flow_close(const struct ctx *c, struct udp_flow *uflow);
-bool udp_flow_defer(const struct udp_flow *uflow);
+bool udp_flow_defer(const struct ctx *c, struct udp_flow *uflow,
+		    const struct timespec *now);
 bool udp_flow_timer(const struct ctx *c, struct udp_flow *uflow,
 		    const struct timespec *now);
 

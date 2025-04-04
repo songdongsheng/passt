@@ -9,10 +9,12 @@
 #include <fcntl.h>
 #include <sys/uio.h>
 #include <unistd.h>
+#include <netinet/udp.h>
 
 #include "util.h"
 #include "passt.h"
 #include "flow_table.h"
+#include "udp_internal.h"
 
 #define UDP_CONN_TIMEOUT	180 /* s, timeout for ephemeral or local bind */
 
@@ -67,16 +69,15 @@ void udp_flow_close(const struct ctx *c, struct udp_flow *uflow)
  * Return: fd of new socket on success, -ve error code on failure
  */
 static int udp_flow_sock(const struct ctx *c,
-			 const struct udp_flow *uflow, unsigned sidei)
+			 struct udp_flow *uflow, unsigned sidei)
 {
 	const struct flowside *side = &uflow->f.side[sidei];
-	struct mmsghdr discard[UIO_MAXIOV] = { 0 };
 	uint8_t pif = uflow->f.pif[sidei];
 	union {
 		flow_sidx_t sidx;
 		uint32_t data;
 	} fref = { .sidx = FLOW_SIDX(uflow, sidei) };
-	int rc, s;
+	int s;
 
 	s = flowside_sock_l4(c, EPOLL_TYPE_UDP, pif, side, fref.data);
 	if (s < 0) {
@@ -85,30 +86,32 @@ static int udp_flow_sock(const struct ctx *c,
 	}
 
 	if (flowside_connect(c, s, pif, side) < 0) {
-		rc = -errno;
+		int rc = -errno;
 		flow_dbg_perror(uflow, "Couldn't connect flow socket");
 		return rc;
 	}
 
-	/* It's possible, if unlikely, that we could receive some unrelated
-	 * packets in between the bind() and connect() of this socket.  For now
-	 * we just discard these.
+	/* It's possible, if unlikely, that we could receive some packets in
+	 * between the bind() and connect() which may or may not be for this
+	 * flow.  Being UDP we could just discard them, but it's not ideal.
 	 *
-	 * FIXME: Redirect these to an appropriate handler
+	 * There's also a tricky case if a bunch of datagrams for a new flow
+	 * arrive in rapid succession, the first going to the original listening
+	 * socket and later ones going to this new socket.  If we forwarded the
+	 * datagrams from the new socket immediately here they would go before
+	 * the datagram which established the flow.  Again, not strictly wrong
+	 * for UDP, but not ideal.
+	 *
+	 * So, we flag that the new socket is in a transient state where it
+	 * might have datagrams for a different flow queued.  Before the next
+	 * epoll cycle, udp_flow_defer() will flush out any such datagrams, and
+	 * thereafter everything on the new socket should be strictly for this
+	 * flow.
 	 */
-	rc = recvmmsg(s, discard, ARRAY_SIZE(discard), MSG_DONTWAIT, NULL);
-	if (rc >= ARRAY_SIZE(discard)) {
-		flow_dbg(uflow, "Too many (%d) spurious reply datagrams", rc);
-		return -E2BIG;
-	}
-
-	if (rc > 0) {
-		flow_trace(uflow, "Discarded %d spurious reply datagrams", rc);
-	} else if (errno != EAGAIN) {
-		rc = -errno;
-		flow_perror(uflow, "Unexpected error discarding datagrams");
-		return rc;
-	}
+	if (sidei)
+		uflow->flush1 = true;
+	else
+		uflow->flush0 = true;
 
 	return s;
 }
@@ -269,13 +272,41 @@ flow_sidx_t udp_flow_from_tap(const struct ctx *c,
 }
 
 /**
- * udp_flow_defer() - Deferred per-flow handling (clean up aborted flows)
+ * udp_flush_flow() - Flush datagrams that might not be for this flow
+ * @c:		Execution context
  * @uflow:	Flow to handle
+ * @sidei:	Side of the flow to flush
+ * @now:	Current timestamp
+ */
+static void udp_flush_flow(const struct ctx *c,
+			   const struct udp_flow *uflow, unsigned sidei,
+			   const struct timespec *now)
+{
+	/* We don't know exactly where the datagrams will come from, but we know
+	 * they'll have an interface and oport matching this flow */
+	udp_sock_fwd(c, uflow->s[sidei], uflow->f.pif[sidei],
+		     uflow->f.side[sidei].oport, now);
+}
+
+/**
+ * udp_flow_defer() - Deferred per-flow handling (clean up aborted flows)
+ * @c:		Execution context
+ * @uflow:	Flow to handle
+ * @now:	Current timestamp
  *
  * Return: true if the connection is ready to free, false otherwise
  */
-bool udp_flow_defer(const struct udp_flow *uflow)
+bool udp_flow_defer(const struct ctx *c, struct udp_flow *uflow,
+		    const struct timespec *now)
 {
+	if (uflow->flush0) {
+		udp_flush_flow(c, uflow, INISIDE, now);
+		uflow->flush0 = false;
+	}
+	if (uflow->flush1) {
+		udp_flush_flow(c, uflow, TGTSIDE, now);
+		uflow->flush1 = false;
+	}
 	return uflow->closed;
 }
 
