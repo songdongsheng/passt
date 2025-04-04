@@ -192,68 +192,6 @@ static void udp_vu_csum(const struct flowside *toside, int iov_used)
 }
 
 /**
- * udp_vu_listen_sock_data() - Handle new data from socket
- * @c:		Execution context
- * @ref:	epoll reference
- * @now:	Current timestamp
- */
-void udp_vu_listen_sock_data(const struct ctx *c, union epoll_ref ref,
-			     const struct timespec *now)
-{
-	struct vu_dev *vdev = c->vdev;
-	struct vu_virtq *vq = &vdev->vq[VHOST_USER_RX_QUEUE];
-	int i;
-
-	for (i = 0; i < UDP_MAX_FRAMES; i++) {
-		const struct flowside *toside;
-		union sockaddr_inany s_in;
-		flow_sidx_t sidx;
-		uint8_t pif;
-		ssize_t dlen;
-		int iov_used;
-		bool v6;
-
-		if (udp_peek_addr(ref.fd, &s_in) < 0)
-			break;
-
-		sidx = udp_flow_from_sock(c, ref, &s_in, now);
-		pif = pif_at_sidx(sidx);
-
-		if (pif != PIF_TAP) {
-			if (flow_sidx_valid(sidx)) {
-				flow_sidx_t fromsidx = flow_sidx_opposite(sidx);
-				struct udp_flow *uflow = udp_at_sidx(sidx);
-
-				flow_err(uflow,
-					"No support for forwarding UDP from %s to %s",
-					pif_name(pif_at_sidx(fromsidx)),
-					pif_name(pif));
-			} else {
-				debug("Discarding 1 datagram without flow");
-			}
-
-			continue;
-		}
-
-		toside = flowside_at_sidx(sidx);
-
-		v6 = !(inany_v4(&toside->eaddr) && inany_v4(&toside->oaddr));
-
-		iov_used = udp_vu_sock_recv(c, ref.fd, v6, &dlen);
-		if (iov_used <= 0)
-			break;
-
-		udp_vu_prepare(c, toside, dlen);
-		if (*c->pcap) {
-			udp_vu_csum(toside, iov_used);
-			pcap_iov(iov_vu, iov_used,
-				 sizeof(struct virtio_net_hdr_mrg_rxbuf));
-		}
-		vu_flush(vdev, vq, elem, iov_used);
-	}
-}
-
-/**
  * udp_vu_sock_to_tap() - Forward datagrams from socket to tap
  * @c:		Execution context
  * @s:		Socket to read data from

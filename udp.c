@@ -629,7 +629,7 @@ static int udp_sock_errs(const struct ctx *c, union epoll_ref ref)
  *
  * Return: 0 on success, -1 otherwise
  */
-int udp_peek_addr(int s, union sockaddr_inany *src)
+static int udp_peek_addr(int s, union sockaddr_inany *src)
 {
 	struct msghdr msg = {
 		.msg_name = src,
@@ -714,12 +714,12 @@ static void udp_buf_sock_to_tap(const struct ctx *c, int s, int n,
 }
 
 /**
- * udp_buf_listen_sock_data() - Handle new data from socket
+ * udp_listen_sock_data() - Handle new data from listening socket
  * @c:		Execution context
  * @ref:	epoll reference
  * @now:	Current timestamp
  */
-static void udp_buf_listen_sock_data(const struct ctx *c, union epoll_ref ref,
+static void udp_listen_sock_data(const struct ctx *c, union epoll_ref ref,
 				     const struct timespec *now)
 {
 	union sockaddr_inany src;
@@ -728,16 +728,13 @@ static void udp_buf_listen_sock_data(const struct ctx *c, union epoll_ref ref,
 		flow_sidx_t tosidx = udp_flow_from_sock(c, ref, &src, now);
 		uint8_t topif = pif_at_sidx(tosidx);
 
-		if (udp_sock_recv(c, ref.fd, udp_mh_recv, 1) <= 0)
-			break;
-
 		if (pif_is_socket(topif)) {
-			udp_splice_prepare(udp_mh_recv, 0);
-			udp_splice_send(c, 0, 1, tosidx);
+			udp_sock_to_sock(c, ref.fd, 1, tosidx);
 		} else if (topif == PIF_TAP) {
-			udp_tap_prepare(udp_mh_recv, 0, flowside_at_sidx(tosidx),
-					false);
-			tap_send_frames(c, &udp_l2_iov[0][0], UDP_NUM_IOVS, 1);
+			if (c->mode == MODE_VU)
+				udp_vu_sock_to_tap(c, ref.fd, 1, tosidx);
+			else
+				udp_buf_sock_to_tap(c, ref.fd, 1, tosidx);
 		} else if (flow_sidx_valid(tosidx)) {
 			flow_sidx_t fromsidx = flow_sidx_opposite(tosidx);
 			struct udp_flow *uflow = udp_at_sidx(tosidx);
@@ -772,12 +769,8 @@ void udp_listen_sock_handler(const struct ctx *c,
 		}
 	}
 
-	if (events & EPOLLIN) {
-		if (c->mode == MODE_VU)
-			udp_vu_listen_sock_data(c, ref, now);
-		else
-			udp_buf_listen_sock_data(c, ref, now);
-	}
+	if (events & EPOLLIN)
+		udp_listen_sock_data(c, ref, now);
 }
 
 /**

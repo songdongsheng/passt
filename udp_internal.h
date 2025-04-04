@@ -30,6 +30,5 @@ size_t udp_update_hdr4(struct iphdr *ip4h, struct udp_payload_t *bp,
 size_t udp_update_hdr6(struct ipv6hdr *ip6h, struct udp_payload_t *bp,
                        const struct flowside *toside, size_t dlen,
 		       bool no_udp_csum);
-int udp_peek_addr(int s, union sockaddr_inany *src);
 
 #endif /* UDP_INTERNAL_H */
