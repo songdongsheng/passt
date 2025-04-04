@@ -161,9 +161,10 @@ cancel:
 }
 
 /**
- * udp_flow_from_sock() - Find or create UDP flow for "listening" socket
+ * udp_flow_from_sock() - Find or create UDP flow for incoming datagram
  * @c:		Execution context
- * @ref:	epoll reference of the receiving socket
+ * @pif:	Interface the datagram is arriving from
+ * @port:	Our (local) port number to which the datagram is arriving
  * @s_in:	Source socket address, filled in by recvmmsg()
  * @now:	Timestamp
  *
@@ -172,7 +173,7 @@ cancel:
  * Return: sidx for the destination side of the flow for this packet, or
  *         FLOW_SIDX_NONE if we couldn't find or create a flow.
  */
-flow_sidx_t udp_flow_from_sock(const struct ctx *c, union epoll_ref ref,
+flow_sidx_t udp_flow_from_sock(const struct ctx *c, uint8_t pif, in_port_t port,
 			       const union sockaddr_inany *s_in,
 			       const struct timespec *now)
 {
@@ -181,9 +182,7 @@ flow_sidx_t udp_flow_from_sock(const struct ctx *c, union epoll_ref ref,
 	union flow *flow;
 	flow_sidx_t sidx;
 
-	ASSERT(ref.type == EPOLL_TYPE_UDP_LISTEN);
-
-	sidx = flow_lookup_sa(c, IPPROTO_UDP, ref.udp.pif, s_in, ref.udp.port);
+	sidx = flow_lookup_sa(c, IPPROTO_UDP, pif, s_in, port);
 	if ((uflow = udp_at_sidx(sidx))) {
 		uflow->ts = now->tv_sec;
 		return flow_sidx_opposite(sidx);
@@ -193,12 +192,11 @@ flow_sidx_t udp_flow_from_sock(const struct ctx *c, union epoll_ref ref,
 		char sastr[SOCKADDR_STRLEN];
 
 		debug("Couldn't allocate flow for UDP datagram from %s %s",
-		      pif_name(ref.udp.pif),
-		      sockaddr_ntop(s_in, sastr, sizeof(sastr)));
+		      pif_name(pif), sockaddr_ntop(s_in, sastr, sizeof(sastr)));
 		return FLOW_SIDX_NONE;
 	}
 
-	ini = flow_initiate_sa(flow, ref.udp.pif, s_in, ref.udp.port);
+	ini = flow_initiate_sa(flow, pif, s_in, port);
 
 	if (!inany_is_unicast(&ini->eaddr) ||
 	    ini->eport == 0 || ini->oport == 0) {

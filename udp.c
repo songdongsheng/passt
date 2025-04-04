@@ -727,7 +727,9 @@ static void udp_listen_sock_data(const struct ctx *c, union epoll_ref ref,
 	union sockaddr_inany src;
 
 	while (udp_peek_addr(ref.fd, &src) == 0) {
-		flow_sidx_t tosidx = udp_flow_from_sock(c, ref, &src, now);
+		flow_sidx_t tosidx = udp_flow_from_sock(c, ref.udp.pif,
+							ref.udp.port, &src,
+							now);
 		uint8_t topif = pif_at_sidx(tosidx);
 
 		if (pif_is_socket(topif)) {
