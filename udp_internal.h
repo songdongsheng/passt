@@ -8,8 +8,6 @@
 
 #include "tap.h" /* needed by udp_meta_t */
 
-#define UDP_MAX_FRAMES		32  /* max # of frames to receive at once */
-
 /**
  * struct udp_payload_t - UDP header and data for inbound messages
  * @uh:		UDP header

@@ -116,6 +116,8 @@
 #include "udp_internal.h"
 #include "udp_vu.h"
 
+#define UDP_MAX_FRAMES		32  /* max # of frames to receive at once */
+
 /* Maximum UDP data to be returned in ICMP messages */
 #define ICMP4_MAX_DLEN 8
 #define ICMP6_MAX_DLEN (IPV6_MIN_MTU			\
