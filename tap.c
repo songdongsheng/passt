@@ -559,6 +559,7 @@ PACKET_POOL_DECL(pool_l4, UIO_MAXIOV, pkt_buf);
  * struct l4_seq4_t - Message sequence for one protocol handler call, IPv4
  * @msgs:	Count of messages in sequence
  * @protocol:	Protocol number
+ * @ttl:	Time to live
  * @source:	Source port
  * @dest:	Destination port
  * @saddr:	Source address
@@ -567,6 +568,7 @@ PACKET_POOL_DECL(pool_l4, UIO_MAXIOV, pkt_buf);
  */
 static struct tap4_l4_t {
 	uint8_t protocol;
+	uint8_t ttl;
 
 	uint16_t source;
 	uint16_t dest;
@@ -586,6 +588,7 @@ static struct tap4_l4_t {
  * @dest:	Destination port
  * @saddr:	Source address
  * @daddr:	Destination address
+ * @hop_limit:	Hop limit
  * @msg:	Array of messages that can be handled in a single call
  */
 static struct tap6_l4_t {
@@ -597,6 +600,8 @@ static struct tap6_l4_t {
 
 	struct in6_addr saddr;
 	struct in6_addr daddr;
+
+	uint8_t hop_limit;
 
 	struct pool_l4_t p;
 } tap6_l4[TAP_SEQS /* Arbitrary: TAP_MSGS in theory, so limit in users */];
@@ -786,7 +791,8 @@ resume:
 #define L4_MATCH(iph, uh, seq)							\
 	((seq)->protocol == (iph)->protocol &&					\
 	 (seq)->source   == (uh)->source    && (seq)->dest  == (uh)->dest &&	\
-	 (seq)->saddr.s_addr == (iph)->saddr && (seq)->daddr.s_addr == (iph)->daddr)
+	 (seq)->saddr.s_addr == (iph)->saddr &&				\
+	 (seq)->daddr.s_addr == (iph)->daddr && (seq)->ttl == (iph)->ttl)
 
 #define L4_SET(iph, uh, seq)						\
 	do {								\
@@ -795,6 +801,7 @@ resume:
 		(seq)->dest		= (uh)->dest;			\
 		(seq)->saddr.s_addr	= (iph)->saddr;			\
 		(seq)->daddr.s_addr	= (iph)->daddr;			\
+		(seq)->ttl		= (iph)->ttl;			\
 	} while (0)
 
 		if (seq && L4_MATCH(iph, uh, seq) && seq->p.count < UIO_MAXIOV)
@@ -843,7 +850,7 @@ append:
 			for (k = 0; k < p->count; )
 				k += udp_tap_handler(c, PIF_TAP, AF_INET,
 						     &seq->saddr, &seq->daddr,
-						     p, k, now);
+						     seq->ttl, p, k, now);
 		}
 	}
 
@@ -966,7 +973,8 @@ resume:
 		 (seq)->dest == (uh)->dest                 &&		\
 		 (seq)->flow_lbl == ip6_get_flow_lbl(ip6h) &&		\
 		 IN6_ARE_ADDR_EQUAL(&(seq)->saddr, saddr)  &&		\
-		 IN6_ARE_ADDR_EQUAL(&(seq)->daddr, daddr))
+		 IN6_ARE_ADDR_EQUAL(&(seq)->daddr, daddr)  &&		\
+		 (seq)->hop_limit == (ip6h)->hop_limit)
 
 #define L4_SET(ip6h, proto, uh, seq)					\
 	do {								\
@@ -976,6 +984,7 @@ resume:
 		(seq)->flow_lbl	= ip6_get_flow_lbl(ip6h);		\
 		(seq)->saddr	= *saddr;				\
 		(seq)->daddr	= *daddr;				\
+		(seq)->hop_limit = (ip6h)->hop_limit;			\
 	} while (0)
 
 		if (seq && L4_MATCH(ip6h, proto, uh, seq) &&
@@ -1026,7 +1035,7 @@ append:
 			for (k = 0; k < p->count; )
 				k += udp_tap_handler(c, PIF_TAP, AF_INET6,
 						     &seq->saddr, &seq->daddr,
-						     p, k, now);
+						     seq->hop_limit, p, k, now);
 		}
 	}
 

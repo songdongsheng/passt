@@ -8,11 +8,12 @@
 #define UDP_FLOW_H
 
 /**
- * struct udp - Descriptor for a flow of UDP packets
+ * struct udp_flow - Descriptor for a flow of UDP packets
  * @f:		Generic flow information
  * @closed:	Flow is already closed
  * @ts:		Activity timestamp
  * @s:		Socket fd (or -1) for each side of the flow
+ * @ttl:	TTL or hop_limit for both sides
  */
 struct udp_flow {
 	/* Must be first element */
@@ -21,6 +22,7 @@ struct udp_flow {
 	bool closed :1;
 	time_t ts;
 	int s[SIDES];
+	uint8_t ttl[SIDES];
 };
 
 struct udp_flow *udp_at_sidx(flow_sidx_t sidx);

@@ -137,6 +137,7 @@ static flow_sidx_t udp_flow_new(const struct ctx *c, union flow *flow,
 	uflow = FLOW_SET_TYPE(flow, FLOW_UDP, udp);
 	uflow->ts = now->tv_sec;
 	uflow->s[INISIDE] = uflow->s[TGTSIDE] = -1;
+	uflow->ttl[INISIDE] = uflow->ttl[TGTSIDE] = 0;
 
 	if (s_ini >= 0) {
 		/* When using auto port-scanning the listening port could go

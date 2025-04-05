@@ -844,6 +844,7 @@ fail:
  * @af:		Address family, AF_INET or AF_INET6
  * @saddr:	Source address
  * @daddr:	Destination address
+ * @ttl:	TTL or hop limit for packets to be sent in this call
  * @p:		Pool of UDP packets, with UDP headers
  * @idx:	Index of first packet to process
  * @now:	Current timestamp
@@ -854,7 +855,8 @@ fail:
  */
 int udp_tap_handler(const struct ctx *c, uint8_t pif,
 		    sa_family_t af, const void *saddr, const void *daddr,
-		    const struct pool *p, int idx, const struct timespec *now)
+		    uint8_t ttl, const struct pool *p, int idx,
+		    const struct timespec *now)
 {
 	const struct flowside *toside;
 	struct mmsghdr mm[UIO_MAXIOV];
@@ -932,6 +934,24 @@ int udp_tap_handler(const struct ctx *c, uint8_t pif,
 		mm[i].msg_hdr.msg_control = NULL;
 		mm[i].msg_hdr.msg_controllen = 0;
 		mm[i].msg_hdr.msg_flags = 0;
+
+		if (ttl != uflow->ttl[tosidx.sidei]) {
+			uflow->ttl[tosidx.sidei] = ttl;
+			if (af == AF_INET) {
+				if (setsockopt(s, IPPROTO_IP, IP_TTL,
+					       &ttl, sizeof(ttl)) < 0)
+					flow_perror(uflow,
+						    "setsockopt IP_TTL");
+			} else {
+				/* IPv6 hop_limit cannot be only 1 byte */
+				int hop_limit = ttl;
+
+				if (setsockopt(s, SOL_IPV6, IPV6_UNICAST_HOPS,
+					       &hop_limit, sizeof(hop_limit)) < 0)
+					flow_perror(uflow,
+						    "setsockopt IPV6_UNICAST_HOPS");
+			}
+		}
 
 		count++;
 	}
