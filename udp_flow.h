@@ -10,22 +10,25 @@
 /**
  * struct udp_flow - Descriptor for a flow of UDP packets
  * @f:		Generic flow information
+ * @ttl:	TTL or hop_limit for both sides
  * @closed:	Flow is already closed
  * @flush0:	@s[0] may have datagrams queued for other flows
  * @flush1:	@s[1] may have datagrams queued for other flows
  * @ts:		Activity timestamp
  * @s:		Socket fd (or -1) for each side of the flow
- * @ttl:	TTL or hop_limit for both sides
  */
 struct udp_flow {
 	/* Must be first element */
 	struct flow_common f;
 
-	bool closed :1;
-	bool flush0, flush1 :1;
+	uint8_t ttl[SIDES];
+
+	bool	closed	:1,
+		flush0	:1,
+		flush1	:1;
+
 	time_t ts;
 	int s[SIDES];
-	uint8_t ttl[SIDES];
 };
 
 struct udp_flow *udp_at_sidx(flow_sidx_t sidx);
