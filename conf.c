@@ -1272,6 +1272,8 @@ static void conf_nat(const char *arg, struct in_addr *addr4,
 		*addr6 = in6addr_any;
 		if (no_map_gw)
 			*no_map_gw = 1;
+
+		return;
 	}
 
 	if (inet_pton(AF_INET6, arg, addr6)	&&
