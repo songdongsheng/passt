@@ -526,13 +526,15 @@ retry:
 					 c->tcp.pipe_size,
 					 SPLICE_F_MOVE | SPLICE_F_NONBLOCK);
 		while (readlen < 0 && errno == EINTR);
+
+		if (readlen < 0 && errno != EAGAIN)
+			goto close;
+
 		flow_trace(conn, "%zi from read-side call", readlen);
-		if (readlen < 0) {
-			if (errno != EAGAIN)
-				goto close;
-		} else if (!readlen) {
+
+		if (!readlen) {
 			eof = 1;
-		} else {
+		} else if (readlen > 0) {
 			never_read = 0;
 
 			if (readlen >= (long)c->tcp.pipe_size * 90 / 100)
@@ -548,6 +550,9 @@ retry:
 					 c->tcp.pipe_size,
 					 SPLICE_F_MOVE | more | SPLICE_F_NONBLOCK);
 		while (written < 0 && errno == EINTR);
+
+		if (written < 0 && errno != EAGAIN)
+			goto close;
 
 		flow_trace(conn, "%zi from write-side call (passed %zi)",
 			   written, c->tcp.pipe_size);
@@ -580,9 +585,6 @@ retry:
 		conn->written[fromsidei] += written > 0 ? written : 0;
 
 		if (written < 0) {
-			if (errno != EAGAIN)
-				goto close;
-
 			if (conn->read[fromsidei] == conn->written[fromsidei])
 				break;
 
