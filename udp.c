@@ -587,18 +587,29 @@ static int udp_sock_errs(const struct ctx *c, union epoll_ref ref)
 	return n_err;
 }
 
+#define PKTINFO_SPACE					\
+	MAX(CMSG_SPACE(sizeof(struct in_pktinfo)),	\
+	    CMSG_SPACE(sizeof(struct in6_pktinfo)))
+
 /**
  * udp_peek_addr() - Get source address for next packet
  * @s:		Socket to get information from
  * @src:	Socket address (output)
+ * @dst:	(Local) destination address (output)
  *
  * Return: 0 on success, -1 otherwise
  */
-static int udp_peek_addr(int s, union sockaddr_inany *src)
+static int udp_peek_addr(int s, union sockaddr_inany *src,
+			 union inany_addr *dst)
 {
+	char sastr[SOCKADDR_STRLEN], dstr[INANY_ADDRSTRLEN];
+	const struct cmsghdr *hdr;
+	char cmsg[PKTINFO_SPACE];
 	struct msghdr msg = {
 		.msg_name = src,
 		.msg_namelen = sizeof(*src),
+		.msg_control = cmsg,
+		.msg_controllen = sizeof(cmsg),
 	};
 	int rc;
 
@@ -608,6 +619,27 @@ static int udp_peek_addr(int s, union sockaddr_inany *src)
 			warn_perror("Error peeking at socket address");
 		return rc;
 	}
+
+	hdr = CMSG_FIRSTHDR(&msg);
+	if (hdr && hdr->cmsg_level == IPPROTO_IP &&
+	    hdr->cmsg_type == IP_PKTINFO) {
+		const struct in_pktinfo *info4 = (void *)CMSG_DATA(hdr);
+
+		*dst = inany_from_v4(info4->ipi_addr);
+	} else if (hdr && hdr->cmsg_level == IPPROTO_IPV6 &&
+		   hdr->cmsg_type == IPV6_PKTINFO) {
+		const struct in6_pktinfo *info6 = (void *)CMSG_DATA(hdr);
+
+		dst->a6 = info6->ipi6_addr;
+	} else {
+		debug("Unexpected cmsg on UDP datagram");
+		*dst = inany_any6;
+	}
+
+	trace("Peeked UDP datagram: %s -> %s",
+	      sockaddr_ntop(src, sastr, sizeof(sastr)),
+	      inany_ntop(dst, dstr, sizeof(dstr)));
+
 	return 0;
 }
 
@@ -702,8 +734,9 @@ void udp_sock_fwd(const struct ctx *c, int s, uint8_t frompif,
 		  in_port_t port, const struct timespec *now)
 {
 	union sockaddr_inany src;
+	union inany_addr dst;
 
-	while (udp_peek_addr(s, &src) == 0) {
+	while (udp_peek_addr(s, &src, &dst) == 0) {
 		flow_sidx_t tosidx = udp_flow_from_sock(c, frompif, port,
 							&src, now);
 		uint8_t topif = pif_at_sidx(tosidx);

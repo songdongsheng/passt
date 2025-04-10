@@ -109,11 +109,15 @@ int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 		debug("Failed to set SO_REUSEADDR on socket %i", fd);
 
 	if (proto == IPPROTO_UDP) {
+		int pktinfo = af == AF_INET ? IP_PKTINFO : IPV6_RECVPKTINFO;
+		int recverr = af == AF_INET ? IP_RECVERR : IPV6_RECVERR;
 		int level = af == AF_INET ? IPPROTO_IP : IPPROTO_IPV6;
-		int opt = af == AF_INET ? IP_RECVERR : IPV6_RECVERR;
 
-		if (setsockopt(fd, level, opt, &y, sizeof(y)))
+		if (setsockopt(fd, level, recverr, &y, sizeof(y)))
 			die_perror("Failed to set RECVERR on socket %i", fd);
+
+		if (setsockopt(fd, level, pktinfo, &y, sizeof(y)))
+			die_perror("Failed to set PKTINFO on socket %i", fd);
 	}
 
 	if (ifname && *ifname) {
