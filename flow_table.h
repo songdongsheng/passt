@@ -199,6 +199,7 @@ const struct flowside *flow_initiate_af(union flow *flow, uint8_t pif,
 					const void *daddr, in_port_t dport);
 struct flowside *flow_initiate_sa(union flow *flow, uint8_t pif,
 				  const union sockaddr_inany *ssa,
+				  const union inany_addr *daddr,
 				  in_port_t dport);
 const struct flowside *flow_target_af(union flow *flow, uint8_t pif,
 				      sa_family_t af,

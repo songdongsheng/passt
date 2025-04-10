@@ -123,14 +123,17 @@ static int udp_flow_sock(const struct ctx *c,
  * @now:	Timestamp
  *
  * Return: UDP specific flow, if successful, NULL on failure
+ *
+ * #syscalls getsockname
  */
 static flow_sidx_t udp_flow_new(const struct ctx *c, union flow *flow,
 				const struct timespec *now)
 {
 	struct udp_flow *uflow = NULL;
+	const struct flowside *tgt;
 	unsigned sidei;
 
-	if (!flow_target(c, flow, IPPROTO_UDP))
+	if (!(tgt = flow_target(c, flow, IPPROTO_UDP)))
 		goto cancel;
 
 	uflow = FLOW_SET_TYPE(flow, FLOW_UDP, udp);
@@ -142,6 +145,29 @@ static flow_sidx_t udp_flow_new(const struct ctx *c, union flow *flow,
 		if (pif_is_socket(uflow->f.pif[sidei]))
 			if ((uflow->s[sidei] = udp_flow_sock(c, uflow, sidei)) < 0)
 				goto cancel;
+	}
+
+	if (uflow->s[TGTSIDE] >= 0 && inany_is_unspecified(&tgt->oaddr)) {
+		/* When we target a socket, we connect() it, but might not
+		 * always bind(), leaving the kernel to pick our address.  In
+		 * that case connect() will implicitly bind() the socket, but we
+		 * need to determine its local address so that we can match
+		 * reply packets back to the correct flow.  Update the flow with
+		 * the information from getsockname() */
+		union sockaddr_inany sa;
+		socklen_t sl = sizeof(sa);
+		in_port_t port;
+
+		if (getsockname(uflow->s[TGTSIDE], &sa.sa, &sl) < 0) {
+			flow_perror(uflow, "Unable to determine local address");
+			goto cancel;
+		}
+		inany_from_sockaddr(&uflow->f.side[TGTSIDE].oaddr,
+				    &port, &sa);
+		if (port != tgt->oport) {
+			flow_err(uflow, "Unexpected local port");
+			goto cancel;
+		}
 	}
 
 	/* Tap sides always need to be looked up by hash.  Socket sides don't
@@ -167,6 +193,7 @@ cancel:
  * udp_flow_from_sock() - Find or create UDP flow for incoming datagram
  * @c:		Execution context
  * @pif:	Interface the datagram is arriving from
+ * @dst:	Our (local) address to which the datagram is arriving
  * @port:	Our (local) port number to which the datagram is arriving
  * @s_in:	Source socket address, filled in by recvmmsg()
  * @now:	Timestamp
@@ -176,7 +203,8 @@ cancel:
  * Return: sidx for the destination side of the flow for this packet, or
  *         FLOW_SIDX_NONE if we couldn't find or create a flow.
  */
-flow_sidx_t udp_flow_from_sock(const struct ctx *c, uint8_t pif, in_port_t port,
+flow_sidx_t udp_flow_from_sock(const struct ctx *c, uint8_t pif,
+			       const union inany_addr *dst, in_port_t port,
 			       const union sockaddr_inany *s_in,
 			       const struct timespec *now)
 {
@@ -185,7 +213,7 @@ flow_sidx_t udp_flow_from_sock(const struct ctx *c, uint8_t pif, in_port_t port,
 	union flow *flow;
 	flow_sidx_t sidx;
 
-	sidx = flow_lookup_sa(c, IPPROTO_UDP, pif, s_in, port);
+	sidx = flow_lookup_sa(c, IPPROTO_UDP, pif, s_in, dst, port);
 	if ((uflow = udp_at_sidx(sidx))) {
 		uflow->ts = now->tv_sec;
 		return flow_sidx_opposite(sidx);
@@ -199,7 +227,7 @@ flow_sidx_t udp_flow_from_sock(const struct ctx *c, uint8_t pif, in_port_t port,
 		return FLOW_SIDX_NONE;
 	}
 
-	ini = flow_initiate_sa(flow, pif, s_in, port);
+	ini = flow_initiate_sa(flow, pif, s_in, dst, port);
 
 	if (!inany_is_unicast(&ini->eaddr) ||
 	    ini->eport == 0 || ini->oport == 0) {

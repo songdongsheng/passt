@@ -2201,7 +2201,7 @@ void tcp_listen_handler(const struct ctx *c, union epoll_ref ref,
 	 * mode only, below.
 	 */
 	ini = flow_initiate_sa(flow, ref.tcp_listen.pif, &sa,
-			       ref.tcp_listen.port);
+			       NULL, ref.tcp_listen.port);
 
 	if (c->mode == MODE_VU) { /* Rebind to same address after migration */
 		if (!getsockname(s, &sa.sa, &sl))

@@ -737,8 +737,8 @@ void udp_sock_fwd(const struct ctx *c, int s, uint8_t frompif,
 	union inany_addr dst;
 
 	while (udp_peek_addr(s, &src, &dst) == 0) {
-		flow_sidx_t tosidx = udp_flow_from_sock(c, frompif, port,
-							&src, now);
+		flow_sidx_t tosidx = udp_flow_from_sock(c, frompif,
+							&dst, port, &src, now);
 		uint8_t topif = pif_at_sidx(tosidx);
 
 		if (pif_is_socket(topif)) {

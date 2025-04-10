@@ -243,7 +243,8 @@ flow_sidx_t flow_lookup_af(const struct ctx *c,
 			   const void *eaddr, const void *oaddr,
 			   in_port_t eport, in_port_t oport);
 flow_sidx_t flow_lookup_sa(const struct ctx *c, uint8_t proto, uint8_t pif,
-			   const void *esa, in_port_t oport);
+			   const void *esa,
+			   const union inany_addr *oaddr, in_port_t oport);
 
 union flow;
 

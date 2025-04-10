@@ -371,6 +371,16 @@ static inline int wrap_accept4(int sockfd, struct sockaddr *addr,
 #define accept4(s, addr, addrlen, flags) \
 	wrap_accept4((s), (addr), (addrlen), (flags))
 
+static inline int wrap_getsockname(int sockfd, struct sockaddr *addr,
+/* cppcheck-suppress constParameterPointer */
+				   socklen_t *addrlen)
+{
+	sa_init(addr, addrlen);
+	return getsockname(sockfd, addr, addrlen);
+}
+#define getsockname(s, addr, addrlen) \
+	wrap_getsockname((s), (addr), (addrlen))
+
 #define PASST_MAXDNAME 254 /* 253 (RFC 1035) + 1 (the terminator) */
 void encode_domain_name(char *buf, const char *domain_name);
 
