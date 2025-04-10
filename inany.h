@@ -252,7 +252,8 @@ static inline void inany_from_sockaddr(union inany_addr *aa, in_port_t *port,
 		*port = ntohs(sa->sa4.sin_port);
 	} else {
 		/* Not valid to call with other address families */
-		ASSERT(0);
+		ASSERT_WITH_MSG(0, "Unexpected sockaddr family: %u",
+				sa->sa_family);
 	}
 }
 
