@@ -415,6 +415,62 @@ static unsigned add_dns6(struct ctx *c, const struct in6_addr *addr,
 }
 
 /**
+ * add_dns_resolv4() - Possibly add one IPv4 nameserver from host's resolv.conf
+ * @c:		Execution context
+ * @ns:		Nameserver address
+ * @idx:	Pointer to index of current IPv4 resolver entry, set on return
+ */
+static void add_dns_resolv4(struct ctx *c, struct in_addr *ns, unsigned *idx)
+{
+	if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_host))
+		c->ip4.dns_host = *ns;
+
+	/* Special handling if guest or container can only access local
+	 * addresses via redirect, or if the host gateway is also a resolver and
+	 * we shadow its address
+	 */
+	if (IN4_IS_ADDR_LOOPBACK(ns) ||
+	    IN4_ARE_ADDR_EQUAL(ns, &c->ip4.map_host_loopback)) {
+		if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.map_host_loopback))
+			return;
+
+		*ns = c->ip4.map_host_loopback;
+		if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_match))
+			c->ip4.dns_match = c->ip4.map_host_loopback;
+	}
+
+	*idx += add_dns4(c, ns, *idx);
+}
+
+/**
+ * add_dns_resolv6() - Possibly add one IPv6 nameserver from host's resolv.conf
+ * @c:		Execution context
+ * @ns:		Nameserver address
+ * @idx:	Pointer to index of current IPv6 resolver entry, set on return
+ */
+static void add_dns_resolv6(struct ctx *c, struct in6_addr *ns, unsigned *idx)
+{
+	if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_host))
+		c->ip6.dns_host = *ns;
+
+	/* Special handling if guest or container can only access local
+	 * addresses via redirect, or if the host gateway is also a resolver and
+	 * we shadow its address
+	 */
+	if (IN6_IS_ADDR_LOOPBACK(ns) ||
+	    IN6_ARE_ADDR_EQUAL(ns, &c->ip6.map_host_loopback)) {
+		if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.map_host_loopback))
+			return;
+
+		*ns = c->ip6.map_host_loopback;
+		if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_match))
+			c->ip6.dns_match = c->ip6.map_host_loopback;
+	}
+
+	*idx += add_dns6(c, ns, *idx);
+}
+
+/**
  * add_dns_resolv() - Possibly add ns from host resolv.conf to configuration
  * @c:		Execution context
  * @nameserver:	Nameserver address string from /etc/resolv.conf
@@ -430,48 +486,11 @@ static void add_dns_resolv(struct ctx *c, const char *nameserver,
 	struct in6_addr ns6;
 	struct in_addr ns4;
 
-	if (idx4 && inet_pton(AF_INET, nameserver, &ns4)) {
-		if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_host))
-			c->ip4.dns_host = ns4;
+	if (idx4 && inet_pton(AF_INET, nameserver, &ns4))
+		add_dns_resolv4(c, &ns4, idx4);
 
-		/* Special handling if guest or container can only access local
-		 * addresses via redirect, or if the host gateway is also a
-		 * resolver and we shadow its address
-		 */
-		if (IN4_IS_ADDR_LOOPBACK(&ns4) ||
-		    IN4_ARE_ADDR_EQUAL(&ns4, &c->ip4.map_host_loopback)) {
-			if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.map_host_loopback))
-				return;
-
-			ns4 = c->ip4.map_host_loopback;
-			if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_match))
-				c->ip4.dns_match = c->ip4.map_host_loopback;
-		}
-
-		*idx4 += add_dns4(c, &ns4, *idx4);
-	}
-
-	if (idx6 && inet_pton(AF_INET6, nameserver, &ns6)) {
-		if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_host))
-			c->ip6.dns_host = ns6;
-
-		/* Special handling if guest or container can only access local
-		 * addresses via redirect, or if the host gateway is also a
-		 * resolver and we shadow its address
-		 */
-		if (IN6_IS_ADDR_LOOPBACK(&ns6) ||
-		    IN6_ARE_ADDR_EQUAL(&ns6, &c->ip6.map_host_loopback)) {
-			if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.map_host_loopback))
-				return;
-
-			ns6 = c->ip6.map_host_loopback;
-
-			if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_match))
-				c->ip6.dns_match = c->ip6.map_host_loopback;
-		}
-
-		*idx6 += add_dns6(c, &ns6, *idx6);
-	}
+	if (idx6 && inet_pton(AF_INET6, nameserver, &ns6))
+		add_dns_resolv6(c, &ns6, idx6);
 }
 
 /**
