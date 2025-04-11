@@ -431,12 +431,19 @@ static void add_dns_resolv4(struct ctx *c, struct in_addr *ns, unsigned *idx)
 	 */
 	if (IN4_IS_ADDR_LOOPBACK(ns) ||
 	    IN4_ARE_ADDR_EQUAL(ns, &c->ip4.map_host_loopback)) {
-		if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.map_host_loopback))
-			return;
+		if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_match)) {
+			if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.map_host_loopback))
+				return;		/* Address unreachable */
 
-		*ns = c->ip4.map_host_loopback;
-		if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_match))
+			*ns = c->ip4.map_host_loopback;
 			c->ip4.dns_match = c->ip4.map_host_loopback;
+		} else {
+			/* No general host mapping, but requested for DNS
+			 * (--dns-forward and --no-map-gw): advertise resolver
+			 * address from --dns-forward, and map that to loopback
+			 */
+			*ns = c->ip4.dns_match;
+		}
 	}
 
 	*idx += add_dns4(c, ns, *idx);
@@ -459,12 +466,19 @@ static void add_dns_resolv6(struct ctx *c, struct in6_addr *ns, unsigned *idx)
 	 */
 	if (IN6_IS_ADDR_LOOPBACK(ns) ||
 	    IN6_ARE_ADDR_EQUAL(ns, &c->ip6.map_host_loopback)) {
-		if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.map_host_loopback))
-			return;
+		if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_match)) {
+			if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.map_host_loopback))
+				return;		/* Address unreachable */
 
-		*ns = c->ip6.map_host_loopback;
-		if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_match))
+			*ns = c->ip6.map_host_loopback;
 			c->ip6.dns_match = c->ip6.map_host_loopback;
+		} else {
+			/* No general host mapping, but requested for DNS
+			 * (--dns-forward and --no-map-gw): advertise resolver
+			 * address from --dns-forward, and map that to loopback
+			 */
+			*ns = c->ip6.dns_match;
+		}
 	}
 
 	*idx += add_dns6(c, ns, *idx);
