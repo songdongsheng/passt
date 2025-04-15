@@ -465,6 +465,41 @@ static void udp_send_tap_icmp6(const struct ctx *c,
 }
 
 /**
+ * udp_pktinfo() - Retrieve packet destination address from cmsg
+ * @msg:	msghdr into which message has been received
+ * @dst:	(Local) destination address of message in @mh (output)
+ *
+ * Return: 0 on success, -1 if the information was missing (@dst is set to
+ *         inany_any6).
+ */
+static int udp_pktinfo(struct msghdr *msg, union inany_addr *dst)
+{
+	struct cmsghdr *hdr;
+
+	for (hdr = CMSG_FIRSTHDR(msg); hdr; hdr = CMSG_NXTHDR(msg, hdr)) {
+		if (hdr->cmsg_level == IPPROTO_IP &&
+		    hdr->cmsg_type == IP_PKTINFO) {
+			const struct in_pktinfo *i4 = (void *)CMSG_DATA(hdr);
+
+			*dst = inany_from_v4(i4->ipi_addr);
+			return 0;
+		}
+
+		if (hdr->cmsg_level == IPPROTO_IPV6 &&
+			   hdr->cmsg_type == IPV6_PKTINFO) {
+			const struct in6_pktinfo *i6 = (void *)CMSG_DATA(hdr);
+
+			dst->a6 = i6->ipi6_addr;
+			return 0;
+		}
+	}
+
+	debug("Missing PKTINFO cmsg on datagram");
+	*dst = inany_any6;
+	return -1;
+}
+
+/**
  * udp_sock_recverr() - Receive and clear an error from a socket
  * @c:		Execution context
  * @s:		Socket to receive errors from
@@ -607,7 +642,6 @@ static int udp_peek_addr(int s, union sockaddr_inany *src,
 			 union inany_addr *dst)
 {
 	char sastr[SOCKADDR_STRLEN], dstr[INANY_ADDRSTRLEN];
-	const struct cmsghdr *hdr;
 	char cmsg[PKTINFO_SPACE];
 	struct msghdr msg = {
 		.msg_name = src,
@@ -624,21 +658,7 @@ static int udp_peek_addr(int s, union sockaddr_inany *src,
 		return -errno;
 	}
 
-	hdr = CMSG_FIRSTHDR(&msg);
-	if (hdr && hdr->cmsg_level == IPPROTO_IP &&
-	    hdr->cmsg_type == IP_PKTINFO) {
-		const struct in_pktinfo *info4 = (void *)CMSG_DATA(hdr);
-
-		*dst = inany_from_v4(info4->ipi_addr);
-	} else if (hdr && hdr->cmsg_level == IPPROTO_IPV6 &&
-		   hdr->cmsg_type == IPV6_PKTINFO) {
-		const struct in6_pktinfo *info6 = (void *)CMSG_DATA(hdr);
-
-		dst->a6 = info6->ipi6_addr;
-	} else {
-		debug("Unexpected cmsg on UDP datagram");
-		*dst = inany_any6;
-	}
+	udp_pktinfo(&msg, dst);
 
 	trace("Peeked UDP datagram: %s -> %s",
 	      sockaddr_ntop(src, sastr, sizeof(sastr)),
