@@ -530,6 +530,9 @@ static int udp_sock_recverr(const struct ctx *c, int s, flow_sidx_t sidx)
 		.msg_control = buf,
 		.msg_controllen = sizeof(buf),
 	};
+	const struct flowside *toside;
+	flow_sidx_t tosidx;
+	size_t dlen;
 	ssize_t rc;
 
 	rc = recvmsg(s, &mh, MSG_ERRQUEUE);
@@ -560,28 +563,31 @@ static int udp_sock_recverr(const struct ctx *c, int s, flow_sidx_t sidx)
 	}
 
 	eh = (const struct errhdr *)CMSG_DATA(hdr);
-	if (flow_sidx_valid(sidx)) {
-		flow_sidx_t tosidx = flow_sidx_opposite(sidx);
-		const struct flowside *toside = flowside_at_sidx(tosidx);
-		size_t dlen = rc;
 
-		if (pif_is_socket(pif_at_sidx(tosidx))) {
-			/* XXX Is there any way to propagate ICMPs from socket
-			 * to socket? */
-		} else if (hdr->cmsg_level == IPPROTO_IP) {
-			dlen = MIN(dlen, ICMP4_MAX_DLEN);
-			udp_send_tap_icmp4(c, &eh->ee, toside,
-					   eh->saddr.sa4.sin_addr, data, dlen);
-		} else if (hdr->cmsg_level == IPPROTO_IPV6) {
-			udp_send_tap_icmp6(c, &eh->ee, toside,
-					   &eh->saddr.sa6.sin6_addr, data,
-					   dlen, sidx.flowi);
-		}
-	} else {
-		trace("Ignoring received IP_RECVERR cmsg on listener socket");
-	}
 	debug("%s error on UDP socket %i: %s",
 	      str_ee_origin(&eh->ee), s, strerror_(eh->ee.ee_errno));
+
+	if (!flow_sidx_valid(sidx)) {
+		trace("Ignoring received IP_RECVERR cmsg on listener socket");
+		return 1;
+	}
+
+	tosidx = flow_sidx_opposite(sidx);
+	toside = flowside_at_sidx(tosidx);
+	dlen = rc;
+
+	if (pif_is_socket(pif_at_sidx(tosidx))) {
+		/* XXX Is there any way to propagate ICMPs from socket to
+		 * socket? */
+	} else if (hdr->cmsg_level == IPPROTO_IP) {
+		dlen = MIN(dlen, ICMP4_MAX_DLEN);
+		udp_send_tap_icmp4(c, &eh->ee, toside,
+				   eh->saddr.sa4.sin_addr, data, dlen);
+	} else if (hdr->cmsg_level == IPPROTO_IPV6) {
+		udp_send_tap_icmp6(c, &eh->ee, toside,
+				   &eh->saddr.sa6.sin6_addr, data,
+				   dlen, sidx.flowi);
+	}
 
 	return 1;
 }
