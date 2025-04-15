@@ -619,8 +619,8 @@ static int udp_peek_addr(int s, union sockaddr_inany *src,
 
 	rc = recvmsg(s, &msg, MSG_PEEK | MSG_DONTWAIT);
 	if (rc < 0) {
-		if (errno != EAGAIN && errno != EWOULDBLOCK)
-			warn_perror("Error peeking at socket address");
+		trace("Error peeking at socket address: %s", strerror_(errno));
+		/* Bail out and let the EPOLLERR handler deal with it */
 		return rc;
 	}
 
@@ -664,7 +664,8 @@ static int udp_sock_recv(const struct ctx *c, int s, struct mmsghdr *mmh, int n)
 
 	n = recvmmsg(s, mmh, n, 0, NULL);
 	if (n < 0) {
-		err_perror("Error receiving datagrams");
+		trace("Error receiving datagrams: %s", strerror_(errno));
+		/* Bail out and let the EPOLLERR handler deal with it */
 		return 0;
 	}
 
