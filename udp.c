@@ -504,27 +504,34 @@ static int udp_pktinfo(struct msghdr *msg, union inany_addr *dst)
  * @c:		Execution context
  * @s:		Socket to receive errors from
  * @sidx:	Flow and side of @s, or FLOW_SIDX_NONE if unknown
+ * @pif:	Interface on which the error occurred
+ *              (only used if @sidx == FLOW_SIDX_NONE)
+ * @port:	Local port number of @s (only used if @sidx == FLOW_SIDX_NONE)
  *
  * Return: 1 if error received and processed, 0 if no more errors in queue, < 0
  *         if there was an error reading the queue
  *
  * #syscalls recvmsg
  */
-static int udp_sock_recverr(const struct ctx *c, int s, flow_sidx_t sidx)
+static int udp_sock_recverr(const struct ctx *c, int s, flow_sidx_t sidx,
+			    uint8_t pif, in_port_t port)
 {
 	struct errhdr {
 		struct sock_extended_err ee;
 		union sockaddr_inany saddr;
 	};
 	char buf[PKTINFO_SPACE + CMSG_SPACE(sizeof(struct errhdr))];
+	const struct errhdr *eh = NULL;
 	char data[ICMP6_MAX_DLEN];
-	const struct errhdr *eh;
 	struct cmsghdr *hdr;
 	struct iovec iov = {
 		.iov_base = data,
 		.iov_len = sizeof(data)
 	};
+	union sockaddr_inany src;
 	struct msghdr mh = {
+		.msg_name = &src,
+		.msg_namelen = sizeof(src),
 		.msg_iov = &iov,
 		.msg_iovlen = 1,
 		.msg_control = buf,
@@ -554,7 +561,7 @@ static int udp_sock_recverr(const struct ctx *c, int s, flow_sidx_t sidx)
 		      hdr->cmsg_type == IP_RECVERR) ||
 		     (hdr->cmsg_level == IPPROTO_IPV6 &&
 		      hdr->cmsg_type == IPV6_RECVERR))
-		    break;
+			break;
 	}
 
 	if (!hdr) {
@@ -568,8 +575,19 @@ static int udp_sock_recverr(const struct ctx *c, int s, flow_sidx_t sidx)
 	      str_ee_origin(&eh->ee), s, strerror_(eh->ee.ee_errno));
 
 	if (!flow_sidx_valid(sidx)) {
-		trace("Ignoring received IP_RECVERR cmsg on listener socket");
-		return 1;
+		/* No hint from the socket, determine flow from addresses */
+		union inany_addr dst;
+
+		if (udp_pktinfo(&mh, &dst) < 0) {
+			debug("Missing PKTINFO on UDP error");
+			return 1;
+		}
+
+		sidx = flow_lookup_sa(c, IPPROTO_UDP, pif, &src, &dst, port);
+		if (!flow_sidx_valid(sidx)) {
+			debug("Ignoring UDP error without flow");
+			return 1;
+		}
 	}
 
 	tosidx = flow_sidx_opposite(sidx);
@@ -597,10 +615,14 @@ static int udp_sock_recverr(const struct ctx *c, int s, flow_sidx_t sidx)
  * @c:		Execution context
  * @s:		Socket to receive errors from
  * @sidx:	Flow and side of @s, or FLOW_SIDX_NONE if unknown
+ * @pif:	Interface on which the error occurred
+ *              (only used if @sidx == FLOW_SIDX_NONE)
+ * @port:	Local port number of @s (only used if @sidx == FLOW_SIDX_NONE)
  *
  * Return: Number of errors handled, or < 0 if we have an unrecoverable error
  */
-static int udp_sock_errs(const struct ctx *c, int s, flow_sidx_t sidx)
+static int udp_sock_errs(const struct ctx *c, int s, flow_sidx_t sidx,
+			 uint8_t pif, in_port_t port)
 {
 	unsigned n_err = 0;
 	socklen_t errlen;
@@ -609,7 +631,7 @@ static int udp_sock_errs(const struct ctx *c, int s, flow_sidx_t sidx)
 	ASSERT(!c->no_udp);
 
 	/* Empty the error queue */
-	while ((rc = udp_sock_recverr(c, s, sidx)) > 0)
+	while ((rc = udp_sock_recverr(c, s, sidx, pif, port)) > 0)
 		n_err += rc;
 
 	if (rc < 0)
@@ -776,7 +798,8 @@ void udp_sock_fwd(const struct ctx *c, int s, uint8_t frompif,
 			trace("Error peeking at socket address: %s",
 			      strerror_(-rc));
 			/* Clear errors & carry on */
-			if (udp_sock_errs(c, s, FLOW_SIDX_NONE) < 0) {
+			if (udp_sock_errs(c, s, FLOW_SIDX_NONE,
+					  frompif, port) < 0) {
 				err(
 "UDP: Unrecoverable error on listening socket: (%s port %hu)",
 				    pif_name(frompif), port);
@@ -837,7 +860,7 @@ void udp_sock_handler(const struct ctx *c, union epoll_ref ref,
 	ASSERT(!c->no_udp && uflow);
 
 	if (events & EPOLLERR) {
-		if (udp_sock_errs(c, ref.fd, ref.flowside) < 0) {
+		if (udp_sock_errs(c, ref.fd, ref.flowside, PIF_NONE, 0) < 0) {
 			flow_err(uflow, "Unrecoverable error on flow socket");
 			goto fail;
 		}
