@@ -467,14 +467,15 @@ static void udp_send_tap_icmp6(const struct ctx *c,
 /**
  * udp_sock_recverr() - Receive and clear an error from a socket
  * @c:		Execution context
- * @ref:	epoll reference
+ * @s:		Socket to receive errors from
+ * @sidx:	Flow and side of @s, or FLOW_SIDX_NONE if unknown
  *
  * Return: 1 if error received and processed, 0 if no more errors in queue, < 0
  *         if there was an error reading the queue
  *
  * #syscalls recvmsg
  */
-static int udp_sock_recverr(const struct ctx *c, union epoll_ref ref)
+static int udp_sock_recverr(const struct ctx *c, int s, flow_sidx_t sidx)
 {
 	struct errhdr {
 		struct sock_extended_err ee;
@@ -484,7 +485,6 @@ static int udp_sock_recverr(const struct ctx *c, union epoll_ref ref)
 	char data[ICMP6_MAX_DLEN];
 	const struct errhdr *eh;
 	struct cmsghdr *hdr;
-	int s = ref.fd;
 	struct iovec iov = {
 		.iov_base = data,
 		.iov_len = sizeof(data)
@@ -525,12 +525,12 @@ static int udp_sock_recverr(const struct ctx *c, union epoll_ref ref)
 	}
 
 	eh = (const struct errhdr *)CMSG_DATA(hdr);
-	if (ref.type == EPOLL_TYPE_UDP) {
-		flow_sidx_t sidx = flow_sidx_opposite(ref.flowside);
-		const struct flowside *toside = flowside_at_sidx(sidx);
+	if (flow_sidx_valid(sidx)) {
+		flow_sidx_t tosidx = flow_sidx_opposite(sidx);
+		const struct flowside *toside = flowside_at_sidx(tosidx);
 		size_t dlen = rc;
 
-		if (pif_is_socket(pif_at_sidx(sidx))) {
+		if (pif_is_socket(pif_at_sidx(tosidx))) {
 			/* XXX Is there any way to propagate ICMPs from socket
 			 * to socket? */
 		} else if (hdr->cmsg_level == IPPROTO_IP) {
@@ -554,21 +554,21 @@ static int udp_sock_recverr(const struct ctx *c, union epoll_ref ref)
 /**
  * udp_sock_errs() - Process errors on a socket
  * @c:		Execution context
- * @ref:	epoll reference
+ * @s:		Socket to receive errors from
+ * @sidx:	Flow and side of @s, or FLOW_SIDX_NONE if unknown
  *
  * Return: Number of errors handled, or < 0 if we have an unrecoverable error
  */
-static int udp_sock_errs(const struct ctx *c, union epoll_ref ref)
+static int udp_sock_errs(const struct ctx *c, int s, flow_sidx_t sidx)
 {
 	unsigned n_err = 0;
 	socklen_t errlen;
-	int s = ref.fd;
 	int rc, err;
 
 	ASSERT(!c->no_udp);
 
 	/* Empty the error queue */
-	while ((rc = udp_sock_recverr(c, ref)) > 0)
+	while ((rc = udp_sock_recverr(c, s, sidx)) > 0)
 		n_err += rc;
 
 	if (rc < 0)
@@ -777,7 +777,7 @@ void udp_listen_sock_handler(const struct ctx *c,
 			     const struct timespec *now)
 {
 	if (events & EPOLLERR) {
-		if (udp_sock_errs(c, ref) < 0) {
+		if (udp_sock_errs(c, ref.fd, FLOW_SIDX_NONE) < 0) {
 			err("UDP: Unrecoverable error on listening socket:"
 			    " (%s port %hu)", pif_name(ref.udp.pif), ref.udp.port);
 			/* FIXME: what now?  close/re-open socket? */
@@ -804,7 +804,7 @@ void udp_sock_handler(const struct ctx *c, union epoll_ref ref,
 	ASSERT(!c->no_udp && uflow);
 
 	if (events & EPOLLERR) {
-		if (udp_sock_errs(c, ref) < 0) {
+		if (udp_sock_errs(c, ref.fd, ref.flowside) < 0) {
 			flow_err(uflow, "Unrecoverable error on flow socket");
 			goto fail;
 		}
