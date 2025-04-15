@@ -601,7 +601,7 @@ static int udp_sock_errs(const struct ctx *c, int s, flow_sidx_t sidx)
  * @src:	Socket address (output)
  * @dst:	(Local) destination address (output)
  *
- * Return: 0 on success, -1 otherwise
+ * Return: 0 if no more packets, 1 on success, -ve error code on error
  */
 static int udp_peek_addr(int s, union sockaddr_inany *src,
 			 union inany_addr *dst)
@@ -619,9 +619,9 @@ static int udp_peek_addr(int s, union sockaddr_inany *src,
 
 	rc = recvmsg(s, &msg, MSG_PEEK | MSG_DONTWAIT);
 	if (rc < 0) {
-		trace("Error peeking at socket address: %s", strerror_(errno));
-		/* Bail out and let the EPOLLERR handler deal with it */
-		return rc;
+		if (errno == EAGAIN || errno == EWOULDBLOCK)
+			return 0;
+		return -errno;
 	}
 
 	hdr = CMSG_FIRSTHDR(&msg);
@@ -644,7 +644,7 @@ static int udp_peek_addr(int s, union sockaddr_inany *src,
 	      sockaddr_ntop(src, sastr, sizeof(sastr)),
 	      inany_ntop(dst, dstr, sizeof(dstr)));
 
-	return 0;
+	return 1;
 }
 
 /**
@@ -740,11 +740,27 @@ void udp_sock_fwd(const struct ctx *c, int s, uint8_t frompif,
 {
 	union sockaddr_inany src;
 	union inany_addr dst;
+	int rc;
 
-	while (udp_peek_addr(s, &src, &dst) == 0) {
-		flow_sidx_t tosidx = udp_flow_from_sock(c, frompif,
-							&dst, port, &src, now);
-		uint8_t topif = pif_at_sidx(tosidx);
+	while ((rc = udp_peek_addr(s, &src, &dst)) != 0) {
+		flow_sidx_t tosidx;
+		uint8_t topif;
+
+		if (rc < 0) {
+			trace("Error peeking at socket address: %s",
+			      strerror_(-rc));
+			/* Clear errors & carry on */
+			if (udp_sock_errs(c, s, FLOW_SIDX_NONE) < 0) {
+				err(
+"UDP: Unrecoverable error on listening socket: (%s port %hu)",
+				    pif_name(frompif), port);
+				/* FIXME: what now?  close/re-open socket? */
+			}
+			continue;
+		}
+
+		tosidx = udp_flow_from_sock(c, frompif, &dst, port, &src, now);
+		topif = pif_at_sidx(tosidx);
 
 		if (pif_is_socket(topif)) {
 			udp_sock_to_sock(c, s, 1, tosidx);
@@ -776,16 +792,7 @@ void udp_listen_sock_handler(const struct ctx *c,
 			     union epoll_ref ref, uint32_t events,
 			     const struct timespec *now)
 {
-	if (events & EPOLLERR) {
-		if (udp_sock_errs(c, ref.fd, FLOW_SIDX_NONE) < 0) {
-			err("UDP: Unrecoverable error on listening socket:"
-			    " (%s port %hu)", pif_name(ref.udp.pif), ref.udp.port);
-			/* FIXME: what now?  close/re-open socket? */
-			return;
-		}
-	}
-
-	if (events & EPOLLIN)
+	if (events & (EPOLLERR | EPOLLIN))
 		udp_sock_fwd(c, ref.fd, ref.udp.pif, ref.udp.port, now);
 }
 
