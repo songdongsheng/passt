@@ -155,6 +155,10 @@ __attribute__ ((aligned(32)))
 #endif
 udp_meta[UDP_MAX_FRAMES];
 
+#define PKTINFO_SPACE					\
+	MAX(CMSG_SPACE(sizeof(struct in_pktinfo)),	\
+	    CMSG_SPACE(sizeof(struct in6_pktinfo)))
+
 /**
  * enum udp_iov_idx - Indices for the buffers making up a single UDP frame
  * @UDP_IOV_TAP         tap specific header
@@ -476,10 +480,10 @@ static int udp_sock_recverr(const struct ctx *c, union epoll_ref ref)
 		struct sock_extended_err ee;
 		union sockaddr_inany saddr;
 	};
-	const struct errhdr *eh;
-	const struct cmsghdr *hdr;
-	char buf[CMSG_SPACE(sizeof(struct errhdr))];
+	char buf[PKTINFO_SPACE + CMSG_SPACE(sizeof(struct errhdr))];
 	char data[ICMP6_MAX_DLEN];
+	const struct errhdr *eh;
+	struct cmsghdr *hdr;
 	int s = ref.fd;
 	struct iovec iov = {
 		.iov_base = data,
@@ -507,12 +511,16 @@ static int udp_sock_recverr(const struct ctx *c, union epoll_ref ref)
 		return -1;
 	}
 
-	hdr = CMSG_FIRSTHDR(&mh);
-	if (!((hdr->cmsg_level == IPPROTO_IP &&
-	       hdr->cmsg_type == IP_RECVERR) ||
-	      (hdr->cmsg_level == IPPROTO_IPV6 &&
-	       hdr->cmsg_type == IPV6_RECVERR))) {
-		err("Unexpected cmsg reading error queue");
+	for (hdr = CMSG_FIRSTHDR(&mh); hdr; hdr = CMSG_NXTHDR(&mh, hdr)) {
+		if ((hdr->cmsg_level == IPPROTO_IP &&
+		      hdr->cmsg_type == IP_RECVERR) ||
+		     (hdr->cmsg_level == IPPROTO_IPV6 &&
+		      hdr->cmsg_type == IPV6_RECVERR))
+		    break;
+	}
+
+	if (!hdr) {
+		err("Missing RECVERR cmsg in error queue");
 		return -1;
 	}
 
@@ -586,10 +594,6 @@ static int udp_sock_errs(const struct ctx *c, union epoll_ref ref)
 
 	return n_err;
 }
-
-#define PKTINFO_SPACE					\
-	MAX(CMSG_SPACE(sizeof(struct in_pktinfo)),	\
-	    CMSG_SPACE(sizeof(struct in6_pktinfo)))
 
 /**
  * udp_peek_addr() - Get source address for next packet
