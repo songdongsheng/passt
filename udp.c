@@ -159,6 +159,12 @@ udp_meta[UDP_MAX_FRAMES];
 	MAX(CMSG_SPACE(sizeof(struct in_pktinfo)),	\
 	    CMSG_SPACE(sizeof(struct in6_pktinfo)))
 
+#define RECVERR_SPACE							\
+	MAX(CMSG_SPACE(sizeof(struct sock_extended_err) +		\
+		       sizeof(struct sockaddr_in)),			\
+	    CMSG_SPACE(sizeof(struct sock_extended_err) +		\
+		       sizeof(struct sockaddr_in6)))
+
 /**
  * enum udp_iov_idx - Indices for the buffers making up a single UDP frame
  * @UDP_IOV_TAP         tap specific header
@@ -516,12 +522,8 @@ static int udp_pktinfo(struct msghdr *msg, union inany_addr *dst)
 static int udp_sock_recverr(const struct ctx *c, int s, flow_sidx_t sidx,
 			    uint8_t pif, in_port_t port)
 {
-	struct errhdr {
-		struct sock_extended_err ee;
-		union sockaddr_inany saddr;
-	};
-	char buf[PKTINFO_SPACE + CMSG_SPACE(sizeof(struct errhdr))];
-	const struct errhdr *eh = NULL;
+	char buf[PKTINFO_SPACE + RECVERR_SPACE];
+	const struct sock_extended_err *ee;
 	char data[ICMP6_MAX_DLEN];
 	struct cmsghdr *hdr;
 	struct iovec iov = {
@@ -538,7 +540,13 @@ static int udp_sock_recverr(const struct ctx *c, int s, flow_sidx_t sidx,
 		.msg_controllen = sizeof(buf),
 	};
 	const struct flowside *toside;
-	flow_sidx_t tosidx;
+	char astr[INANY_ADDRSTRLEN];
+	char sastr[SOCKADDR_STRLEN];
+	union inany_addr offender;
+	const struct in_addr *o4;
+	in_port_t offender_port;
+	struct udp_flow *uflow;
+	uint8_t topif;
 	size_t dlen;
 	ssize_t rc;
 
@@ -569,10 +577,10 @@ static int udp_sock_recverr(const struct ctx *c, int s, flow_sidx_t sidx,
 		return -1;
 	}
 
-	eh = (const struct errhdr *)CMSG_DATA(hdr);
+	ee = (const struct sock_extended_err *)CMSG_DATA(hdr);
 
 	debug("%s error on UDP socket %i: %s",
-	      str_ee_origin(&eh->ee), s, strerror_(eh->ee.ee_errno));
+	      str_ee_origin(ee), s, strerror_(ee->ee_errno));
 
 	if (!flow_sidx_valid(sidx)) {
 		/* No hint from the socket, determine flow from addresses */
@@ -588,25 +596,44 @@ static int udp_sock_recverr(const struct ctx *c, int s, flow_sidx_t sidx,
 			debug("Ignoring UDP error without flow");
 			return 1;
 		}
+	} else {
+		pif = pif_at_sidx(sidx);
 	}
 
-	tosidx = flow_sidx_opposite(sidx);
-	toside = flowside_at_sidx(tosidx);
+	uflow = udp_at_sidx(sidx);
+	ASSERT(uflow);
+	toside = &uflow->f.side[!sidx.sidei];
+	topif = uflow->f.pif[!sidx.sidei];
 	dlen = rc;
 
-	if (pif_is_socket(pif_at_sidx(tosidx))) {
-		/* XXX Is there any way to propagate ICMPs from socket to
-		 * socket? */
-	} else if (hdr->cmsg_level == IPPROTO_IP) {
+	if (inany_from_sockaddr(&offender, &offender_port,
+				SO_EE_OFFENDER(ee)) < 0)
+		goto fail;
+
+	if (pif != PIF_HOST || topif != PIF_TAP)
+		/* XXX Can we support any other cases? */
+		goto fail;
+
+	if (hdr->cmsg_level == IPPROTO_IP &&
+	    (o4 = inany_v4(&offender)) && inany_v4(&toside->eaddr)) {
 		dlen = MIN(dlen, ICMP4_MAX_DLEN);
-		udp_send_tap_icmp4(c, &eh->ee, toside,
-				   eh->saddr.sa4.sin_addr, data, dlen);
-	} else if (hdr->cmsg_level == IPPROTO_IPV6) {
-		udp_send_tap_icmp6(c, &eh->ee, toside,
-				   &eh->saddr.sa6.sin6_addr, data,
-				   dlen, sidx.flowi);
+		udp_send_tap_icmp4(c, ee, toside, *o4, data, dlen);
+		return 1;
 	}
 
+	if (hdr->cmsg_level == IPPROTO_IPV6 && !inany_v4(&toside->eaddr)) {
+		udp_send_tap_icmp6(c, ee, toside, &offender.a6, data, dlen,
+				   FLOW_IDX(uflow));
+		return 1;
+	}
+
+fail:
+	flow_dbg(uflow, "Can't propagate %s error from %s %s to %s %s",
+		 str_ee_origin(ee),
+		 pif_name(pif),
+		 sockaddr_ntop(SO_EE_OFFENDER(ee), sastr, sizeof(sastr)),
+		 pif_name(topif),
+		 inany_ntop(&toside->eaddr, astr, sizeof(astr)));
 	return 1;
 }
 
