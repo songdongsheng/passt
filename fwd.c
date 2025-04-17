@@ -450,8 +450,8 @@ uint8_t fwd_nat_from_splice(const struct ctx *c, uint8_t proto,
  * Only handles translations that depend *only* on the address.  Anything
  * related to specific ports or flows is handled elsewhere.
  */
-static bool nat_inbound(const struct ctx *c, const union inany_addr *addr,
-			 union inany_addr *translated)
+bool nat_inbound(const struct ctx *c, const union inany_addr *addr,
+		 union inany_addr *translated)
 {
 	if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.map_host_loopback) &&
 	    inany_equals4(addr, &in4addr_loopback)) {

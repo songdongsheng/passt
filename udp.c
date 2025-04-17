@@ -539,10 +539,10 @@ static int udp_sock_recverr(const struct ctx *c, int s, flow_sidx_t sidx,
 		.msg_control = buf,
 		.msg_controllen = sizeof(buf),
 	};
-	const struct flowside *toside;
+	const struct flowside *fromside, *toside;
+	union inany_addr offender, otap;
 	char astr[INANY_ADDRSTRLEN];
 	char sastr[SOCKADDR_STRLEN];
-	union inany_addr offender;
 	const struct in_addr *o4;
 	in_port_t offender_port;
 	struct udp_flow *uflow;
@@ -602,6 +602,7 @@ static int udp_sock_recverr(const struct ctx *c, int s, flow_sidx_t sidx,
 
 	uflow = udp_at_sidx(sidx);
 	ASSERT(uflow);
+	fromside = &uflow->f.side[sidx.sidei];
 	toside = &uflow->f.side[!sidx.sidei];
 	topif = uflow->f.pif[!sidx.sidei];
 	dlen = rc;
@@ -614,15 +615,24 @@ static int udp_sock_recverr(const struct ctx *c, int s, flow_sidx_t sidx,
 		/* XXX Can we support any other cases? */
 		goto fail;
 
+	/* If the offender *is* the endpoint, make sure our translation is
+	 * consistent with the flow's translation.  This matters if the flow
+	 * endpoint has a port specific translation (like --dns-match).
+	 */
+	if (inany_equals(&offender, &fromside->eaddr))
+		otap = toside->oaddr;
+	else if (!nat_inbound(c, &offender, &otap))
+		goto fail;
+
 	if (hdr->cmsg_level == IPPROTO_IP &&
-	    (o4 = inany_v4(&offender)) && inany_v4(&toside->eaddr)) {
+	    (o4 = inany_v4(&otap)) && inany_v4(&toside->eaddr)) {
 		dlen = MIN(dlen, ICMP4_MAX_DLEN);
 		udp_send_tap_icmp4(c, ee, toside, *o4, data, dlen);
 		return 1;
 	}
 
 	if (hdr->cmsg_level == IPPROTO_IPV6 && !inany_v4(&toside->eaddr)) {
-		udp_send_tap_icmp6(c, ee, toside, &offender.a6, data, dlen,
+		udp_send_tap_icmp6(c, ee, toside, &otap.a6, data, dlen,
 				   FLOW_IDX(uflow));
 		return 1;
 	}
