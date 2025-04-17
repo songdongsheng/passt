@@ -1546,9 +1546,8 @@ static void tcp_conn_from_tap(const struct ctx *c, sa_family_t af,
 
 	if (c->mode == MODE_VU) { /* To rebind to same oport after migration */
 		sl = sizeof(sa);
-		if (!getsockname(s, &sa.sa, &sl))
-			inany_from_sockaddr(&tgt->oaddr, &tgt->oport, &sa);
-		else
+		if (getsockname(s, &sa.sa, &sl) ||
+		    inany_from_sockaddr(&tgt->oaddr, &tgt->oport, &sa) < 0)
 			err_perror("Can't get local address for socket %i", s);
 	}
 
@@ -2204,9 +2203,8 @@ void tcp_listen_handler(const struct ctx *c, union epoll_ref ref,
 			       NULL, ref.tcp_listen.port);
 
 	if (c->mode == MODE_VU) { /* Rebind to same address after migration */
-		if (!getsockname(s, &sa.sa, &sl))
-			inany_from_sockaddr(&ini->oaddr, &ini->oport, &sa);
-		else
+		if (getsockname(s, &sa.sa, &sl) ||
+		    inany_from_sockaddr(&ini->oaddr, &ini->oport, &sa) < 0)
 			err_perror("Can't get local address for socket %i", s);
 	}
 

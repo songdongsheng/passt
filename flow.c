@@ -408,7 +408,12 @@ struct flowside *flow_initiate_sa(union flow *flow, uint8_t pif,
 {
 	struct flowside *ini = &flow->f.side[INISIDE];
 
-	inany_from_sockaddr(&ini->eaddr, &ini->eport, ssa);
+	if (inany_from_sockaddr(&ini->eaddr, &ini->eport, ssa) < 0) {
+		char str[SOCKADDR_STRLEN];
+
+		ASSERT_WITH_MSG(0, "Bad socket address %s",
+				sockaddr_ntop(ssa, str, sizeof(str)));
+	}
 	if (daddr)
 		ini->oaddr = *daddr;
 	else if (inany_v4(&ini->eaddr))
@@ -768,7 +773,14 @@ flow_sidx_t flow_lookup_sa(const struct ctx *c, uint8_t proto, uint8_t pif,
 		.oport = oport,
 	};
 
-	inany_from_sockaddr(&side.eaddr, &side.eport, esa);
+	if (inany_from_sockaddr(&side.eaddr, &side.eport, esa) < 0) {
+		char str[SOCKADDR_STRLEN];
+
+		warn("Flow lookup on bad socket address %s",
+		     sockaddr_ntop(esa, str, sizeof(str)));
+		return FLOW_SIDX_NONE;
+	}
+
 	if (oaddr)
 		side.oaddr = *oaddr;
 	else if (inany_v4(&side.eaddr))

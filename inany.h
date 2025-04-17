@@ -237,24 +237,30 @@ static inline void inany_from_af(union inany_addr *aa,
 }
 
 /** inany_from_sockaddr - Extract IPv[46] address and port number from sockaddr
- * @aa:		Pointer to store IPv[46] address
+ * @dst:	Pointer to store IPv[46] address (output)
  * @port:	Pointer to store port number, host order
- * @addr:	AF_INET or AF_INET6 socket address
+ * @addr:	Socket address
+ *
+ * Return: 0 on success, -1 on error (bad address family)
  */
-static inline void inany_from_sockaddr(union inany_addr *aa, in_port_t *port,
-				       const union sockaddr_inany *sa)
+static inline int inany_from_sockaddr(union inany_addr *dst, in_port_t *port,
+				      const void *addr)
 {
+	const union sockaddr_inany *sa = (const union sockaddr_inany *)addr;
+
 	if (sa->sa_family == AF_INET6) {
-		inany_from_af(aa, AF_INET6, &sa->sa6.sin6_addr);
+		inany_from_af(dst, AF_INET6, &sa->sa6.sin6_addr);
 		*port = ntohs(sa->sa6.sin6_port);
-	} else if (sa->sa_family == AF_INET) {
-		inany_from_af(aa, AF_INET, &sa->sa4.sin_addr);
-		*port = ntohs(sa->sa4.sin_port);
-	} else {
-		/* Not valid to call with other address families */
-		ASSERT_WITH_MSG(0, "Unexpected sockaddr family: %u",
-				sa->sa_family);
+		return 0;
 	}
+
+	if (sa->sa_family == AF_INET) {
+		inany_from_af(dst, AF_INET, &sa->sa4.sin_addr);
+		*port = ntohs(sa->sa4.sin_port);
+		return 0;
+	}
+
+	return -1;
 }
 
 /** inany_siphash_feed- Fold IPv[46] address into an in-progress siphash

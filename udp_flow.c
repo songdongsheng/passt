@@ -158,12 +158,12 @@ static flow_sidx_t udp_flow_new(const struct ctx *c, union flow *flow,
 		socklen_t sl = sizeof(sa);
 		in_port_t port;
 
-		if (getsockname(uflow->s[TGTSIDE], &sa.sa, &sl) < 0) {
+		if (getsockname(uflow->s[TGTSIDE], &sa.sa, &sl) < 0 ||
+		    inany_from_sockaddr(&uflow->f.side[TGTSIDE].oaddr,
+					&port, &sa) < 0) {
 			flow_perror(uflow, "Unable to determine local address");
 			goto cancel;
 		}
-		inany_from_sockaddr(&uflow->f.side[TGTSIDE].oaddr,
-				    &port, &sa);
 		if (port != tgt->oport) {
 			flow_err(uflow, "Unexpected local port");
 			goto cancel;
