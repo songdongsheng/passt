@@ -324,6 +324,30 @@ static bool fwd_guest_accessible(const struct ctx *c,
 }
 
 /**
+ * nat_outbound() - Apply address translation for outbound (TAP to HOST)
+ * @c:		Execution context
+ * @addr:	Input address (as seen on TAP interface)
+ * @translated:	Output address (as seen on HOST interface)
+ *
+ * Only handles translations that depend *only* on the address.  Anything
+ * related to specific ports or flows is handled elsewhere.
+ */
+static void nat_outbound(const struct ctx *c, const union inany_addr *addr,
+			 union inany_addr *translated)
+{
+	if (inany_equals4(addr, &c->ip4.map_host_loopback))
+		*translated = inany_loopback4;
+	else if (inany_equals6(addr, &c->ip6.map_host_loopback))
+		*translated = inany_loopback6;
+	else if (inany_equals4(addr, &c->ip4.map_guest_addr))
+		*translated = inany_from_v4(c->ip4.addr);
+	else if (inany_equals6(addr, &c->ip6.map_guest_addr))
+		translated->a6 = c->ip6.addr;
+	else
+		*translated = *addr;
+}
+
+/**
  * fwd_nat_from_tap() - Determine to forward a flow from the tap interface
  * @c:		Execution context
  * @proto:	Protocol (IP L4 protocol number)
@@ -342,16 +366,8 @@ uint8_t fwd_nat_from_tap(const struct ctx *c, uint8_t proto,
 	else if (is_dns_flow(proto, ini) &&
 		   inany_equals6(&ini->oaddr, &c->ip6.dns_match))
 		tgt->eaddr.a6 = c->ip6.dns_host;
-	else if (inany_equals4(&ini->oaddr, &c->ip4.map_host_loopback))
-		tgt->eaddr = inany_loopback4;
-	else if (inany_equals6(&ini->oaddr, &c->ip6.map_host_loopback))
-		tgt->eaddr = inany_loopback6;
-	else if (inany_equals4(&ini->oaddr, &c->ip4.map_guest_addr))
-		tgt->eaddr = inany_from_v4(c->ip4.addr);
-	else if (inany_equals6(&ini->oaddr, &c->ip6.map_guest_addr))
-		tgt->eaddr.a6 = c->ip6.addr;
 	else
-		tgt->eaddr = ini->oaddr;
+		nat_outbound(c, &ini->oaddr, &tgt->eaddr);
 
 	tgt->eport = ini->oport;
 
@@ -424,6 +440,42 @@ uint8_t fwd_nat_from_splice(const struct ctx *c, uint8_t proto,
 }
 
 /**
+ * nat_inbound() - Apply address translation for outbound (HOST to TAP)
+ * @c:		Execution context
+ * @addr:	Input address (as seen on HOST interface)
+ * @translated:	Output address (as seen on TAP interface)
+ *
+ * Return: true on success, false if it couldn't translate the address
+ *
+ * Only handles translations that depend *only* on the address.  Anything
+ * related to specific ports or flows is handled elsewhere.
+ */
+static bool nat_inbound(const struct ctx *c, const union inany_addr *addr,
+			 union inany_addr *translated)
+{
+	if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.map_host_loopback) &&
+	    inany_equals4(addr, &in4addr_loopback)) {
+		/* Specifically 127.0.0.1, not 127.0.0.0/8 */
+		*translated = inany_from_v4(c->ip4.map_host_loopback);
+	} else if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.map_host_loopback) &&
+		   inany_equals6(addr, &in6addr_loopback)) {
+		translated->a6 = c->ip6.map_host_loopback;
+	} else if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.map_guest_addr) &&
+		   inany_equals4(addr, &c->ip4.addr)) {
+		*translated = inany_from_v4(c->ip4.map_guest_addr);
+	} else if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.map_guest_addr) &&
+		   inany_equals6(addr, &c->ip6.addr)) {
+		translated->a6 = c->ip6.map_guest_addr;
+	} else if (fwd_guest_accessible(c, addr)) {
+		*translated = *addr;
+	} else {
+		return false;
+	}
+
+	return true;
+}
+
+/**
  * fwd_nat_from_host() - Determine to forward a flow from the host interface
  * @c:		Execution context
  * @proto:	Protocol (IP L4 protocol number)
@@ -479,20 +531,7 @@ uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
 		return PIF_SPLICE;
 	}
 
-	if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.map_host_loopback) &&
-	    inany_equals4(&ini->eaddr, &in4addr_loopback)) {
-		/* Specifically 127.0.0.1, not 127.0.0.0/8 */
-		tgt->oaddr = inany_from_v4(c->ip4.map_host_loopback);
-	} else if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.map_host_loopback) &&
-		   inany_equals6(&ini->eaddr, &in6addr_loopback)) {
-		tgt->oaddr.a6 = c->ip6.map_host_loopback;
-	} else if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.map_guest_addr) &&
-		   inany_equals4(&ini->eaddr, &c->ip4.addr)) {
-		tgt->oaddr = inany_from_v4(c->ip4.map_guest_addr);
-	} else if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.map_guest_addr) &&
-		   inany_equals6(&ini->eaddr, &c->ip6.addr)) {
-		tgt->oaddr.a6 = c->ip6.map_guest_addr;
-	} else if (!fwd_guest_accessible(c, &ini->eaddr)) {
+	if (!nat_inbound(c, &ini->eaddr, &tgt->oaddr)) {
 		if (inany_v4(&ini->eaddr)) {
 			if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.our_tap_addr))
 				/* No source address we can use */
@@ -501,8 +540,6 @@ uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
 		} else {
 			tgt->oaddr.a6 = c->ip6.our_tap_ll;
 		}
-	} else {
-		tgt->oaddr = ini->eaddr;
 	}
 	tgt->oport = ini->eport;
 
