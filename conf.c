@@ -1717,7 +1717,8 @@ void conf(struct ctx *c, int argc, char **argv)
 			fd_tap_opt = strtol(optarg, NULL, 0);
 
 			if (errno ||
-			    fd_tap_opt <= STDERR_FILENO || fd_tap_opt > INT_MAX)
+			    (fd_tap_opt != STDIN_FILENO && fd_tap_opt <= STDERR_FILENO) ||
+			    fd_tap_opt > INT_MAX)
 				die("Invalid --fd: %s", optarg);
 
 			c->fd_tap = fd_tap_opt;

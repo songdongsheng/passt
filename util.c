@@ -875,7 +875,9 @@ void close_open_files(int argc, char **argv)
 			errno = 0;
 			fd = strtol(optarg, NULL, 0);
 
-			if (errno || fd <= STDERR_FILENO || fd > INT_MAX)
+			if (errno ||
+			    (fd != STDIN_FILENO && fd <= STDERR_FILENO) ||
+			    fd > INT_MAX)
 				die("Invalid --fd: %s", optarg);
 		}
 	} while (name != -1);
