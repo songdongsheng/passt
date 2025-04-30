@@ -113,7 +113,7 @@ int main(int argc, char **argv)
 	if ((sb.st_mode & S_IFMT) == S_IFDIR) {
 		char buf[sizeof(struct inotify_event) + NAME_MAX + 1]
 		   __attribute__ ((aligned(__alignof__(struct inotify_event))));
-		const struct inotify_event *ev;
+		const struct inotify_event *ev = NULL;
 		char path[PATH_MAX + 1];
 		bool found = false;
 		ssize_t n;
