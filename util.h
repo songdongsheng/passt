@@ -75,7 +75,7 @@ void abort_with_msg(const char *fmt, ...)
 #define ASSERT_WITH_MSG(expr, ...)					\
 	((expr) ? (void)0 : abort_with_msg(__VA_ARGS__))
 #define ASSERT(expr)							\
-	ASSERT_WITH_MSG((expr), "ASSSERTION FAILED in %s (%s:%d): %s",	\
+	ASSERT_WITH_MSG((expr), "ASSERTION FAILED in %s (%s:%d): %s",	\
 			__func__, __FILE__, __LINE__, STRINGIFY(expr))
 
 #ifdef P_tmpdir
