@@ -49,7 +49,7 @@ require {
 	type proc_net_t;
 	type node_t;
 	class tcp_socket { create accept listen name_bind name_connect getattr ioctl };
-	class udp_socket { create accept listen };
+	class udp_socket { create accept listen getattr };
 	class icmp_socket { bind create name_bind node_bind setopt read write };
 	class sock_file { create unlink write };
 
@@ -133,7 +133,7 @@ allow passt_t node_t:icmp_socket { name_bind node_bind };
 allow passt_t port_t:icmp_socket name_bind;
 
 allow passt_t self:tcp_socket { create getopt setopt connect bind listen accept shutdown read write getattr ioctl };
-allow passt_t self:udp_socket { create getopt setopt connect bind read write };
+allow passt_t self:udp_socket { create getopt setopt connect bind read write getattr };
 allow passt_t self:icmp_socket { bind create setopt read write };
 
 allow passt_t user_tmp_t:dir { add_name write };
