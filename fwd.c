@@ -440,7 +440,7 @@ uint8_t fwd_nat_from_splice(const struct ctx *c, uint8_t proto,
 }
 
 /**
- * nat_inbound() - Apply address translation for outbound (HOST to TAP)
+ * nat_inbound() - Apply address translation for inbound (HOST to TAP)
  * @c:		Execution context
  * @addr:	Input address (as seen on HOST interface)
  * @translated:	Output address (as seen on TAP interface)
