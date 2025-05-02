@@ -828,6 +828,7 @@ void udp_sock_fwd(const struct ctx *c, int s, uint8_t frompif,
 	int rc;
 
 	while ((rc = udp_peek_addr(s, &src, &dst)) != 0) {
+		bool discard = false;
 		flow_sidx_t tosidx;
 		uint8_t topif;
 
@@ -861,8 +862,17 @@ void udp_sock_fwd(const struct ctx *c, int s, uint8_t frompif,
 			flow_err(uflow,
 				 "No support for forwarding UDP from %s to %s",
 				 pif_name(frompif), pif_name(topif));
+			discard = true;
 		} else {
 			debug("Discarding datagram without flow");
+			discard = true;
+		}
+
+		if (discard) {
+			struct msghdr msg = { 0 };
+
+			if (recvmsg(s, &msg, MSG_DONTWAIT) < 0)
+				debug_perror("Failed to discard datagram");
 		}
 	}
 }
