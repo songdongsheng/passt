@@ -81,7 +81,7 @@ static_assert(ARRAY_SIZE(flow_proto) == FLOW_NUM_TYPES,
  *
  * Free cluster list
  *    flow_first_free gives the index of the first (lowest index) free cluster.
- *    Each free cluster has the index of the next free cluster, or MAX_FLOW if
+ *    Each free cluster has the index of the next free cluster, or FLOW_MAX if
  *    it is the last free cluster.  Together these form a linked list of free
  *    clusters, in strictly increasing order of index.
  *
