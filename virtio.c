@@ -235,6 +235,7 @@ static int virtqueue_read_indirect_desc(const struct vu_dev *dev,
 		memcpy(desc, orig_desc, read_len);
 		len -= read_len;
 		addr += read_len;
+		/* NOLINTNEXTLINE(bugprone-sizeof-expression,cert-arr39-c) */
 		desc += read_len / sizeof(struct vring_desc);
 	}
 
