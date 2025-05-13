@@ -328,6 +328,7 @@ static void ndp_ra(const struct ctx *c, const struct in6_addr *dst)
 
 	memcpy(&ra.source_ll.mac, c->our_tap_mac, ETH_ALEN);
 
+	/* NOLINTNEXTLINE(clang-analyzer-security.PointerSub) */
 	ndp_send(c, dst, &ra, ptr - (unsigned char *)&ra);
 }
 
