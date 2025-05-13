@@ -93,6 +93,7 @@ extern union flow flowtab[];
  */
 static inline unsigned flow_idx(const struct flow_common *f)
 {
+	/* NOLINTNEXTLINE(clang-analyzer-security.PointerSub) */
 	return (union flow *)f - flowtab;
 }
 
