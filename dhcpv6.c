@@ -144,7 +144,9 @@ struct opt_ia_addr {
 struct opt_status_code {
 	struct opt_hdr hdr;
 	uint16_t code;
-	char status_msg[sizeof(STR_NOTONLINK) - 1];
+	/* "nonstring" is only supported since clang 23 */
+	/* NOLINTNEXTLINE(clang-diagnostic-unknown-attributes) */
+	__attribute__((nonstring)) char status_msg[sizeof(STR_NOTONLINK) - 1];
 } __attribute__((packed));
 
 /**
