@@ -19,6 +19,7 @@ STATUS_FILE_INDEX=0
 STATUS_COLS=
 STATUS_PASS=0
 STATUS_FAIL=0
+STATUS_SKIPPED=0
 
 PR_RED='\033[1;31m'
 PR_GREEN='\033[1;32m'
@@ -439,19 +440,21 @@ info_layout() {
 # status_test_ok() - Update counter of passed tests, log and display message
 status_test_ok() {
 	STATUS_PASS=$((STATUS_PASS + 1))
-	tmux set status-right "PASS: ${STATUS_PASS} | FAIL: ${STATUS_FAIL} | #(TZ="UTC" date -Iseconds)"
+	tmux set status-right "PASS: ${STATUS_PASS} | FAIL: ${STATUS_FAIL} | SKIPPED: ${STATUS_SKIPPED} | #(TZ="UTC" date -Iseconds)"
 	info_passed
 }
 
 # status_test_fail() - Update counter of failed tests, log and display message
 status_test_fail() {
 	STATUS_FAIL=$((STATUS_FAIL + 1))
-	tmux set status-right "PASS: ${STATUS_PASS} | FAIL: ${STATUS_FAIL} | #(TZ="UTC" date -Iseconds)"
+	tmux set status-right "PASS: ${STATUS_PASS} | FAIL: ${STATUS_FAIL} | SKIPPED: ${STATUS_SKIPPED} | #(TZ="UTC" date -Iseconds)"
 	info_failed
 }
 
 # status_test_fail() - Update counter of failed tests, log and display message
 status_test_skip() {
+	STATUS_SKIPPED=$((STATUS_SKIPPED + 1))
+	tmux set status-right "PASS: ${STATUS_PASS} | FAIL: ${STATUS_FAIL} | SKIPPED: ${STATUS_SKIPPED} | #(TZ="UTC" date -Iseconds)"
 	info_skipped
 }
 

@@ -202,7 +202,7 @@ skip_distro() {
 	perf_finish
 	[ ${CI} -eq 1 ] && video_stop
 
-	log "PASS: ${STATUS_PASS}, FAIL: ${STATUS_FAIL}"
+	log "PASS: ${STATUS_PASS}, FAIL: ${STATUS_FAIL}, SKIPPED: ${STATUS_SKIPPED}"
 
 	pause_continue \
 		"Press any key to keep test session open"	\
@@ -236,7 +236,7 @@ run_selected() {
 	done
 	teardown "${__setup}"
 
-	log "PASS: ${STATUS_PASS}, FAIL: ${STATUS_FAIL}"
+	log "PASS: ${STATUS_PASS}, FAIL: ${STATUS_FAIL}, SKIPPED: ${STATUS_SKIPPED}"
 
 	pause_continue \
 		"Press any key to keep test session open"	\
@@ -307,4 +307,4 @@ fi
 
 tail -n1 ${LOGFILE}
 echo "Log at ${LOGFILE}"
-exit $(tail -n1 ${LOGFILE} | sed -n 's/.*FAIL: \(.*\)$/\1/p')
+exit $(tail -n1 ${LOGFILE} | sed -n 's/.*FAIL: \(.*\),.*$/\1/p')
