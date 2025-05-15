@@ -418,7 +418,7 @@ uint8_t fwd_nat_from_splice(const struct ctx *c, uint8_t proto,
 	else
 		tgt->eaddr = inany_loopback6;
 
-	/* Preserve the specific loopback adddress used, but let the kernel pick
+	/* Preserve the specific loopback address used, but let the kernel pick
 	 * a source port on the target side
 	 */
 	tgt->oaddr = ini->eaddr;

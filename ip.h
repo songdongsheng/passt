@@ -118,7 +118,7 @@ static inline uint32_t ip6_get_flow_lbl(const struct ipv6hdr *ip6h)
 char *ipv6_l4hdr(const struct pool *p, int idx, size_t offset, uint8_t *proto,
 		 size_t *dlen);
 
-/* IPv6 link-local all-nodes multicast adddress, ff02::1 */
+/* IPv6 link-local all-nodes multicast address, ff02::1 */
 static const struct in6_addr in6addr_ll_all_nodes = {
 	.s6_addr = {
 		0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,

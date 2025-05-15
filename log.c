@@ -402,7 +402,7 @@ void __setlogmask(int mask)
  * logfile_init() - Open log file and write header with PID, version, path
  * @name:	Identifier for header: passt or pasta
  * @path:	Path to log file
- * @size:	Maximum size of log file: log_cut_size is calculatd here
+ * @size:	Maximum size of log file: log_cut_size is calculated here
  */
 void logfile_init(const char *name, const char *path, size_t size)
 {

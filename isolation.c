@@ -129,7 +129,7 @@ static void drop_caps_ep_except(uint64_t keep)
  * additional layer of protection.  Executing this requires
  * CAP_SETPCAP, which we will have within our userns.
  *
- * Note that dropping capabilites from the bounding set limits
+ * Note that dropping capabilities from the bounding set limits
  * exec()ed processes, but does not remove them from the effective or
  * permitted sets, so it doesn't reduce our own capabilities.
  */
@@ -174,8 +174,8 @@ static void clamp_caps(void)
  * Should:
  *  - drop unneeded capabilities
  *  - close all open files except for standard streams and the one from --fd
- * Musn't:
- *  - remove filesytem access (we need to access files during setup)
+ * Mustn't:
+ *  - remove filesystem access (we need to access files during setup)
  */
 void isolate_initial(int argc, char **argv)
 {
@@ -194,7 +194,7 @@ void isolate_initial(int argc, char **argv)
 	 *
 	 * It's debatable whether it's useful to drop caps when we
 	 * retain SETUID and SYS_ADMIN, but we might as well.  We drop
-	 * further capabilites in isolate_user() and
+	 * further capabilities in isolate_user() and
 	 * isolate_prefork().
 	 */
 	keep = BIT(CAP_NET_BIND_SERVICE) | BIT(CAP_SETUID) | BIT(CAP_SETGID) |

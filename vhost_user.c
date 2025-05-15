@@ -1021,7 +1021,7 @@ static bool vu_set_device_state_fd_exec(struct vu_dev *vdev,
 
 	if (direction != VHOST_USER_TRANSFER_STATE_DIRECTION_SAVE &&
 	    direction != VHOST_USER_TRANSFER_STATE_DIRECTION_LOAD)
-		die("Invalide device_state_fd direction: %d", direction);
+		die("Invalid device_state_fd direction: %d", direction);
 
 	migrate_request(vdev->context, msg->fds[0],
 			direction == VHOST_USER_TRANSFER_STATE_DIRECTION_LOAD);
