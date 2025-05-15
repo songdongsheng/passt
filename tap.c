@@ -118,6 +118,8 @@ unsigned long tap_l2_max_len(const struct ctx *c)
 	}
 	/* NOLINTEND(bugprone-branch-clone) */
 	ASSERT(0);
+
+	return 0; /* Unreachable, for cppcheck's sake */
 }
 
 /**
