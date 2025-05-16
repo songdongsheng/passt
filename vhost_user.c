@@ -302,13 +302,13 @@ static void vu_message_write(int conn_fd, struct vhost_user_msg *vmsg)
  * @conn_fd:	vhost-user command socket
  * @vmsg:	vhost-user message
  */
-static void vu_send_reply(int conn_fd, struct vhost_user_msg *msg)
+static void vu_send_reply(int conn_fd, struct vhost_user_msg *vmsg)
 {
-	msg->hdr.flags &= ~VHOST_USER_VERSION_MASK;
-	msg->hdr.flags |= VHOST_USER_VERSION;
-	msg->hdr.flags |= VHOST_USER_REPLY_MASK;
+	vmsg->hdr.flags &= ~VHOST_USER_VERSION_MASK;
+	vmsg->hdr.flags |= VHOST_USER_VERSION;
+	vmsg->hdr.flags |= VHOST_USER_REPLY_MASK;
 
-	vu_message_write(conn_fd, msg);
+	vu_message_write(conn_fd, vmsg);
 }
 
 /**
@@ -319,7 +319,7 @@ static void vu_send_reply(int conn_fd, struct vhost_user_msg *msg)
  * Return: True as a reply is requested
  */
 static bool vu_get_features_exec(struct vu_dev *vdev,
-				 struct vhost_user_msg *msg)
+				 struct vhost_user_msg *vmsg)
 {
 	uint64_t features =
 		1ULL << VIRTIO_F_VERSION_1 |
@@ -329,9 +329,9 @@ static bool vu_get_features_exec(struct vu_dev *vdev,
 
 	(void)vdev;
 
-	vmsg_set_reply_u64(msg, features);
+	vmsg_set_reply_u64(vmsg, features);
 
-	debug("Sending back to guest u64: 0x%016"PRIx64, msg->payload.u64);
+	debug("Sending back to guest u64: 0x%016"PRIx64, vmsg->payload.u64);
 
 	return true;
 }
@@ -357,11 +357,11 @@ static void vu_set_enable_all_rings(struct vu_dev *vdev, bool enable)
  * Return: False as no reply is requested
  */
 static bool vu_set_features_exec(struct vu_dev *vdev,
-				 struct vhost_user_msg *msg)
+				 struct vhost_user_msg *vmsg)
 {
-	debug("u64: 0x%016"PRIx64, msg->payload.u64);
+	debug("u64: 0x%016"PRIx64, vmsg->payload.u64);
 
-	vdev->features = msg->payload.u64;
+	vdev->features = vmsg->payload.u64;
 	/* We only support devices conforming to VIRTIO 1.0 or
 	 * later
 	 */
@@ -382,10 +382,10 @@ static bool vu_set_features_exec(struct vu_dev *vdev,
  * Return: False as no reply is requested
  */
 static bool vu_set_owner_exec(struct vu_dev *vdev,
-			      struct vhost_user_msg *msg)
+			      struct vhost_user_msg *vmsg)
 {
 	(void)vdev;
-	(void)msg;
+	(void)vmsg;
 
 	return false;
 }
@@ -423,9 +423,9 @@ static bool map_ring(struct vu_dev *vdev, struct vu_virtq *vq)
  * #syscalls:vu mmap|mmap2 munmap
  */
 static bool vu_set_mem_table_exec(struct vu_dev *vdev,
-				  struct vhost_user_msg *msg)
+				  struct vhost_user_msg *vmsg)
 {
-	struct vhost_user_memory m = msg->payload.memory, *memory = &m;
+	struct vhost_user_memory m = vmsg->payload.memory, *memory = &m;
 	unsigned int i;
 
 	for (i = 0; i < vdev->nregions; i++) {
@@ -465,7 +465,7 @@ static bool vu_set_mem_table_exec(struct vu_dev *vdev,
 		 */
 		mmap_addr = mmap(0, dev_region->size + dev_region->mmap_offset,
 				 PROT_READ | PROT_WRITE, MAP_SHARED |
-				 MAP_NORESERVE, msg->fds[i], 0);
+				 MAP_NORESERVE, vmsg->fds[i], 0);
 
 		if (mmap_addr == MAP_FAILED)
 			die_perror("vhost-user region mmap error");
@@ -474,7 +474,7 @@ static bool vu_set_mem_table_exec(struct vu_dev *vdev,
 		debug("    mmap_addr:       0x%016"PRIx64,
 		      dev_region->mmap_addr);
 
-		close(msg->fds[i]);
+		close(vmsg->fds[i]);
 	}
 
 	for (i = 0; i < VHOST_USER_MAX_QUEUES; i++) {
@@ -541,7 +541,7 @@ static void vu_log_page(uint8_t *log_table, uint64_t page)
 
 /**
  * vu_log_write() - Log memory write
- * @dev:	vhost-user device
+ * @vdev:	vhost-user device
  * @address:	Memory address
  * @length:	Memory size
  */
@@ -566,23 +566,23 @@ void vu_log_write(const struct vu_dev *vdev, uint64_t address, uint64_t length)
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: False as no reply is requested
+ * Return: True as a reply is requested
  *
  * #syscalls:vu mmap|mmap2 munmap
  */
 static bool vu_set_log_base_exec(struct vu_dev *vdev,
-				 struct vhost_user_msg *msg)
+				 struct vhost_user_msg *vmsg)
 {
 	uint64_t log_mmap_size, log_mmap_offset;
 	void *base;
 	int fd;
 
-	if (msg->fd_num != 1 || msg->hdr.size != sizeof(msg->payload.log))
+	if (vmsg->fd_num != 1 || vmsg->hdr.size != sizeof(vmsg->payload.log))
 		die("vhost-user: Invalid log_base message");
 
-	fd = msg->fds[0];
-	log_mmap_offset = msg->payload.log.mmap_offset;
-	log_mmap_size = msg->payload.log.mmap_size;
+	fd = vmsg->fds[0];
+	log_mmap_offset = vmsg->payload.log.mmap_offset;
+	log_mmap_size = vmsg->payload.log.mmap_size;
 
 	debug("vhost-user log mmap_offset: %"PRId64, log_mmap_offset);
 	debug("vhost-user log mmap_size:   %"PRId64, log_mmap_size);
@@ -599,8 +599,8 @@ static bool vu_set_log_base_exec(struct vu_dev *vdev,
 	vdev->log_table = base;
 	vdev->log_size = log_mmap_size;
 
-	msg->hdr.size = sizeof(msg->payload.u64);
-	msg->fd_num = 0;
+	vmsg->hdr.size = sizeof(vmsg->payload.u64);
+	vmsg->fd_num = 0;
 
 	return true;
 }
@@ -613,15 +613,15 @@ static bool vu_set_log_base_exec(struct vu_dev *vdev,
  * Return: False as no reply is requested
  */
 static bool vu_set_log_fd_exec(struct vu_dev *vdev,
-			       struct vhost_user_msg *msg)
+			       struct vhost_user_msg *vmsg)
 {
-	if (msg->fd_num != 1)
+	if (vmsg->fd_num != 1)
 		die("Invalid log_fd message");
 
 	if (vdev->log_call_fd != -1)
 		close(vdev->log_call_fd);
 
-	vdev->log_call_fd = msg->fds[0];
+	vdev->log_call_fd = vmsg->fds[0];
 
 	debug("Got log_call_fd: %d", vdev->log_call_fd);
 
@@ -636,10 +636,10 @@ static bool vu_set_log_fd_exec(struct vu_dev *vdev,
  * Return: False as no reply is requested
  */
 static bool vu_set_vring_num_exec(struct vu_dev *vdev,
-				  struct vhost_user_msg *msg)
+				  struct vhost_user_msg *vmsg)
 {
-	unsigned int idx = msg->payload.state.index;
-	unsigned int num = msg->payload.state.num;
+	unsigned int idx = vmsg->payload.state.index;
+	unsigned int num = vmsg->payload.state.num;
 
 	trace("State.index: %u", idx);
 	trace("State.num:   %u", num);
@@ -656,13 +656,13 @@ static bool vu_set_vring_num_exec(struct vu_dev *vdev,
  * Return: False as no reply is requested
  */
 static bool vu_set_vring_addr_exec(struct vu_dev *vdev,
-				   struct vhost_user_msg *msg)
+				   struct vhost_user_msg *vmsg)
 {
 	/* We need to copy the payload to vhost_vring_addr structure
-         * to access index because address of msg->payload.addr
+         * to access index because address of vmsg->payload.addr
          * can be unaligned as it is packed.
          */
-	struct vhost_vring_addr addr = msg->payload.addr;
+	struct vhost_vring_addr addr = vmsg->payload.addr;
 	struct vu_virtq *vq = &vdev->vq[addr.index];
 
 	debug("vhost_vring_addr:");
@@ -677,7 +677,7 @@ static bool vu_set_vring_addr_exec(struct vu_dev *vdev,
 	debug("    log_guest_addr:   0x%016" PRIx64,
 	      (uint64_t)addr.log_guest_addr);
 
-	vq->vra = msg->payload.addr;
+	vq->vra = vmsg->payload.addr;
 	vq->vring.flags = addr.flags;
 	vq->vring.log_guest_addr = addr.log_guest_addr;
 
@@ -702,10 +702,10 @@ static bool vu_set_vring_addr_exec(struct vu_dev *vdev,
  * Return: False as no reply is requested
  */
 static bool vu_set_vring_base_exec(struct vu_dev *vdev,
-				   struct vhost_user_msg *msg)
+				   struct vhost_user_msg *vmsg)
 {
-	unsigned int idx = msg->payload.state.index;
-	unsigned int num = msg->payload.state.num;
+	unsigned int idx = vmsg->payload.state.index;
+	unsigned int num = vmsg->payload.state.num;
 
 	debug("State.index: %u", idx);
 	debug("State.num:   %u", num);
@@ -723,13 +723,13 @@ static bool vu_set_vring_base_exec(struct vu_dev *vdev,
  * Return: True as a reply is requested
  */
 static bool vu_get_vring_base_exec(struct vu_dev *vdev,
-				   struct vhost_user_msg *msg)
+				   struct vhost_user_msg *vmsg)
 {
-	unsigned int idx = msg->payload.state.index;
+	unsigned int idx = vmsg->payload.state.index;
 
 	debug("State.index: %u", idx);
-	msg->payload.state.num = vdev->vq[idx].last_avail_idx;
-	msg->hdr.size = sizeof(msg->payload.state);
+	vmsg->payload.state.num = vdev->vq[idx].last_avail_idx;
+	vmsg->hdr.size = sizeof(vmsg->payload.state);
 
 	vdev->vq[idx].started = false;
 	vdev->vq[idx].vring.avail = 0;
@@ -771,21 +771,21 @@ static void vu_set_watch(const struct vu_dev *vdev, int idx)
  * 			       close fds if NOFD bit is set
  * @vmsg:	vhost-user message
  */
-static void vu_check_queue_msg_file(struct vhost_user_msg *msg)
+static void vu_check_queue_msg_file(struct vhost_user_msg *vmsg)
 {
-	bool nofd = msg->payload.u64 & VHOST_USER_VRING_NOFD_MASK;
-	int idx = msg->payload.u64 & VHOST_USER_VRING_IDX_MASK;
+	bool nofd = vmsg->payload.u64 & VHOST_USER_VRING_NOFD_MASK;
+	int idx = vmsg->payload.u64 & VHOST_USER_VRING_IDX_MASK;
 
 	if (idx >= VHOST_USER_MAX_QUEUES)
 		die("Invalid vhost-user queue index: %u", idx);
 
 	if (nofd) {
-		vmsg_close_fds(msg);
+		vmsg_close_fds(vmsg);
 		return;
 	}
 
-	if (msg->fd_num != 1)
-		die("Invalid fds in vhost-user request: %d", msg->hdr.request);
+	if (vmsg->fd_num != 1)
+		die("Invalid fds in vhost-user request: %d", vmsg->hdr.request);
 }
 
 /**
@@ -797,14 +797,14 @@ static void vu_check_queue_msg_file(struct vhost_user_msg *msg)
  * Return: False as no reply is requested
  */
 static bool vu_set_vring_kick_exec(struct vu_dev *vdev,
-				   struct vhost_user_msg *msg)
+				   struct vhost_user_msg *vmsg)
 {
-	bool nofd = msg->payload.u64 & VHOST_USER_VRING_NOFD_MASK;
-	int idx = msg->payload.u64 & VHOST_USER_VRING_IDX_MASK;
+	bool nofd = vmsg->payload.u64 & VHOST_USER_VRING_NOFD_MASK;
+	int idx = vmsg->payload.u64 & VHOST_USER_VRING_IDX_MASK;
 
-	debug("u64: 0x%016"PRIx64, msg->payload.u64);
+	debug("u64: 0x%016"PRIx64, vmsg->payload.u64);
 
-	vu_check_queue_msg_file(msg);
+	vu_check_queue_msg_file(vmsg);
 
 	if (vdev->vq[idx].kick_fd != -1) {
 		epoll_del(vdev->context, vdev->vq[idx].kick_fd);
@@ -813,7 +813,7 @@ static bool vu_set_vring_kick_exec(struct vu_dev *vdev,
 	}
 
 	if (!nofd)
-		vdev->vq[idx].kick_fd = msg->fds[0];
+		vdev->vq[idx].kick_fd = vmsg->fds[0];
 
 	debug("Got kick_fd: %d for vq: %d", vdev->vq[idx].kick_fd, idx);
 
@@ -837,14 +837,14 @@ static bool vu_set_vring_kick_exec(struct vu_dev *vdev,
  * Return: False as no reply is requested
  */
 static bool vu_set_vring_call_exec(struct vu_dev *vdev,
-				   struct vhost_user_msg *msg)
+				   struct vhost_user_msg *vmsg)
 {
-	bool nofd = msg->payload.u64 & VHOST_USER_VRING_NOFD_MASK;
-	int idx = msg->payload.u64 & VHOST_USER_VRING_IDX_MASK;
+	bool nofd = vmsg->payload.u64 & VHOST_USER_VRING_NOFD_MASK;
+	int idx = vmsg->payload.u64 & VHOST_USER_VRING_IDX_MASK;
 
-	debug("u64: 0x%016"PRIx64, msg->payload.u64);
+	debug("u64: 0x%016"PRIx64, vmsg->payload.u64);
 
-	vu_check_queue_msg_file(msg);
+	vu_check_queue_msg_file(vmsg);
 
 	if (vdev->vq[idx].call_fd != -1) {
 		close(vdev->vq[idx].call_fd);
@@ -852,11 +852,11 @@ static bool vu_set_vring_call_exec(struct vu_dev *vdev,
 	}
 
 	if (!nofd)
-		vdev->vq[idx].call_fd = msg->fds[0];
+		vdev->vq[idx].call_fd = vmsg->fds[0];
 
 	/* in case of I/O hang after reconnecting */
 	if (vdev->vq[idx].call_fd != -1)
-		eventfd_write(msg->fds[0], 1);
+		eventfd_write(vmsg->fds[0], 1);
 
 	debug("Got call_fd: %d for vq: %d", vdev->vq[idx].call_fd, idx);
 
@@ -872,14 +872,14 @@ static bool vu_set_vring_call_exec(struct vu_dev *vdev,
  * Return: False as no reply is requested
  */
 static bool vu_set_vring_err_exec(struct vu_dev *vdev,
-				  struct vhost_user_msg *msg)
+				  struct vhost_user_msg *vmsg)
 {
-	bool nofd = msg->payload.u64 & VHOST_USER_VRING_NOFD_MASK;
-	int idx = msg->payload.u64 & VHOST_USER_VRING_IDX_MASK;
+	bool nofd = vmsg->payload.u64 & VHOST_USER_VRING_NOFD_MASK;
+	int idx = vmsg->payload.u64 & VHOST_USER_VRING_IDX_MASK;
 
-	debug("u64: 0x%016"PRIx64, msg->payload.u64);
+	debug("u64: 0x%016"PRIx64, vmsg->payload.u64);
 
-	vu_check_queue_msg_file(msg);
+	vu_check_queue_msg_file(vmsg);
 
 	if (vdev->vq[idx].err_fd != -1) {
 		close(vdev->vq[idx].err_fd);
@@ -887,7 +887,7 @@ static bool vu_set_vring_err_exec(struct vu_dev *vdev,
 	}
 
 	if (!nofd)
-		vdev->vq[idx].err_fd = msg->fds[0];
+		vdev->vq[idx].err_fd = vmsg->fds[0];
 
 	return false;
 }
@@ -901,7 +901,7 @@ static bool vu_set_vring_err_exec(struct vu_dev *vdev,
  * Return: True as a reply is requested
  */
 static bool vu_get_protocol_features_exec(struct vu_dev *vdev,
-					  struct vhost_user_msg *msg)
+					  struct vhost_user_msg *vmsg)
 {
 	uint64_t features = 1ULL << VHOST_USER_PROTOCOL_F_REPLY_ACK |
 			    1ULL << VHOST_USER_PROTOCOL_F_LOG_SHMFD |
@@ -909,7 +909,7 @@ static bool vu_get_protocol_features_exec(struct vu_dev *vdev,
 			    1ULL << VHOST_USER_PROTOCOL_F_RARP;
 
 	(void)vdev;
-	vmsg_set_reply_u64(msg, features);
+	vmsg_set_reply_u64(vmsg, features);
 
 	return true;
 }
@@ -922,13 +922,13 @@ static bool vu_get_protocol_features_exec(struct vu_dev *vdev,
  * Return: False as no reply is requested
  */
 static bool vu_set_protocol_features_exec(struct vu_dev *vdev,
-					  struct vhost_user_msg *msg)
+					  struct vhost_user_msg *vmsg)
 {
-	uint64_t features = msg->payload.u64;
+	uint64_t features = vmsg->payload.u64;
 
 	debug("u64: 0x%016"PRIx64, features);
 
-	vdev->protocol_features = msg->payload.u64;
+	vdev->protocol_features = vmsg->payload.u64;
 
 	return false;
 }
@@ -941,11 +941,11 @@ static bool vu_set_protocol_features_exec(struct vu_dev *vdev,
  * Return: True as a reply is requested
  */
 static bool vu_get_queue_num_exec(struct vu_dev *vdev,
-				  struct vhost_user_msg *msg)
+				  struct vhost_user_msg *vmsg)
 {
 	(void)vdev;
 
-	vmsg_set_reply_u64(msg, VHOST_USER_MAX_QUEUES);
+	vmsg_set_reply_u64(vmsg, VHOST_USER_MAX_QUEUES);
 
 	return true;
 }
@@ -958,10 +958,10 @@ static bool vu_get_queue_num_exec(struct vu_dev *vdev,
  * Return: False as no reply is requested
  */
 static bool vu_set_vring_enable_exec(struct vu_dev *vdev,
-				     struct vhost_user_msg *msg)
+				     struct vhost_user_msg *vmsg)
 {
-	unsigned int enable = msg->payload.state.num;
-	unsigned int idx = msg->payload.state.index;
+	unsigned int enable = vmsg->payload.state.num;
+	unsigned int idx = vmsg->payload.state.index;
 
 	debug("State.index:  %u", idx);
 	debug("State.enable: %u", enable);
@@ -974,17 +974,17 @@ static bool vu_set_vring_enable_exec(struct vu_dev *vdev,
 }
 
 /**
- * vu_set_send_rarp_exec() - vhost-user specification says: "Broadcast a fake
- * 			     RARP to notify the migration is terminated",
- * 			     but passt doesn't need to update any ARP table,
- * 			     so do nothing to silence QEMU bogus error message
+ * vu_send_rarp_exec() - vhost-user specification says: "Broadcast a fake
+ * 			 RARP to notify the migration is terminated",
+ * 			 but passt doesn't need to update any ARP table,
+ * 			 so do nothing to silence QEMU bogus error message
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
  * Return: False as no reply is requested
  */
 static bool vu_send_rarp_exec(struct vu_dev *vdev,
-			      struct vhost_user_msg *msg)
+			      struct vhost_user_msg *vmsg)
 {
 	char macstr[ETH_ADDRSTRLEN];
 
@@ -993,7 +993,7 @@ static bool vu_send_rarp_exec(struct vu_dev *vdev,
 	/* ignore the command */
 
 	debug("Ignore command VHOST_USER_SEND_RARP for %s",
-	      eth_ntop((unsigned char *)&msg->payload.u64, macstr,
+	      eth_ntop((unsigned char *)&vmsg->payload.u64, macstr,
 		       sizeof(macstr)));
 
 	return false;
@@ -1008,12 +1008,12 @@ static bool vu_send_rarp_exec(struct vu_dev *vdev,
  *         and set bit 8 as we don't provide our own fd.
  */
 static bool vu_set_device_state_fd_exec(struct vu_dev *vdev,
-					struct vhost_user_msg *msg)
+					struct vhost_user_msg *vmsg)
 {
-	unsigned int direction = msg->payload.transfer_state.direction;
-	unsigned int phase = msg->payload.transfer_state.phase;
+	unsigned int direction = vmsg->payload.transfer_state.direction;
+	unsigned int phase = vmsg->payload.transfer_state.phase;
 
-	if (msg->fd_num != 1)
+	if (vmsg->fd_num != 1)
 		die("Invalid device_state_fd message");
 
 	if (phase != VHOST_USER_TRANSFER_STATE_PHASE_STOPPED)
@@ -1023,11 +1023,11 @@ static bool vu_set_device_state_fd_exec(struct vu_dev *vdev,
 	    direction != VHOST_USER_TRANSFER_STATE_DIRECTION_LOAD)
 		die("Invalid device_state_fd direction: %d", direction);
 
-	migrate_request(vdev->context, msg->fds[0],
+	migrate_request(vdev->context, vmsg->fds[0],
 			direction == VHOST_USER_TRANSFER_STATE_DIRECTION_LOAD);
 
 	/* We don't provide a new fd for the data transfer */
-	vmsg_set_reply_u64(msg, VHOST_USER_VRING_NOFD_MASK);
+	vmsg_set_reply_u64(vmsg, VHOST_USER_VRING_NOFD_MASK);
 
 	return true;
 }
@@ -1041,9 +1041,9 @@ static bool vu_set_device_state_fd_exec(struct vu_dev *vdev,
  */
 /* cppcheck-suppress constParameterCallback */
 static bool vu_check_device_state_exec(struct vu_dev *vdev,
-				       struct vhost_user_msg *msg)
+				       struct vhost_user_msg *vmsg)
 {
-	vmsg_set_reply_u64(msg, vdev->context->device_state_result);
+	vmsg_set_reply_u64(vmsg, vdev->context->device_state_result);
 
 	return true;
 }
@@ -1051,7 +1051,6 @@ static bool vu_check_device_state_exec(struct vu_dev *vdev,
 /**
  * vu_init() - Initialize vhost-user device structure
  * @c:		execution context
- * @vdev:	vhost-user device
  */
 void vu_init(struct ctx *c)
 {
@@ -1134,7 +1133,7 @@ static void vu_sock_reset(struct vu_dev *vdev)
 }
 
 static bool (*vu_handle[VHOST_USER_MAX])(struct vu_dev *vdev,
-					struct vhost_user_msg *msg) = {
+					struct vhost_user_msg *vmsg) = {
 	[VHOST_USER_GET_FEATURES]	   = vu_get_features_exec,
 	[VHOST_USER_SET_FEATURES]	   = vu_set_features_exec,
 	[VHOST_USER_GET_PROTOCOL_FEATURES] = vu_get_protocol_features_exec,
@@ -1165,7 +1164,7 @@ static bool (*vu_handle[VHOST_USER_MAX])(struct vu_dev *vdev,
  */
 void vu_control_handler(struct vu_dev *vdev, int fd, uint32_t events)
 {
-	struct vhost_user_msg msg = { 0 };
+	struct vhost_user_msg vmsg = { 0 };
 	bool need_reply, reply_requested;
 	int ret;
 
@@ -1174,38 +1173,38 @@ void vu_control_handler(struct vu_dev *vdev, int fd, uint32_t events)
 		return;
 	}
 
-	ret = vu_message_read_default(fd, &msg);
+	ret = vu_message_read_default(fd, &vmsg);
 	if (ret == 0) {
 		vu_sock_reset(vdev);
 		return;
 	}
 	debug("================ Vhost user message ================");
-	debug("Request: %s (%d)", vu_request_to_string(msg.hdr.request),
-		msg.hdr.request);
-	debug("Flags:   0x%x", msg.hdr.flags);
-	debug("Size:    %u", msg.hdr.size);
+	debug("Request: %s (%d)", vu_request_to_string(vmsg.hdr.request),
+		vmsg.hdr.request);
+	debug("Flags:   0x%x", vmsg.hdr.flags);
+	debug("Size:    %u", vmsg.hdr.size);
 
-	need_reply = msg.hdr.flags & VHOST_USER_NEED_REPLY_MASK;
+	need_reply = vmsg.hdr.flags & VHOST_USER_NEED_REPLY_MASK;
 
-	if (msg.hdr.request >= 0 && msg.hdr.request < VHOST_USER_MAX &&
-	    vu_handle[msg.hdr.request])
-		reply_requested = vu_handle[msg.hdr.request](vdev, &msg);
+	if (vmsg.hdr.request >= 0 && vmsg.hdr.request < VHOST_USER_MAX &&
+	    vu_handle[vmsg.hdr.request])
+		reply_requested = vu_handle[vmsg.hdr.request](vdev, &vmsg);
 	else
-		die("Unhandled request: %d", msg.hdr.request);
+		die("Unhandled request: %d", vmsg.hdr.request);
 
 	/* cppcheck-suppress legacyUninitvar */
 	if (!reply_requested && need_reply) {
-		msg.payload.u64 = 0;
-		msg.hdr.flags = 0;
-		msg.hdr.size = sizeof(msg.payload.u64);
-		msg.fd_num = 0;
+		vmsg.payload.u64 = 0;
+		vmsg.hdr.flags = 0;
+		vmsg.hdr.size = sizeof(vmsg.payload.u64);
+		vmsg.fd_num = 0;
 		reply_requested = true;
 	}
 
 	if (reply_requested)
-		vu_send_reply(fd, &msg);
+		vu_send_reply(fd, &vmsg);
 
-	if (msg.hdr.request == VHOST_USER_CHECK_DEVICE_STATE &&
+	if (vmsg.hdr.request == VHOST_USER_CHECK_DEVICE_STATE &&
 	    vdev->context->device_state_result == 0 &&
 	    !vdev->context->migrate_target) {
 		info("Migration complete, exiting");

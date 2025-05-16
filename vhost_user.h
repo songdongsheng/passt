@@ -184,7 +184,7 @@ union vhost_user_payload {
 };
 
 /**
- * struct vhost_user_msg - vhost-use message
+ * struct vhost_user_msg - vhost-user message
  * @hdr:		Message header
  * @payload:		Message payload
  * @fds:		File descriptors associated with the message
