@@ -156,9 +156,9 @@ static inline uint16_t vring_avail_ring(const struct vu_virtq *vq, int i)
 }
 
 /**
- * virtq_used_event - Get location of used event indices
+ * virtq_used_event() - Get location of used event indices
  *		      (only with VIRTIO_F_EVENT_IDX)
- * @vq		Virtqueue
+ * @vq:		Virtqueue
  *
  * Return: return the location of the used event index
  */
@@ -170,7 +170,7 @@ static inline uint16_t *virtq_used_event(const struct vu_virtq *vq)
 
 /**
  * vring_get_used_event() - Get the used event from the available ring
- * @vq		Virtqueue
+ * @vq:		Virtqueue
  *
  * Return: the used event (available only if VIRTIO_RING_F_EVENT_IDX is set)
  *         used_event is a performant alternative where the driver
@@ -244,9 +244,9 @@ static int virtqueue_read_indirect_desc(const struct vu_dev *dev,
 
 /**
  * enum virtqueue_read_desc_state - State in the descriptor chain
- * @VIRTQUEUE_READ_DESC_ERROR	Found an invalid descriptor
- * @VIRTQUEUE_READ_DESC_DONE	No more descriptors in the chain
- * @VIRTQUEUE_READ_DESC_MORE	there are more descriptors in the chain
+ * @VIRTQUEUE_READ_DESC_ERROR:	Found an invalid descriptor
+ * @VIRTQUEUE_READ_DESC_DONE:	No more descriptors in the chain
+ * @VIRTQUEUE_READ_DESC_MORE:	there are more descriptors in the chain
  */
 enum virtqueue_read_desc_state {
 	VIRTQUEUE_READ_DESC_ERROR = -1,
@@ -347,8 +347,9 @@ void vu_queue_notify(const struct vu_dev *dev, struct vu_virtq *vq)
 		die_perror("Error writing vhost-user queue eventfd");
 }
 
-/* virtq_avail_event() -  Get location of available event indices
- *			      (only with VIRTIO_F_EVENT_IDX)
+/**
+ * virtq_avail_event() -  Get location of available event indices
+ *			  (only with VIRTIO_F_EVENT_IDX)
  * @vq:		Virtqueue
  *
  * Return: return the location of the available event index
@@ -421,8 +422,8 @@ static bool virtqueue_map_desc(const struct vu_dev *dev,
 }
 
 /**
- * vu_queue_map_desc - Map the virtqueue descriptor ring into our virtual
- * 		       address space
+ * vu_queue_map_desc() - Map the virtqueue descriptor ring into our virtual
+ * 			 address space
  * @dev:	Vhost-user device
  * @vq:		Virtqueue
  * @idx:	First descriptor ring entry to map
@@ -505,7 +506,7 @@ static int vu_queue_map_desc(const struct vu_dev *dev,
  * vu_queue_pop() - Pop an entry from the virtqueue
  * @dev:	Vhost-user device
  * @vq:		Virtqueue
- * @elem:	Virtqueue element to file with the entry information
+ * @elem:	Virtqueue element to fill with the entry information
  *
  * Return: -1 if there is an error, 0 otherwise
  */
@@ -545,7 +546,7 @@ int vu_queue_pop(const struct vu_dev *dev, struct vu_virtq *vq,
 }
 
 /**
- * vu_queue_detach_element() - Detach an element from the virqueue
+ * vu_queue_detach_element() - Detach an element from the virtqueue
  * @vq:		Virtqueue
  */
 void vu_queue_detach_element(struct vu_virtq *vq)
@@ -555,7 +556,7 @@ void vu_queue_detach_element(struct vu_virtq *vq)
 }
 
 /**
- * vu_queue_unpop() - Push back the previously popped element from the virqueue
+ * vu_queue_unpop() - Push back the previously popped element from the virtqueue
  * @vq:		Virtqueue
  */
 /* cppcheck-suppress unusedFunction */
@@ -569,6 +570,8 @@ void vu_queue_unpop(struct vu_virtq *vq)
  * vu_queue_rewind() - Push back a given number of popped elements
  * @vq:		Virtqueue
  * @num:	Number of element to unpop
+ *
+ * Return: True on success, false if not
  */
 bool vu_queue_rewind(struct vu_virtq *vq, unsigned int num)
 {

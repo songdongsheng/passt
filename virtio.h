@@ -150,7 +150,7 @@ static inline bool has_feature(uint64_t features, unsigned int fbit)
 /**
  * vu_has_feature() - Check if a virtio-net feature is available
  * @vdev:	Vhost-user device
- * @bit:	Feature to check
+ * @fbit:	Feature to check
  *
  * Return:	True if the feature is available
  */
@@ -163,7 +163,7 @@ static inline bool vu_has_feature(const struct vu_dev *vdev,
 /**
  * vu_has_protocol_feature() - Check if a vhost-user feature is available
  * @vdev:	Vhost-user device
- * @bit:	Feature to check
+ * @fbit:	Feature to check
  *
  * Return:	True if the feature is available
  */
