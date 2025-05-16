@@ -26,7 +26,8 @@
 #include "iov.h"
 
 
-/* iov_skip_bytes() - Skip leading bytes of an IO vector
+/**
+ * iov_skip_bytes() - Skip leading bytes of an IO vector
  * @iov:	IO vector
  * @n:		Number of entries in @iov
  * @skip:	Number of leading bytes of @iov to skip
@@ -56,8 +57,8 @@ size_t iov_skip_bytes(const struct iovec *iov, size_t n,
 }
 
 /**
- * iov_from_buf - Copy data from a buffer to an I/O vector (struct iovec)
- *                efficiently.
+ * iov_from_buf() - Copy data from a buffer to an I/O vector (struct iovec)
+ *                  efficiently.
  *
  * @iov:       Pointer to the array of struct iovec describing the
  *             scatter/gather I/O vector.
@@ -96,8 +97,8 @@ size_t iov_from_buf(const struct iovec *iov, size_t iov_cnt,
 }
 
 /**
- * iov_to_buf - Copy data from a scatter/gather I/O vector (struct iovec) to
- *		a buffer efficiently.
+ * iov_to_buf() - Copy data from a scatter/gather I/O vector (struct iovec) to
+ *		  a buffer efficiently.
  *
  * @iov:       Pointer to the array of struct iovec describing the scatter/gather
  *             I/O vector.
@@ -136,8 +137,8 @@ size_t iov_to_buf(const struct iovec *iov, size_t iov_cnt,
 }
 
 /**
- * iov_size - Calculate the total size of a scatter/gather I/O vector
- *            (struct iovec).
+ * iov_size() - Calculate the total size of a scatter/gather I/O vector
+ *              (struct iovec).
  *
  * @iov:       Pointer to the array of struct iovec describing the
  *             scatter/gather I/O vector.
