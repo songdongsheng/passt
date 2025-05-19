@@ -456,7 +456,7 @@ int tcp_set_peek_offset(const struct tcp_tap_conn *conn, int offset)
 /**
  * tcp_conn_epoll_events() - epoll events mask for given connection state
  * @events:	Current connection events
- * @conn_flags	Connection flags
+ * @conn_flags:	Connection flags
  *
  * Return: epoll events mask corresponding to implied connection state
  */
@@ -1079,7 +1079,7 @@ out:
  * tcp_update_seqack_from_tap() - ACK number from tap and related flags/counters
  * @c:		Execution context
  * @conn:	Connection pointer
- * @seq		Current ACK sequence, host order
+ * @seq:	Current ACK sequence, host order
  */
 static void tcp_update_seqack_from_tap(const struct ctx *c,
 				       struct tcp_tap_conn *conn, uint32_t seq)
@@ -1103,7 +1103,7 @@ static void tcp_update_seqack_from_tap(const struct ctx *c,
  * @conn:	Connection pointer
  * @flags:	TCP flags: if not set, send segment only if ACK is due
  * @th:		TCP header to update
- * @data:	buffer to store TCP option
+ * @opts:	TCP option buffer (output parameter)
  * @optlen:	size of the TCP option buffer (output parameter)
  *
  * Return: < 0 error code on connection reset,
@@ -1238,7 +1238,7 @@ static void tcp_get_tap_ws(struct tcp_tap_conn *conn,
 /**
  * tcp_tap_window_update() - Process an updated window from tap side
  * @conn:	Connection pointer
- * @window:	Window value, host order, unscaled
+ * @wnd:	Window value, host order, unscaled
  */
 static void tcp_tap_window_update(struct tcp_tap_conn *conn, unsigned wnd)
 {
@@ -1261,6 +1261,8 @@ static void tcp_tap_window_update(struct tcp_tap_conn *conn, unsigned wnd)
  * tcp_init_seq() - Calculate initial sequence number according to RFC 6528
  * @hash:	Hash of connection details
  * @now:	Current timestamp
+ *
+ * Return: the calculated 32-bit initial sequence number.
  */
 static uint32_t tcp_init_seq(uint64_t hash, const struct timespec *now)
 {

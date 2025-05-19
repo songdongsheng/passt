@@ -480,7 +480,9 @@ struct flowside *flow_target(const struct ctx *c, union flow *flow,
 /**
  * flow_set_type() - Set type and move to TYPED
  * @flow:	Flow to change state
- * @pif:	pif of the initiating side
+ * @type:	New flow type to assign
+ *
+ * Return: pointer to the modified flow structure.
  */
 union flow *flow_set_type(union flow *flow, enum flow_type type)
 {

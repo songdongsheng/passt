@@ -1358,7 +1358,7 @@ static void conf_open_files(struct ctx *c)
 }
 
 /**
- * parse_mac - Parse a MAC address from a string
+ * parse_mac() - Parse a MAC address from a string
  * @mac:	Binary MAC address, initialised on success
  * @str:	String to parse
  *

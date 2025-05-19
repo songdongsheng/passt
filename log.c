@@ -54,7 +54,8 @@ bool		log_stderr = true;	/* Not daemonised, no shell spawned */
  * logtime() - Get the current time for logging purposes
  * @ts:		Buffer into which to store the timestamp
  *
- * Return: pointer to @now, or NULL if there was an error retrieving the time
+ * Return: pointer to @ts on success, or NULL if there was
+ *         an error retrieving the time
  */
 static const struct timespec *logtime(struct timespec *ts)
 {

@@ -36,7 +36,7 @@ struct udp_flow *udp_at_sidx(flow_sidx_t sidx)
 	return &flow->udp;
 }
 
-/*
+/**
  * udp_flow_close() - Close and clean up UDP flow
  * @c:		Execution context
  * @uflow:	UDP flow
@@ -126,7 +126,8 @@ static int udp_flow_sock(const struct ctx *c,
  * @flow:	Initiated flow
  * @now:	Timestamp
  *
- * Return: UDP specific flow, if successful, NULL on failure
+ * Return: sidx for the target side of the new UDP flow, or FLOW_SIDX_NONE
+ *         on failure.
  *
  * #syscalls getsockname
  */

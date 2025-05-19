@@ -104,7 +104,7 @@ void tcp_sock_iov_init(const struct ctx *c)
 
 /**
  * tcp_revert_seq() - Revert affected conn->seq_to_tap after failed transmission
- * @ctx:	Execution context
+ * @c:		Execution context
  * @conns:	Array of connection pointers corresponding to queued frames
  * @frames:	Two-dimensional array containing queued frames with sub-iovs
  * @num_frames:	Number of entries in the two arrays to be compared
@@ -148,7 +148,7 @@ void tcp_payload_flush(const struct ctx *c)
 }
 
 /**
- * tcp_buf_fill_headers() - Fill 802.3, IP, TCP headers in pre-cooked buffers
+ * tcp_l2_buf_fill_headers() - Fill 802.3, IP, TCP headers in pre-cooked buffers
  * @conn:	Connection pointer
  * @iov:	Pointer to an array of iovec of TCP pre-cooked buffers
  * @check:	Checksum, if already known

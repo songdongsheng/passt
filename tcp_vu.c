@@ -176,8 +176,10 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
  * @already_sent:	Number of bytes already sent
  * @fillsize:		Maximum bytes to fill in guest-side receiving window
  * @iov_cnt:		number of iov (output)
+ * @head_cnt:		Pointer to store the count of head iov entries (output)
  *
- * Return: Number of iov entries used to store the data or negative error code
+ * Return: number of bytes received from the socket, or a negative error code
+ * on failure.
  */
 static ssize_t tcp_vu_sock_recv(const struct ctx *c,
 				const struct tcp_tap_conn *conn, bool v6,

@@ -473,7 +473,7 @@ static void udp_send_tap_icmp6(const struct ctx *c,
 /**
  * udp_pktinfo() - Retrieve packet destination address from cmsg
  * @msg:	msghdr into which message has been received
- * @dst:	(Local) destination address of message in @mh (output)
+ * @dst:	(Local) destination address of message in @msg (output)
  *
  * Return: 0 on success, -1 if the information was missing (@dst is set to
  *         inany_any6).
@@ -736,7 +736,7 @@ static int udp_peek_addr(int s, union sockaddr_inany *src,
  * udp_sock_recv() - Receive datagrams from a socket
  * @c:		Execution context
  * @s:		Socket to receive from
- * @mmh		mmsghdr array to receive into
+ * @mmh:	mmsghdr array to receive into
  * @n:		Maximum number of datagrams to receive
  *
  * Return: Number of datagrams received

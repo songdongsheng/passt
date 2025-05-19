@@ -1024,7 +1024,6 @@ int nl_link_get_mac(int s, unsigned int ifi, void *mac)
 /**
  * nl_link_set_mac() - Set link MAC address
  * @s:		Netlink socket
- * @ns:		Use netlink socket in namespace
  * @ifi:	Interface index
  * @mac:	MAC address to set
  *

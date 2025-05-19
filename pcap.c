@@ -52,8 +52,6 @@ struct pcap_pkthdr {
  * @iovcnt:	Number of buffers (@iov entries) in frame
  * @offset:	Byte offset of the L2 headers within @iov
  * @now:	Timestamp
- *
- * Returns: 0 on success, -errno on error writing to the file
  */
 static void pcap_frame(const struct iovec *iov, size_t iovcnt,
 		       size_t offset, const struct timespec *now)
@@ -113,10 +111,9 @@ void pcap_multiple(const struct iovec *iov, size_t frame_parts, unsigned int n,
 		pcap_frame(iov + i * frame_parts, frame_parts, offset, &now);
 }
 
-/*
- * pcap_iov - Write packet data described by an I/O vector
+/**
+ * pcap_iov() - Write packet data described by an I/O vector
  *		to a pcap file descriptor.
- *
  * @iov:	Pointer to the array of struct iovec describing the I/O vector
  *		containing packet data to write, including L2 header
  * @iovcnt:	Number of buffers (@iov entries)

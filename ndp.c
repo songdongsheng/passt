@@ -335,7 +335,6 @@ static void ndp_ra(const struct ctx *c, const struct in6_addr *dst)
 /**
  * ndp() - Check for NDP solicitations, reply as needed
  * @c:		Execution context
- * @ih:		ICMPv6 header
  * @saddr:	Source IPv6 address
  * @p:		Packet pool
  *

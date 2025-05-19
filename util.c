@@ -364,7 +364,7 @@ void bitmap_or(uint8_t *dst, size_t size, const uint8_t *a, const uint8_t *b)
 		dst[i] = a[i] | b[i];
 }
 
-/*
+/**
  * ns_enter() - Enter configured user (unless already joined) and network ns
  * @c:		Execution context
  *
@@ -499,7 +499,8 @@ int output_file_open(const char *path, int flags)
  * @pidfile_fd:	Open PID file descriptor
  * @devnull_fd:	Open file descriptor for /dev/null
  *
- * Return: child PID on success, won't return on failure
+ * Return: 0 in the child process on success. The parent process exits.
+ * 	   Does not return in either process on failure (calls _exit).
  */
 int __daemon(int pidfile_fd, int devnull_fd)
 {
@@ -607,7 +608,8 @@ int do_clone(int (*fn)(void *), char *stack_area, size_t stack_size, int flags,
 #endif
 }
 
-/* write_all_buf() - write all of a buffer to an fd
+/**
+ * write_all_buf() - write all of a buffer to an fd
  * @fd:		File descriptor
  * @buf:	Pointer to base of buffer
  * @len:	Length of buffer
@@ -637,7 +639,8 @@ int write_all_buf(int fd, const void *buf, size_t len)
 	return 0;
 }
 
-/* write_remainder() - write the tail of an IO vector to an fd
+/**
+ * write_remainder() - write the tail of an IO vector to an fd
  * @fd:		File descriptor
  * @iov:	IO vector
  * @iovcnt:	Number of entries in @iov

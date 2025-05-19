@@ -57,14 +57,12 @@ int pasta_child_pid;
 
 /**
  * pasta_child_handler() - Exit once shell exits (if we started it), reap clones
- * @signal:	Unused, handler deals with SIGCHLD only
+ * @signal:	 Signal number; this handler deals with SIGCHLD only
  */
 void pasta_child_handler(int signal)
 {
 	int errno_save = errno;
 	siginfo_t infop;
-
-	(void)signal;
 
 	if (signal != SIGCHLD)
 		return;
