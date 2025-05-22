@@ -102,6 +102,12 @@ fi
 
 %posttrans selinux
 %selinux_relabel_post -s %{selinuxtype}
+# %selinux_relabel_post calls fixfiles(8) with the previous file_contexts file
+# (see selabel_file(5)) in order to restore only the file contexts which
+# actually changed. However, as file_contexts doesn't support %{USERID}
+# substitutions, this will not work for specific file contexts that pasta needs
+# to have under /run/user. Restore those explicitly.
+restorecon -R /run/user
 
 %files
 %license LICENSES/{GPL-2.0-or-later.txt,BSD-3-Clause.txt}
