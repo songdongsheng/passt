@@ -83,7 +83,7 @@ int main(int argc, char **argv)
 	prog.filter = filter_repair;
 	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) ||
 	    prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
-		fprintf(stderr, "Failed to apply seccomp filter");
+		fprintf(stderr, "Failed to apply seccomp filter\n");
 		_exit(1);
 	}
 
@@ -134,13 +134,13 @@ int main(int argc, char **argv)
 
 			n = read(fd, buf, sizeof(buf));
 			if (n < 0) {
-				fprintf(stderr, "inotify read: %i", errno);
+				fprintf(stderr, "inotify read: %i\n", errno);
 				_exit(1);
 			}
 			buf[n - 1] = '\0';
 
 			if (n < (ssize_t)sizeof(*ev)) {
-				fprintf(stderr, "Short inotify read: %zi", n);
+				fprintf(stderr, "Short inotify read: %zi\n", n);
 				continue;
 			}
 
@@ -176,7 +176,7 @@ int main(int argc, char **argv)
 	}
 
 	if (ret <= 0 || ret >= (int)sizeof(a.sun_path)) {
-		fprintf(stderr, "Invalid socket path");
+		fprintf(stderr, "Invalid socket path\n");
 		_exit(2);
 	}
 
@@ -245,8 +245,8 @@ loop:
 	for (i = 0; i < n; i++) {
 		if (setsockopt(fds[i], SOL_TCP, TCP_REPAIR, &op, sizeof(op))) {
 			fprintf(stderr,
-				"Setting TCP_REPAIR to %i on socket %i: %s", op,
-				fds[i], strerror(errno));
+				"Setting TCP_REPAIR to %i on socket %i: %s\n",
+				op, fds[i], strerror(errno));
 			_exit(1);
 		}
 
