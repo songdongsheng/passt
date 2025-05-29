@@ -975,6 +975,7 @@ static void usage(const char *name, FILE *f, int status)
 		"    SPEC is as described for TCP above\n"
 		"    default: none\n");
 
+	(void)fflush(f);
 	_exit(status);
 
 pasta_opts:
@@ -1029,6 +1030,7 @@ pasta_opts:
 		"  --ns-mac-addr ADDR	Set MAC address on tap interface\n"
 		"  --no-splice		Disable inbound socket splicing\n");
 
+	(void)fflush(f);
 	_exit(status);
 }
 
@@ -1594,6 +1596,7 @@ void conf(struct ctx *c, int argc, char **argv)
 			FPRINTF(stdout,
 				c->mode == MODE_PASTA ? "pasta " : "passt ");
 			FPRINTF(stdout, VERSION_BLOB);
+			(void)fflush(stdout);
 			_exit(EXIT_SUCCESS);
 		case 15:
 			ret = snprintf(c->ip4.ifname_out,
