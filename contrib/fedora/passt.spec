@@ -9,6 +9,7 @@
 
 %global git_hash {{{ git_head }}}
 %global selinuxtype targeted
+%global selinux_policy_version 41.41
 
 Name:		passt
 Version:	{{{ git_version }}}
@@ -33,15 +34,17 @@ for network namespaces: traffic is forwarded using a tap interface inside the
 namespace, without the need to create further interfaces on the host, hence not
 requiring any capabilities or privileges.
 
-%package    selinux
-BuildArch:  noarch
-Summary:    SELinux support for passt and pasta
-Requires:   %{name} = %{version}-%{release}
-Requires:   selinux-policy
-Requires(post): %{name}
-Requires(post): policycoreutils
-Requires(preun): %{name}
-Requires(preun): policycoreutils
+%package		selinux
+BuildArch:		noarch
+Summary:		SELinux support for passt and pasta
+Requires:		selinux-policy-%{selinuxtype}
+Requires(post):		selinux-policy-%{selinuxtype}
+Requires(post):		policycoreutils
+Requires(post):		libselinux-utils
+Requires(preun):	policycoreutils
+BuildRequires:		selinux-policy-devel
+BuildRequires:		pkgconfig(systemd)
+Recommends:		selinux-policy-%{selinuxtype} >= %{selinux_policy_version}
 
 %description selinux
 This package adds SELinux enforcement to passt(1), pasta(1), passt-repair(1).
