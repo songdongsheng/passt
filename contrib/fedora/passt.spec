@@ -89,15 +89,11 @@ popd
 %selinux_relabel_pre -s %{selinuxtype}
 
 %post selinux
-%selinux_modules_install -s %{selinuxtype} %{_datadir}/selinux/packages/%{selinuxtype}/passt.pp
-%selinux_modules_install -s %{selinuxtype} %{_datadir}/selinux/packages/%{selinuxtype}/pasta.pp
-%selinux_modules_install -s %{selinuxtype} %{_datadir}/selinux/packages/%{selinuxtype}/passt-repair.pp
+%selinux_modules_install -s %{selinuxtype} %{_datadir}/selinux/packages/%{selinuxtype}/passt.pp %{_datadir}/selinux/packages/%{selinuxtype}/pasta.pp %{_datadir}/selinux/packages/%{selinuxtype}/passt-repair.pp
 
 %postun selinux
 if [ $1 -eq 0 ]; then
-	%selinux_modules_uninstall -s %{selinuxtype} passt
-	%selinux_modules_uninstall -s %{selinuxtype} pasta
-	%selinux_modules_uninstall -s %{selinuxtype} passt-repair
+	%selinux_modules_uninstall -s %{selinuxtype} passt pasta passt-repair
 fi
 
 %posttrans selinux
