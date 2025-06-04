@@ -1130,7 +1130,8 @@ int flow_migrate_target(struct ctx *c, const struct migrate_stage *stage,
 	if (!count)
 		return 0;
 
-	repair_wait(c);
+	if ((rc = repair_wait(c)))
+		return -rc;
 
 	if ((rc = flow_migrate_repair_all(c, true)))
 		return -rc;

@@ -7,10 +7,10 @@
 #define REPAIR_H
 
 void repair_sock_init(const struct ctx *c);
-void repair_listen_handler(struct ctx *c, uint32_t events);
+int repair_listen_handler(struct ctx *c, uint32_t events);
 void repair_handler(struct ctx *c, uint32_t events);
 void repair_close(struct ctx *c);
-void repair_wait(struct ctx *c);
+int repair_wait(struct ctx *c);
 int repair_flush(struct ctx *c);
 int repair_set(struct ctx *c, int s, int cmd);
 

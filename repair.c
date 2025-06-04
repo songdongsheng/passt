@@ -68,18 +68,21 @@ void repair_sock_init(const struct ctx *c)
  * repair_listen_handler() - Handle events on TCP_REPAIR helper listening socket
  * @c:		Execution context
  * @events:	epoll events
+ *
+ * Return: 0 on valid event with new connected socket, error code on failure
  */
-void repair_listen_handler(struct ctx *c, uint32_t events)
+int repair_listen_handler(struct ctx *c, uint32_t events)
 {
 	union epoll_ref ref = { .type = EPOLL_TYPE_REPAIR };
 	struct epoll_event ev = { 0 };
 	struct ucred ucred;
 	socklen_t len;
+	int rc;
 
 	if (events != EPOLLIN) {
 		debug("Spurious event 0x%04x on TCP_REPAIR helper socket",
 		      events);
-		return;
+		return EINVAL;
 	}
 
 	len = sizeof(ucred);
@@ -90,18 +93,19 @@ void repair_listen_handler(struct ctx *c, uint32_t events)
 				      SOCK_NONBLOCK);
 
 		if (discard == -1)
-			return;
+			return errno;
 
 		if (!getsockopt(discard, SOL_SOCKET, SO_PEERCRED, &ucred, &len))
 			info("Discarding TCP_REPAIR helper, PID %i", ucred.pid);
 
 		close(discard);
-		return;
+		return EEXIST;
 	}
 
 	if ((c->fd_repair = accept4(c->fd_repair_listen, NULL, NULL, 0)) < 0) {
+		rc = errno;
 		debug_perror("accept4() on TCP_REPAIR helper listening socket");
-		return;
+		return rc;
 	}
 
 	if (!getsockopt(c->fd_repair, SOL_SOCKET, SO_PEERCRED, &ucred, &len))
@@ -111,10 +115,14 @@ void repair_listen_handler(struct ctx *c, uint32_t events)
 	ev.events = EPOLLHUP | EPOLLET;
 	ev.data.u64 = ref.u64;
 	if (epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_repair, &ev)) {
+		rc = errno;
 		debug_perror("epoll_ctl() on TCP_REPAIR helper socket");
 		close(c->fd_repair);
 		c->fd_repair = -1;
+		return rc;
 	}
+
+	return 0;
 }
 
 /**
@@ -145,29 +153,39 @@ void repair_handler(struct ctx *c, uint32_t events)
 /**
  * repair_wait() - Wait (with timeout) for TCP_REPAIR helper to connect
  * @c:		Execution context
+ *
+ * Return: 0 on success or if already connected, error code on failure
  */
-void repair_wait(struct ctx *c)
+int repair_wait(struct ctx *c)
 {
 	struct timeval tv = { .tv_sec = 0,
 			      .tv_usec = (long)(REPAIR_ACCEPT_TIMEOUT_US) };
+	int rc;
+
 	static_assert(REPAIR_ACCEPT_TIMEOUT_US < 1000 * 1000,
 		      ".tv_usec is greater than 1000 * 1000");
 
-	if (c->fd_repair >= 0 || c->fd_repair_listen == -1)
-		return;
+	if (c->fd_repair >= 0)
+		return 0;
+
+	if (c->fd_repair_listen == -1)
+		return ENOENT;
 
 	if (setsockopt(c->fd_repair_listen, SOL_SOCKET, SO_RCVTIMEO,
 		       &tv, sizeof(tv))) {
+		rc = errno;
 		err_perror("Set timeout on TCP_REPAIR listening socket");
-		return;
+		return rc;
 	}
 
-	repair_listen_handler(c, EPOLLIN);
+	rc = repair_listen_handler(c, EPOLLIN);
 
 	tv.tv_usec = 0;
 	if (setsockopt(c->fd_repair_listen, SOL_SOCKET, SO_RCVTIMEO,
 		       &tv, sizeof(tv)))
 		err_perror("Clear timeout on TCP_REPAIR listening socket");
+
+	return rc;
 }
 
 /**
