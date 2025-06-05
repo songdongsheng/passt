@@ -1,0 +1,27 @@
+name: Sync Upstream Repository
+
+on:
+  schedule:
+    # minute (0 ~ 59), hour (0 ~ 23), day of the month (1 ~ 31), month (1 ~ 12), day of the week (0 ~ 6)
+    - cron: '45 1,9,17 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add & Fetch upstream
+        run: |
+          git remote add upstream https://passt.top/passt
+          git fetch -v upstream master:upstream/master
+
+      - name: Push changes to GitHub
+        run: |
+          git push -f -u origin refs/remotes/upstream/master:refs/heads/master
+          git push -f -u origin upstream/master:master
