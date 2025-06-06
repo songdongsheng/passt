@@ -1,1 +1,1 @@
-A mirror of the [Plug A Simple Socket Transport repository](https://passt.top/passt/)'s master branch to the master branch.
+An unofficial mirror of the `master` branch of the [Plug A Simple Socket Transport](https://passt.top/passt/) repository to the `master` branch.

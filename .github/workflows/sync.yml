@@ -24,4 +24,4 @@ jobs:
       - name: Push changes to GitHub
         run: |
           git push -f -u origin refs/remotes/upstream/master:refs/heads/master
-          git push -f -u origin upstream/master:master
+          git push -f --tags -u origin upstream/master:master
