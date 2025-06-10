@@ -38,7 +38,9 @@ requiring any capabilities or privileges.
 BuildArch:		noarch
 Summary:		SELinux support for passt and pasta
 Requires:		selinux-policy-%{selinuxtype}
+Requires:		container-selinux
 Requires(post):		selinux-policy-%{selinuxtype}
+Requires(post):		container-selinux
 Requires(post):		policycoreutils
 Requires(post):		libselinux-utils
 Requires(preun):	policycoreutils
