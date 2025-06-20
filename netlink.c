@@ -199,7 +199,7 @@ static struct nlmsghdr *nl_next(int s, char *buf, struct nlmsghdr *nh, ssize_t *
 }
 
 /**
- * nl_foreach - 'for' type macro to step through netlink response messages
+ * nl_foreach() - 'for' type macro to step through netlink response messages
  * nl_foreach_oftype - as above, but only messages of expected type
  * @nh:		Steps through each response header (struct nlmsghdr *)
  * @status:	When loop exits indicates if there was an error (ssize_t)

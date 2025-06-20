@@ -65,7 +65,7 @@
 const char *pasta_default_ifn = "tap0";
 
 /**
- * next_chunk - Return the next piece of a string delimited by a character
+ * next_chunk() - Return the next piece of a string delimited by a character
  * @s:		String to search
  * @c:		Delimiter character
  *
@@ -80,7 +80,7 @@ static char *next_chunk(const char *s, char c)
 }
 
 /**
- * port_range - Represents a non-empty range of ports
+ * port_range() - Represents a non-empty range of ports
  * @first:	First port number in the range
  * @last:	Last port number in the range (inclusive)
  *

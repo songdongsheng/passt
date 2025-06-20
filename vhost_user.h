@@ -217,7 +217,7 @@ struct vhost_user_msg {
 })
 
 /**
- * vu_queue_enabled - Return state of a virtqueue
+ * vu_queue_enabled() - Return state of a virtqueue
  * @vq:		virtqueue to check
  *
  * Return: true if the virqueue is enabled, false otherwise
@@ -228,7 +228,7 @@ static inline bool vu_queue_enabled(const struct vu_virtq *vq)
 }
 
 /**
- * vu_queue_started - Return state of a virtqueue
+ * vu_queue_started() - Return state of a virtqueue
  * @vq:		virtqueue to check
  *
  * Return: true if the virqueue is started, false otherwise

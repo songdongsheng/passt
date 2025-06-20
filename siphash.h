@@ -99,7 +99,7 @@ static inline void siphash_feed(struct siphash_state *state, uint64_t in)
 }
 
 /**
- * siphash_final - Finalize SipHash calculations
+ * siphash_final() - Finalize SipHash calculations
  * @v:		siphash state (4 x 64-bit integers)
  * @len:	Total length of input data
  * @tail:	Final data for the hash (<= 7 bytes)

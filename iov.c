@@ -181,7 +181,7 @@ bool iov_tail_prune(struct iov_tail *tail)
 }
 
 /**
- * iov_tail_size - Calculate the total size of an IO vector tail
+ * iov_tail_size() - Calculate the total size of an IO vector tail
  * @tail:	IO vector tail
  *
  * Return: the total size in bytes.

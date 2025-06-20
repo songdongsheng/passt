@@ -27,7 +27,7 @@ enum fwd_ports_mode {
 #define PORT_BITMAP_SIZE	DIV_ROUND_UP(NUM_PORTS, 8)
 
 /**
- * fwd_ports - Describes port forwarding for one protocol and direction
+ * fwd_ports() - Describes port forwarding for one protocol and direction
  * @mode:	Overall forwarding mode (all, none, auto, specific ports)
  * @scan4:	/proc/net fd to scan for IPv4 ports when in AUTO mode
  * @scan6:	/proc/net fd to scan for IPv6 ports when in AUTO mode

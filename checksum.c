@@ -452,7 +452,7 @@ less_than_128_bytes:
 }
 
 /**
- * csum_unfolded - Calculate the unfolded checksum of a data buffer.
+ * csum_unfolded() - Calculate the unfolded checksum of a data buffer.
  *
  * @buf:   Input buffer
  * @len:   Input length
@@ -481,7 +481,7 @@ uint32_t csum_unfolded(const void *buf, size_t len, uint32_t init)
 }
 #else /* __AVX2__ */
 /**
- * csum_unfolded - Calculate the unfolded checksum of a data buffer.
+ * csum_unfolded() - Calculate the unfolded checksum of a data buffer.
  *
  * @buf:   Input buffer
  * @len:   Input length
