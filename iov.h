@@ -82,8 +82,8 @@ void *iov_remove_header_(struct iov_tail *tail, size_t len, size_t align);
  *
  * @tail_ may be pruned, but will represent the same bytes as before.
  *
- * Returns: Pointer of type (@type_ *) located at the start of @tail_, NULL if
- *          we can't get a contiguous and aligned pointer.
+ * Return: pointer of type (@type_ *) located at the start of @tail_, NULL if
+ *         we can't get a contiguous and aligned pointer.
  */
 #define IOV_PEEK_HEADER(tail_, type_)					\
 	((type_ *)(iov_peek_header_((tail_),				\
@@ -97,8 +97,8 @@ void *iov_remove_header_(struct iov_tail *tail, size_t len, size_t align);
  * On success, @tail_ is updated so that it longer includes the bytes of the
  * returned header.
  *
- * Returns: Pointer of type (@type_ *) located at the old start of @tail_, NULL
- *          if we can't get a contiguous and aligned pointer.
+ * Return: pointer of type (@type_ *) located at the old start of @tail_, NULL
+ *         if we can't get a contiguous and aligned pointer.
  */
 #define IOV_REMOVE_HEADER(tail_, type_)					\
 	((type_ *)(iov_remove_header_((tail_),				\

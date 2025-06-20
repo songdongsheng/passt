@@ -43,7 +43,7 @@ static int head[VIRTQUEUE_MAX_SIZE + 1];
  * tcp_vu_hdrlen() - return the size of the header in level 2 frame (TCP)
  * @v6:		Set for IPv6 packet
  *
- * Return: Return the size of the header
+ * Return: return the size of the header
  */
 static size_t tcp_vu_hdrlen(bool v6)
 {
@@ -351,7 +351,7 @@ static void tcp_vu_prepare(const struct ctx *c, struct tcp_tap_conn *conn,
  * @c:		Execution context
  * @conn:	Connection pointer
  *
- * Return: Negative on connection reset, 0 otherwise
+ * Return: negative on connection reset, 0 otherwise
  */
 int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 {

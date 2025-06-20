@@ -627,7 +627,7 @@ static uint64_t flow_sidx_hash(const struct ctx *c, flow_sidx_t sidx)
  * @hash:	Raw hash value for flow & side
  * @sidx:	Flow and side to find bucket for
  *
- * Return: If @sidx is in the hash table, its current bucket, otherwise a
+ * Return: if @sidx is in the hash table, its current bucket, otherwise a
  *         suitable free bucket for it.
  */
 static inline unsigned flow_hash_probe_(uint64_t hash, flow_sidx_t sidx)
@@ -647,7 +647,7 @@ static inline unsigned flow_hash_probe_(uint64_t hash, flow_sidx_t sidx)
  * @c:		Execution context
  * @sidx:	Flow and side to find bucket for
  *
- * Return: If @sidx is in the hash table, its current bucket, otherwise a
+ * Return: if @sidx is in the hash table, its current bucket, otherwise a
  *         suitable free bucket for it.
  */
 static inline unsigned flow_hash_probe(const struct ctx *c, flow_sidx_t sidx)

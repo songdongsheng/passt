@@ -183,7 +183,7 @@ static void vmsg_set_reply_u64(struct vhost_user_msg *vmsg, uint64_t val)
  * @conn_fd:	vhost-user command socket
  * @vmsg:	vhost-user message
  *
- * Return:  0 if recvmsg() has been interrupted or if there's no data to read,
+ * Return: 0 if recvmsg() has been interrupted or if there's no data to read,
  *          1 if a message has been received
  */
 static int vu_message_read_default(int conn_fd, struct vhost_user_msg *vmsg)
@@ -316,7 +316,7 @@ static void vu_send_reply(int conn_fd, struct vhost_user_msg *vmsg)
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: True as a reply is requested
+ * Return: true as a reply is requested
  */
 static bool vu_get_features_exec(struct vu_dev *vdev,
 				 struct vhost_user_msg *vmsg)
@@ -354,7 +354,7 @@ static void vu_set_enable_all_rings(struct vu_dev *vdev, bool enable)
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: False as no reply is requested
+ * Return: false as no reply is requested
  */
 static bool vu_set_features_exec(struct vu_dev *vdev,
 				 struct vhost_user_msg *vmsg)
@@ -379,7 +379,7 @@ static bool vu_set_features_exec(struct vu_dev *vdev,
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: False as no reply is requested
+ * Return: false as no reply is requested
  */
 static bool vu_set_owner_exec(struct vu_dev *vdev,
 			      struct vhost_user_msg *vmsg)
@@ -396,7 +396,7 @@ static bool vu_set_owner_exec(struct vu_dev *vdev,
  * @vdev:	vhost-user device
  * @vq:		Virtqueue
  *
- * Return: True if ring cannot be mapped to our address space
+ * Return: true if ring cannot be mapped to our address space
  */
 static bool map_ring(struct vu_dev *vdev, struct vu_virtq *vq)
 {
@@ -418,7 +418,7 @@ static bool map_ring(struct vu_dev *vdev, struct vu_virtq *vq)
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: False as no reply is requested
+ * Return: false as no reply is requested
  *
  * #syscalls:vu mmap|mmap2 munmap
  */
@@ -566,7 +566,7 @@ void vu_log_write(const struct vu_dev *vdev, uint64_t address, uint64_t length)
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: True as a reply is requested
+ * Return: true as a reply is requested
  *
  * #syscalls:vu mmap|mmap2 munmap
  */
@@ -610,7 +610,7 @@ static bool vu_set_log_base_exec(struct vu_dev *vdev,
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: False as no reply is requested
+ * Return: false as no reply is requested
  */
 static bool vu_set_log_fd_exec(struct vu_dev *vdev,
 			       struct vhost_user_msg *vmsg)
@@ -633,7 +633,7 @@ static bool vu_set_log_fd_exec(struct vu_dev *vdev,
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: False as no reply is requested
+ * Return: false as no reply is requested
  */
 static bool vu_set_vring_num_exec(struct vu_dev *vdev,
 				  struct vhost_user_msg *vmsg)
@@ -653,7 +653,7 @@ static bool vu_set_vring_num_exec(struct vu_dev *vdev,
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: False as no reply is requested
+ * Return: false as no reply is requested
  */
 static bool vu_set_vring_addr_exec(struct vu_dev *vdev,
 				   struct vhost_user_msg *vmsg)
@@ -699,7 +699,7 @@ static bool vu_set_vring_addr_exec(struct vu_dev *vdev,
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: False as no reply is requested
+ * Return: false as no reply is requested
  */
 static bool vu_set_vring_base_exec(struct vu_dev *vdev,
 				   struct vhost_user_msg *vmsg)
@@ -720,7 +720,7 @@ static bool vu_set_vring_base_exec(struct vu_dev *vdev,
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: True as a reply is requested
+ * Return: true as a reply is requested
  */
 static bool vu_get_vring_base_exec(struct vu_dev *vdev,
 				   struct vhost_user_msg *vmsg)
@@ -794,7 +794,7 @@ static void vu_check_queue_msg_file(struct vhost_user_msg *vmsg)
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: False as no reply is requested
+ * Return: false as no reply is requested
  */
 static bool vu_set_vring_kick_exec(struct vu_dev *vdev,
 				   struct vhost_user_msg *vmsg)
@@ -834,7 +834,7 @@ static bool vu_set_vring_kick_exec(struct vu_dev *vdev,
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: False as no reply is requested
+ * Return: false as no reply is requested
  */
 static bool vu_set_vring_call_exec(struct vu_dev *vdev,
 				   struct vhost_user_msg *vmsg)
@@ -869,7 +869,7 @@ static bool vu_set_vring_call_exec(struct vu_dev *vdev,
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: False as no reply is requested
+ * Return: false as no reply is requested
  */
 static bool vu_set_vring_err_exec(struct vu_dev *vdev,
 				  struct vhost_user_msg *vmsg)
@@ -898,7 +898,7 @@ static bool vu_set_vring_err_exec(struct vu_dev *vdev,
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: True as a reply is requested
+ * Return: true as a reply is requested
  */
 static bool vu_get_protocol_features_exec(struct vu_dev *vdev,
 					  struct vhost_user_msg *vmsg)
@@ -919,7 +919,7 @@ static bool vu_get_protocol_features_exec(struct vu_dev *vdev,
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: False as no reply is requested
+ * Return: false as no reply is requested
  */
 static bool vu_set_protocol_features_exec(struct vu_dev *vdev,
 					  struct vhost_user_msg *vmsg)
@@ -938,7 +938,7 @@ static bool vu_set_protocol_features_exec(struct vu_dev *vdev,
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: True as a reply is requested
+ * Return: true as a reply is requested
  */
 static bool vu_get_queue_num_exec(struct vu_dev *vdev,
 				  struct vhost_user_msg *vmsg)
@@ -955,7 +955,7 @@ static bool vu_get_queue_num_exec(struct vu_dev *vdev,
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: False as no reply is requested
+ * Return: false as no reply is requested
  */
 static bool vu_set_vring_enable_exec(struct vu_dev *vdev,
 				     struct vhost_user_msg *vmsg)
@@ -981,7 +981,7 @@ static bool vu_set_vring_enable_exec(struct vu_dev *vdev,
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: False as no reply is requested
+ * Return: false as no reply is requested
  */
 static bool vu_send_rarp_exec(struct vu_dev *vdev,
 			      struct vhost_user_msg *vmsg)
@@ -1004,7 +1004,7 @@ static bool vu_send_rarp_exec(struct vu_dev *vdev,
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: True as the reply contains 0 to indicate success
+ * Return: true as the reply contains 0 to indicate success
  *         and set bit 8 as we don't provide our own fd.
  */
 static bool vu_set_device_state_fd_exec(struct vu_dev *vdev,
@@ -1037,7 +1037,7 @@ static bool vu_set_device_state_fd_exec(struct vu_dev *vdev,
  * @vdev:	vhost-user device
  * @vmsg:	vhost-user message
  *
- * Return: True as the reply contains the migration result
+ * Return: true as the reply contains the migration result
  */
 /* cppcheck-suppress constParameterCallback */
 static bool vu_check_device_state_exec(struct vu_dev *vdev,

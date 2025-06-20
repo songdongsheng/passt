@@ -95,7 +95,7 @@ static int tcp_conn_sock_ns(const struct ctx *c, sa_family_t af);
  * conn_at_sidx() - Get spliced TCP connection specific flow at given sidx
  * @sidx:	Flow and side to retrieve
  *
- * Return: Spliced TCP connection at @sidx, or NULL of @sidx is invalid.
+ * Return: spliced TCP connection at @sidx, or NULL of @sidx is invalid.
  *         Asserts if the flow at @sidx is not FLOW_TCP_SPLICE.
  */
 static struct tcp_splice_conn *conn_at_sidx(flow_sidx_t sidx)
@@ -402,7 +402,7 @@ static int tcp_splice_connect(const struct ctx *c, struct tcp_splice_conn *conn)
  * @c:		Execution context
  * @af:		Address family (AF_INET or AF_INET6)
  *
- * Return: Socket fd in the namespace on success, -errno on failure
+ * Return: socket fd in the namespace on success, -errno on failure
  */
 static int tcp_conn_sock_ns(const struct ctx *c, sa_family_t af)
 {

@@ -571,7 +571,7 @@ void vu_queue_unpop(struct vu_virtq *vq)
  * @vq:		Virtqueue
  * @num:	Number of element to unpop
  *
- * Return: True on success, false if not
+ * Return: true on success, false if not
  */
 bool vu_queue_rewind(struct vu_virtq *vq, unsigned int num)
 {

@@ -764,7 +764,7 @@ int read_remainder(int fd, const struct iovec *iov, size_t cnt, size_t skip)
  * @dst:	output buffer, minimum SOCKADDR_STRLEN bytes
  * @size:	size of buffer at @dst
  *
- * Return: On success, a non-null pointer to @dst, NULL on failure
+ * Return: on success, a non-null pointer to @dst, NULL on failure
  */
 const char *sockaddr_ntop(const void *sa, char *dst, socklen_t size)
 {
@@ -824,7 +824,7 @@ const char *sockaddr_ntop(const void *sa, char *dst, socklen_t size)
  * @dst:	Output buffer, minimum ETH_ADDRSTRLEN bytes
  * @size:	Size of buffer at @dst
  *
- * Return: On success, a non-null pointer to @dst, NULL on failure
+ * Return: on success, a non-null pointer to @dst, NULL on failure
  */
 const char *eth_ntop(const unsigned char *mac, char *dst, size_t size)
 {
@@ -841,7 +841,7 @@ const char *eth_ntop(const unsigned char *mac, char *dst, size_t size)
 /** str_ee_origin() - Convert socket extended error origin to a string
  * @ee:		Socket extended error structure
  *
- * Return: Static string describing error origin
+ * Return: static string describing error origin
  */
 const char *str_ee_origin(const struct sock_extended_err *ee)
 {

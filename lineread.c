@@ -70,7 +70,7 @@ static ssize_t peek_line(struct lineread *lr, bool eof)
  * @lr:		Line reader state structure
  * @line:	Place a pointer to the next line in this variable
  *
- * Return:	Length of line read on success, 0 on EOF, negative on error
+ * Return: length of line read on success, 0 on EOF, negative on error
  */
 ssize_t lineread_get(struct lineread *lr, char **line)
 {

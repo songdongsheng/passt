@@ -656,7 +656,7 @@ fail:
  *              (only used if @sidx == FLOW_SIDX_NONE)
  * @port:	Local port number of @s (only used if @sidx == FLOW_SIDX_NONE)
  *
- * Return: Number of errors handled, or < 0 if we have an unrecoverable error
+ * Return: number of errors handled, or < 0 if we have an unrecoverable error
  */
 static int udp_sock_errs(const struct ctx *c, int s, flow_sidx_t sidx,
 			 uint8_t pif, in_port_t port)
@@ -739,7 +739,7 @@ static int udp_peek_addr(int s, union sockaddr_inany *src,
  * @mmh:	mmsghdr array to receive into
  * @n:		Maximum number of datagrams to receive
  *
- * Return: Number of datagrams received
+ * Return: number of datagrams received
  *
  * #syscalls recvmmsg arm:recvmmsg_time64 i686:recvmmsg_time64
  */

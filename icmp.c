@@ -163,7 +163,7 @@ static void icmp_ping_close(const struct ctx *c,
  * @saddr:	Source address
  * @daddr:	Destination address
  *
- * Return: Newly opened ping flow, or NULL on failure
+ * Return: newly opened ping flow, or NULL on failure
  */
 static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 					    sa_family_t af, uint16_t id,

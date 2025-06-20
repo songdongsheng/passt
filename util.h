@@ -152,7 +152,7 @@ void abort_with_msg(const char *fmt, ...)
  * ntohl_unaligned() - Read 32-bit BE value from a possibly unaligned address
  * @p:		Pointer to the BE value in memory
  *
- * Returns: Host-order value of 32-bit BE quantity at @p
+ * Return: host-order value of 32-bit BE quantity at @p
  */
 static inline uint32_t ntohl_unaligned(const void *p)
 {
@@ -231,7 +231,7 @@ bool snprintf_check(char *str, size_t size, const char *format, ...);
  * af_name() - Return name of an address family
  * @af:		Address/protocol family (AF_INET or AF_INET6)
  *
- * Returns: Name of the protocol family as a string
+ * Return: name of the protocol family as a string
  */
 static inline const char *af_name(sa_family_t af)
 {

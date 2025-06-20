@@ -25,7 +25,7 @@ const union inany_addr inany_any4 = INANY_INIT4(IN4ADDR_ANY_INIT);
  * @dst:	output buffer, minimum INANY_ADDRSTRLEN bytes
  * @size:	size of buffer at @dst
  *
- * Return: On success, a non-null pointer to @dst, NULL on failure
+ * Return: on success, a non-null pointer to @dst, NULL on failure
  */
 const char *inany_ntop(const union inany_addr *src, char *dst, socklen_t size)
 {
@@ -41,7 +41,7 @@ const char *inany_ntop(const union inany_addr *src, char *dst, socklen_t size)
  * @src:	IPv[46] address
  * @dst:	output buffer, filled with parsed address
  *
- * Return: On success, 1, if no parseable address is found, 0
+ * Return: on success, 1, if no parseable address is found, 0
  */
 int inany_pton(const char *src, union inany_addr *dst)
 {

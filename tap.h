@@ -46,8 +46,8 @@ struct tap_hdr {
  * @c:		Execution context
  * @taph:	Pointer to tap specific header buffer
  *
- * Returns: A struct iovec covering the correct portion of @taph to use as the
- *          tap specific header in the current configuration.
+ * Return: a struct iovec covering the correct portion of @taph to use as the
+ *         tap specific header in the current configuration.
  */
 static inline struct iovec tap_hdr_iov(const struct ctx *c,
 				       struct tap_hdr *thdr)

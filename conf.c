@@ -69,7 +69,7 @@ const char *pasta_default_ifn = "tap0";
  * @s:		String to search
  * @c:		Delimiter character
  *
- * Return: If another @c is found in @s, returns a pointer to the
+ * Return: if another @c is found in @s, returns a pointer to the
  *	   character *after* the delimiter, if no further @c is in @s,
  *	   return NULL
  */
@@ -384,7 +384,7 @@ mode_conflict:
  * @addr:	Guest nameserver IPv4 address
  * @idx:	Index of free entry in array of IPv4 resolvers
  *
- * Return: Number of entries added (0 or 1)
+ * Return: number of entries added (0 or 1)
  */
 static unsigned add_dns4(struct ctx *c, const struct in_addr *addr,
 			 unsigned idx)
@@ -402,7 +402,7 @@ static unsigned add_dns4(struct ctx *c, const struct in_addr *addr,
  * @addr:	Guest nameserver IPv6 address
  * @idx:	Index of free entry in array of IPv6 resolvers
  *
- * Return: Number of entries added (0 or 1)
+ * Return: number of entries added (0 or 1)
  */
 static unsigned add_dns6(struct ctx *c, const struct in6_addr *addr,
 			 unsigned idx)
@@ -656,7 +656,7 @@ static void conf_pasta_ns(int *netns_only, char *userns, char *netns,
 /** conf_ip4_prefix() - Parse an IPv4 prefix length or netmask
  * @arg:	Netmask in dotted decimal or prefix length
  *
- * Return: Validated prefix length on success, -1 on failure
+ * Return: validated prefix length on success, -1 on failure
  */
 static int conf_ip4_prefix(const char *arg)
 {
@@ -683,7 +683,7 @@ static int conf_ip4_prefix(const char *arg)
  * @ifi:	Host interface to attempt (0 to determine one)
  * @ip4:	IPv4 context (will be written)
  *
- * Return:	Interface index for IPv4, or 0 on failure.
+ * Return: interface index for IPv4, or 0 on failure.
  */
 static unsigned int conf_ip4(unsigned int ifi, struct ip4_ctx *ip4)
 {
@@ -755,7 +755,7 @@ static void conf_ip4_local(struct ip4_ctx *ip4)
  * @ifi:	Host interface to attempt (0 to determine one)
  * @ip6:	IPv6 context (will be written)
  *
- * Return:	Interface index for IPv6, or 0 on failure.
+ * Return: interface index for IPv6, or 0 on failure.
  */
 static unsigned int conf_ip6(unsigned int ifi, struct ip6_ctx *ip6)
 {

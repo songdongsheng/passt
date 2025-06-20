@@ -67,7 +67,7 @@ size_t iov_skip_bytes(const struct iovec *iov, size_t n,
  * @buf:       Pointer to the source buffer containing the data to copy.
  * @bytes:     Total number of bytes to copy from buf to iov.
  *
- * Returns:    The number of bytes successfully copied.
+ * Return: the number of bytes successfully copied.
  */
 size_t iov_from_buf(const struct iovec *iov, size_t iov_cnt,
 		    size_t offset, const void *buf, size_t bytes)
@@ -107,7 +107,7 @@ size_t iov_from_buf(const struct iovec *iov, size_t iov_cnt,
  * @buf:       Pointer to the destination buffer where data will be copied.
  * @bytes:     Total number of bytes to copy from iov to buf.
  *
- * Returns:    The number of bytes successfully copied.
+ * Return: the number of bytes successfully copied.
  */
 /* cppcheck-suppress unusedFunction */
 size_t iov_to_buf(const struct iovec *iov, size_t iov_cnt,
@@ -144,7 +144,7 @@ size_t iov_to_buf(const struct iovec *iov, size_t iov_cnt,
  *             scatter/gather I/O vector.
  * @iov_cnt:   Number of elements in the iov array.
  *
- * Returns:    The total size in bytes.
+ * Return: the total size in bytes.
  */
 size_t iov_size(const struct iovec *iov, size_t iov_cnt)
 {
@@ -167,7 +167,7 @@ size_t iov_size(const struct iovec *iov, size_t iov_cnt)
  * includes buffers that are actually needed.  This will avoid stepping through
  * unnecessary elements of the underlying IO vector on future operations.
  *
- * Return:	true if the tail still contains any bytes, otherwise false
+ * Return: true if the tail still contains any bytes, otherwise false
  */
 bool iov_tail_prune(struct iov_tail *tail)
 {
@@ -184,7 +184,7 @@ bool iov_tail_prune(struct iov_tail *tail)
  * iov_tail_size - Calculate the total size of an IO vector tail
  * @tail:	IO vector tail
  *
- * Returns:    The total size in bytes.
+ * Return: the total size in bytes.
  */
 size_t iov_tail_size(struct iov_tail *tail)
 {
@@ -200,9 +200,9 @@ size_t iov_tail_size(struct iov_tail *tail)
  *
  * @tail may be pruned, but will represent the same bytes as before.
  *
- * Returns: Pointer to the first @len logical bytes of the tail, NULL if that
- *	    overruns the IO vector, is not contiguous or doesn't have the
- *	    requested alignment.
+ * Return: pointer to the first @len logical bytes of the tail, NULL if that
+ *	   overruns the IO vector, is not contiguous or doesn't have the
+ *	   requested alignment.
  */
 /* cppcheck-suppress [staticFunction,unmatchedSuppression] */
 void *iov_peek_header_(struct iov_tail *tail, size_t len, size_t align)
@@ -234,9 +234,9 @@ void *iov_peek_header_(struct iov_tail *tail, size_t len, size_t align)
  * On success, @tail is updated so that it longer includes the bytes of the
  * returned header.
  *
- * Returns: Pointer to the first @len logical bytes of the tail, NULL if that
- *	    overruns the IO vector, is not contiguous or doesn't have the
- *	    requested alignment.
+ * Return: pointer to the first @len logical bytes of the tail, NULL if that
+ *	   overruns the IO vector, is not contiguous or doesn't have the
+ *	   requested alignment.
  */
 void *iov_remove_header_(struct iov_tail *tail, size_t len, size_t align)
 {

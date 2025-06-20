@@ -140,7 +140,7 @@ static inline uint8_t pif_at_sidx(flow_sidx_t sidx)
 /** flowside_at_sidx() - Retrieve a specific flowside
  * @sidx:    Flow & side index
  *
- * Return: Flowside for the flow & side given by @sidx
+ * Return: flowside for the flow & side given by @sidx
  */
 static inline const struct flowside *flowside_at_sidx(flow_sidx_t sidx)
 {

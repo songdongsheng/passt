@@ -140,7 +140,7 @@ struct vu_virtq_element {
  * @features:	Features set
  * @fb:		Feature bit to check
  *
- * Return:	True if the feature bit is set
+ * Return: true if the feature bit is set
  */
 static inline bool has_feature(uint64_t features, unsigned int fbit)
 {
@@ -152,7 +152,7 @@ static inline bool has_feature(uint64_t features, unsigned int fbit)
  * @vdev:	Vhost-user device
  * @fbit:	Feature to check
  *
- * Return:	True if the feature is available
+ * Return: true if the feature is available
  */
 static inline bool vu_has_feature(const struct vu_dev *vdev,
 				  unsigned int fbit)
@@ -165,7 +165,7 @@ static inline bool vu_has_feature(const struct vu_dev *vdev,
  * @vdev:	Vhost-user device
  * @fbit:	Feature to check
  *
- * Return:	True if the feature is available
+ * Return: true if the feature is available
  */
 /* cppcheck-suppress unusedFunction */
 static inline bool vu_has_protocol_feature(const struct vu_dev *vdev,

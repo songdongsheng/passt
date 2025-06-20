@@ -438,7 +438,7 @@ static struct tcp_tap_conn *conn_at_sidx(flow_sidx_t sidx)
  * @conn:	Pointer to the TCP connection structure
  * @offset:     Offset in bytes
  *
- * Return:      -1 when it fails, 0 otherwise.
+ * Return: -1 when it fails, 0 otherwise.
  */
 int tcp_set_peek_offset(const struct tcp_tap_conn *conn, int offset)
 {
@@ -1319,7 +1319,7 @@ static int tcp_conn_new_sock(sa_family_t af)
  * tcp_conn_sock() - Obtain a connectable socket in the host/init namespace
  * @af:		Address family (AF_INET or AF_INET6)
  *
- * Return: Socket fd on success, -errno on failure
+ * Return: socket fd on success, -errno on failure
  */
 int tcp_conn_sock(sa_family_t af)
 {
@@ -2606,7 +2606,7 @@ static bool tcp_probe_peek_offset_cap(sa_family_t af)
 /**
  * tcp_probe_tcp_info() - Check what data TCP_INFO reports
  *
- * Return: Number of bytes returned by TCP_INFO getsockopt()
+ * Return: number of bytes returned by TCP_INFO getsockopt()
  */
 static socklen_t tcp_probe_tcp_info(void)
 {

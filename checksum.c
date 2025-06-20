@@ -145,7 +145,7 @@ uint16_t csum_ip4_header(uint16_t l3len, uint8_t protocol,
  * @proto:	Protocol number
  * @saddr:	Source address
  * @daddr:	Destination address
- * Returns:	Partial checksum of the IPv4 header
+ * Return: partial checksum of the IPv4 header
  */
 uint32_t proto_ipv4_header_psum(uint16_t l4len, uint8_t protocol,
 				struct in_addr saddr, struct in_addr daddr)
@@ -225,7 +225,7 @@ void csum_icmp4(struct icmphdr *icmp4hr, const void *payload, size_t dlen)
  * @proto:		Protocol number
  * @saddr:		Source address
  * @daddr:		Destination address
- * Returns:	Partial checksum of the IPv6 header
+ * Return: partial checksum of the IPv6 header
  */
 uint32_t proto_ipv6_header_psum(uint16_t payload_len, uint8_t protocol,
 				const struct in6_addr *saddr,

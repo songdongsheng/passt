@@ -40,7 +40,7 @@ static struct vu_virtq_element	elem		[VIRTQUEUE_MAX_SIZE];
  * udp_vu_hdrlen() - return the size of the header in level 2 frame (UDP)
  * @v6:		Set for IPv6 packet
  *
- * Return: Return the size of the header
+ * Return: return the size of the header
  */
 static size_t udp_vu_hdrlen(bool v6)
 {
@@ -64,7 +64,7 @@ static size_t udp_vu_hdrlen(bool v6)
  * @v6:		Set for IPv6 connections
  * @dlen:	Size of received data (output)
  *
- * Return: Number of iov entries used to store the datagram
+ * Return: number of iov entries used to store the datagram
  */
 static int udp_vu_sock_recv(const struct ctx *c, int s, bool v6, ssize_t *dlen)
 {
