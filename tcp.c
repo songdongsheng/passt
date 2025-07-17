@@ -1786,6 +1786,10 @@ static int tcp_data_from_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 			tcp_send_flag(c, conn, ACK);
 			tcp_timer_ctl(c, conn);
 
+			if (setsockopt(conn->sock, SOL_SOCKET, SO_KEEPALIVE,
+				       &((int){ 1 }), sizeof(int)))
+				flow_trace(conn, "failed to set SO_KEEPALIVE");
+
 			if (p->count == 1) {
 				tcp_tap_window_update(c, conn,
 						      ntohs(th->window));
