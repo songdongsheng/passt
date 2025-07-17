@@ -241,6 +241,8 @@ struct ip6_ctx {
  * @device_state_fd:	Device state migration channel
  * @device_state_result: Device state migration result
  * @migrate_target:	Are we the target, on the next migration request?
+ * @migrate_no_linger:	Close sockets as we migrate them
+ * @migrate_exit:	Exit (on source) once migration is complete
  */
 struct ctx {
 	enum passt_modes mode;
@@ -318,6 +320,8 @@ struct ctx {
 	int device_state_fd;
 	int device_state_result;
 	bool migrate_target;
+	bool migrate_no_linger;
+	bool migrate_exit;
 };
 
 void proto_update_l2_buf(const unsigned char *eth_d,

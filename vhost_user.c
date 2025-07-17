@@ -1207,7 +1207,12 @@ void vu_control_handler(struct vu_dev *vdev, int fd, uint32_t events)
 	if (vmsg.hdr.request == VHOST_USER_CHECK_DEVICE_STATE &&
 	    vdev->context->device_state_result == 0 &&
 	    !vdev->context->migrate_target) {
-		info("Migration complete, exiting");
-		_exit(EXIT_SUCCESS);
+		if (vdev->context->migrate_exit) {
+			info("Migration complete, exiting");
+			_exit(EXIT_SUCCESS);
+		}
+
+		info("Migration complete");
+		vdev->context->one_off = false;
 	}
 }

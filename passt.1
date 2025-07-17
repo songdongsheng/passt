@@ -440,6 +440,30 @@ chosen for the hypervisor UNIX domain socket. No socket is created if not in
 \-\-vhost-user mode.
 
 .TP
+.BR \-\-migrate-exit (DEPRECATED)
+Exit after a completed migration as source. By default, \fBpasst\fR keeps
+running and the migrated guest can continue using its connection, or a new guest
+can connect.
+
+Note that this configuration option is \fBdeprecated\fR and will be removed in a
+future version. It is not expected to be of any use, and it simply reflects a
+legacy behaviour. If you have any use for this, refer to \fBREPORTING BUGS\fR
+below.
+
+.TP
+.BR \-\-migrate-no-linger (DEPRECATED)
+Close TCP sockets on the source instance once migration completes.
+
+By default, sockets are kept open, and events on data sockets are ignored, so
+that any further message reaching sockets after the source migrated is silently
+ignored, to avoid connection resets in case data is received after migration.
+
+Note that this configuration option is \fBdeprecated\fR and will be removed in a
+future version. It is not expected to be of any use, and it simply reflects a
+legacy behaviour. If you have any use for this, refer to \fBREPORTING BUGS\fR
+below.
+
+.TP
 .BR \-F ", " \-\-fd " " \fIFD
 Pass a pre-opened, connected socket to \fBpasst\fR. Usually the socket is opened
 in the parent process and \fBpasst\fR inherits it when run as a child. This
@@ -453,6 +477,11 @@ is closed.
 .BR \-1 ", " \-\-one-off
 Quit after handling a single client connection, that is, once the client closes
 the socket, or once we get a socket error.
+
+\fBNote\fR: this option has no effect after \fBpasst\fR completes a migration as
+source, because, in that case, exiting would close sockets for active
+connections, which would in turn cause connection resets if any further data is
+received. See also the description of \fI\-\-migrate-no-linger\fR.
 
 .TP
 .BR \-t ", " \-\-tcp-ports " " \fIspec

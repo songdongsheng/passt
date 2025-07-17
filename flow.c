@@ -1091,7 +1091,7 @@ int flow_migrate_source(struct ctx *c, const struct migrate_stage *stage,
 	 * as EIO).
 	 */
 	foreach_established_tcp_flow(flow) {
-		rc = tcp_flow_migrate_source_ext(fd, &flow->tcp);
+		rc = tcp_flow_migrate_source_ext(c, fd, &flow->tcp);
 		if (rc) {
 			flow_err(flow, "Can't send extended data: %s",
 				 strerror_(-rc));

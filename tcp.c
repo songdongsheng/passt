@@ -3286,12 +3286,14 @@ int tcp_flow_migrate_source(int fd, struct tcp_tap_conn *conn)
 
 /**
  * tcp_flow_migrate_source_ext() - Dump queues, close sockets, send final data
+ * @c:		Execution context
  * @fd:		Descriptor for state migration
  * @conn:	Pointer to the TCP connection structure
  *
  * Return: 0 on success, negative (not -EIO) on failure, -EIO on sending failure
  */
-int tcp_flow_migrate_source_ext(int fd, const struct tcp_tap_conn *conn)
+int tcp_flow_migrate_source_ext(const struct ctx *c,
+				int fd, const struct tcp_tap_conn *conn)
 {
 	uint32_t peek_offset = conn->seq_to_tap - conn->seq_ack_from_tap;
 	struct tcp_tap_transfer_ext *t = &migrate_ext[FLOW_IDX(conn)];
@@ -3336,7 +3338,10 @@ int tcp_flow_migrate_source_ext(int fd, const struct tcp_tap_conn *conn)
 	if ((rc = tcp_flow_dump_seq(conn, &t->seq_rcv)))
 		goto fail;
 
-	close(s);
+	if (c->migrate_no_linger)
+		close(s);
+	else
+		epoll_del(c, s);
 
 	/* Adjustments unrelated to FIN segments: sequence numbers we dumped are
 	 * based on the end of the queues.

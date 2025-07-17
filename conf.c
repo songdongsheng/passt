@@ -864,6 +864,14 @@ static void usage(const char *name, FILE *f, int status)
 		FPRINTF(f,
 			"  --repair-path PATH	path for passt-repair(1)\n"
 			"    default: append '.repair' to UNIX domain path\n");
+		FPRINTF(f,
+			"  --migrate-exit	DEPRECATED:\n"
+			"			source quits after migration\n"
+			"    default: source keeps running after migration\n");
+		FPRINTF(f,
+			"  --migrate-no-linger	DEPRECATED:\n"
+			"			close sockets on migration\n"
+			"    default: keep sockets open, ignore events\n");
 	}
 
 	FPRINTF(f,
@@ -1470,6 +1478,8 @@ void conf(struct ctx *c, int argc, char **argv)
 		{"socket-path",	required_argument,	NULL,		's' },
 		{"fqdn",	required_argument,	NULL,		27 },
 		{"repair-path",	required_argument,	NULL,		28 },
+		{"migrate-exit", no_argument,		NULL,		29 },
+		{"migrate-no-linger", no_argument,	NULL,		30 },
 		{ 0 },
 	};
 	const char *optstring = "+dqfel:hs:F:I:p:P:m:a:n:M:g:i:o:D:S:H:461t:u:T:U:";
@@ -1685,6 +1695,18 @@ void conf(struct ctx *c, int argc, char **argv)
 					   sizeof(c->repair_path), "%s",
 					   optarg))
 				die("Invalid passt-repair path: %s", optarg);
+
+			break;
+		case 29:
+			if (c->mode != MODE_VU)
+				die("--migrate-exit is for vhost-user mode only");
+			c->migrate_exit = true;
+
+			break;
+		case 30:
+			if (c->mode != MODE_VU)
+				die("--migrate-no-linger is for vhost-user mode only");
+			c->migrate_no_linger = true;
 
 			break;
 		case 'd':

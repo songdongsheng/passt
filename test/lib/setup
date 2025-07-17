@@ -350,7 +350,7 @@ setup_migrate() {
 
 	sleep 1
 
-	__opts="--vhost-user"
+	__opts="--vhost-user --migrate-exit --migrate-no-linger"
 	[ ${PCAP} -eq 1 ] && __opts="${__opts} -p ${LOGDIR}/passt_1.pcap"
 	[ ${DEBUG} -eq 1 ] && __opts="${__opts} -d"
 	[ ${TRACE} -eq 1 ] && __opts="${__opts} --trace"
@@ -360,7 +360,7 @@ setup_migrate() {
 
 	context_run_bg passt_repair_1 "./passt-repair ${STATESETUP}/passt_1.socket.repair"
 
-	__opts="--vhost-user"
+	__opts="--vhost-user --migrate-exit --migrate-no-linger"
 	[ ${PCAP} -eq 1 ] && __opts="${__opts} -p ${LOGDIR}/passt_2.pcap"
 	[ ${DEBUG} -eq 1 ] && __opts="${__opts} -d"
 	[ ${TRACE} -eq 1 ] && __opts="${__opts} --trace"
