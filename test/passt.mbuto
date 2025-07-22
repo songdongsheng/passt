@@ -28,7 +28,10 @@ KMODS="${KMODS:- virtio_net virtio_pci vmw_vsock_virtio_transport}"
 
 LINKS="${LINKS:-
 	 ash,dash,bash		/init
-	 ash,dash,bash		/bin/sh}"
+	 ash,dash,bash		/bin/sh
+	 sshd			/usr/sbin/sshd
+	 dhclient		/usr/sbin/dhclient
+	 sysctl			/usr/sbin/sysctl}"
 
 DIRS="${DIRS} /tmp /usr/sbin /usr/share /var/log /var/lib /etc/ssh /run/sshd /root/.ssh"
 
