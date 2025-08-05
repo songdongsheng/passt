@@ -110,8 +110,6 @@ allow passt_t self:user_namespace create;
 auth_read_passwd(passt_t)
 
 allow passt_t proc_net_t:file read;
-allow passt_t net_conf_t:file { open read };
-allow passt_t net_conf_t:lnk_file read;
 allow passt_t tmp_t:sock_file { create unlink write };
 allow passt_t self:netlink_route_socket { bind create nlmsg_read read write setopt };
 kernel_search_network_sysctl(passt_t)
@@ -128,6 +126,8 @@ corenet_tcp_connect_all_ports(passt_t)
 
 corenet_tcp_sendrecv_all_ports(passt_t)
 corenet_udp_sendrecv_all_ports(passt_t)
+
+sysnet_read_config(passt_t)
 
 allow passt_t node_t:icmp_socket { name_bind node_bind };
 allow passt_t port_t:icmp_socket name_bind;

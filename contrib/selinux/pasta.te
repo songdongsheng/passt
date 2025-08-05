@@ -159,9 +159,10 @@ logging_send_syslog_msg(pasta_t)
 allow syslogd_t self:cap_userns sys_ptrace;
 
 allow pasta_t proc_net_t:file { open read };
-allow pasta_t net_conf_t:file { open read };
 allow pasta_t self:netlink_route_socket { bind create nlmsg_read nlmsg_write setopt read write };
 kernel_search_network_sysctl(pasta_t)
+
+sysnet_read_config(pasta_t)
 
 allow pasta_t tmp_t:sock_file { create unlink write };
 
@@ -221,7 +222,6 @@ allow pasta_t kernel_t:system module_request;
 
 allow pasta_t proc_t:dir mounton;
 allow pasta_t proc_t:filesystem mount;
-allow pasta_t net_conf_t:lnk_file read;
 allow pasta_t proc_net_t:lnk_file read;
 
 allow pasta_t unconfined_t:process { noatsecure rlimitinh siginh };
