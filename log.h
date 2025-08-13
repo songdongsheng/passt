@@ -41,6 +41,7 @@ void logmsg_perror(int pri, const char *format, ...)
 		_exit(EXIT_FAILURE);					\
 	} while (0)
 
+extern int log_file;
 extern int log_trace;
 extern bool log_conf_parsed;
 extern bool log_stderr;

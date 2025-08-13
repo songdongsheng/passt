@@ -170,6 +170,7 @@ static void exit_handler(int signal)
 {
 	(void)signal;
 
+	fsync_pcap_and_log();
 	_exit(EXIT_SUCCESS);
 }
 

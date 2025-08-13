@@ -35,7 +35,7 @@ static int	log_sock = -1;		/* Optional socket to system logger */
 static char	log_ident[BUFSIZ];	/* Identifier string for openlog() */
 static int	log_mask;		/* Current log priority mask */
 
-static int	log_file = -1;		/* Optional log file descriptor */
+int		log_file = -1;		/* Optional log file descriptor */
 static size_t	log_size;		/* Maximum log file size in bytes */
 static size_t	log_written;		/* Currently used bytes in log file */
 static size_t	log_cut_size;		/* Bytes to cut at start on rotation */

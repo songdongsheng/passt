@@ -70,6 +70,8 @@ void pasta_child_handler(int signal)
 	if (pasta_child_pid &&
 	    !waitid(P_PID, pasta_child_pid, &infop, WEXITED | WNOHANG)) {
 		if (infop.si_pid == pasta_child_pid) {
+			fsync_pcap_and_log();
+
 			if (infop.si_code == CLD_EXITED)
 				_exit(infop.si_status);
 

@@ -37,7 +37,7 @@
 
 #define PCAP_VERSION_MINOR 4
 
-static int pcap_fd = -1;
+int pcap_fd = -1;
 
 struct pcap_pkthdr {
 	uint32_t tv_sec;

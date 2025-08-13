@@ -34,6 +34,7 @@
 #include "passt.h"
 #include "packet.h"
 #include "log.h"
+#include "pcap.h"
 #ifdef HAS_GETRANDOM
 #include <sys/random.h>
 #endif
@@ -1044,4 +1045,18 @@ void abort_with_msg(const char *fmt, ...)
 	 * but that will still get the job done.
 	 */
 	abort();
+}
+
+/**
+ * fsync_pcap_and_log() - Flush pcap and log files as needed
+ *
+ * #syscalls fsync
+ */
+void fsync_pcap_and_log(void)
+{
+	if (pcap_fd != -1 && fsync(pcap_fd))
+		warn_perror("Failed to flush pcap file, it might be truncated");
+
+	if (log_file != -1)
+		(void)fsync(log_file);
 }
