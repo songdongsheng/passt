@@ -1268,19 +1268,25 @@ static void tcp_get_tap_ws(struct tcp_tap_conn *conn,
 
 /**
  * tcp_tap_window_update() - Process an updated window from tap side
+ * @c:		Execution context
  * @conn:	Connection pointer
  * @wnd:	Window value, host order, unscaled
  */
-static void tcp_tap_window_update(struct tcp_tap_conn *conn, unsigned wnd)
+static void tcp_tap_window_update(const struct ctx *c,
+				  struct tcp_tap_conn *conn, unsigned wnd)
 {
 	wnd = MIN(MAX_WINDOW, wnd << conn->ws_from_tap);
 
 	/* Work-around for bug introduced in peer kernel code, commit
-	 * e2142825c120 ("net: tcp: send zero-window ACK when no memory").
-	 * We don't update if window shrank to zero.
+	 * e2142825c120 ("net: tcp: send zero-window ACK when no memory"): don't
+	 * update the window if it shrank to zero, so that we'll eventually
+	 * retry to send data, but rewind the sequence as that obviously implies
+	 * that no data beyond the updated window will be acknowledged.
 	 */
-	if (!wnd && SEQ_LT(conn->seq_ack_from_tap, conn->seq_to_tap))
+	if (!wnd && SEQ_LT(conn->seq_ack_from_tap, conn->seq_to_tap)) {
+		tcp_rewind_seq(c, conn);
 		return;
+	}
 
 	conn->wnd_from_tap = MIN(wnd >> conn->ws_from_tap, USHRT_MAX);
 
@@ -1709,7 +1715,8 @@ static int tcp_data_from_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 			tcp_timer_ctl(c, conn);
 
 			if (p->count == 1) {
-				tcp_tap_window_update(conn, ntohs(th->window));
+				tcp_tap_window_update(c, conn,
+						      ntohs(th->window));
 				return 1;
 			}
 
@@ -1727,6 +1734,15 @@ static int tcp_data_from_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 				retr = !len && !th->fin &&
 				       ack_seq == max_ack_seq &&
 				       ntohs(th->window) == max_ack_seq_wnd;
+
+				/* See tcp_tap_window_update() for details. On
+				 * top of that, we also need to check here if a
+				 * zero-window update is contained in a batch of
+				 * packets that includes a non-zero window as
+				 * well.
+				 */
+				if (!ntohs(th->window))
+					tcp_rewind_seq(c, conn);
 
 				max_ack_seq_wnd = ntohs(th->window);
 				max_ack_seq = ack_seq;
@@ -1791,7 +1807,7 @@ static int tcp_data_from_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 	if (ack && !tcp_sock_consume(conn, max_ack_seq))
 		tcp_update_seqack_from_tap(c, conn, max_ack_seq);
 
-	tcp_tap_window_update(conn, max_ack_seq_wnd);
+	tcp_tap_window_update(c, conn, max_ack_seq_wnd);
 
 	if (retr) {
 		flow_trace(conn,
@@ -1880,7 +1896,7 @@ static void tcp_conn_from_sock_finish(const struct ctx *c,
 				      const struct tcphdr *th,
 				      const char *opts, size_t optlen)
 {
-	tcp_tap_window_update(conn, ntohs(th->window));
+	tcp_tap_window_update(c, conn, ntohs(th->window));
 	tcp_get_tap_ws(conn, opts, optlen);
 
 	/* First value is not scaled */
@@ -2085,7 +2101,7 @@ int tcp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		if (!th->ack)
 			goto reset;
 
-		tcp_tap_window_update(conn, ntohs(th->window));
+		tcp_tap_window_update(c, conn, ntohs(th->window));
 
 		tcp_data_from_sock(c, conn);
 
@@ -2097,7 +2113,7 @@ int tcp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 	if (conn->events & TAP_FIN_RCVD) {
 		tcp_sock_consume(conn, ntohl(th->ack_seq));
 		tcp_update_seqack_from_tap(c, conn, ntohl(th->ack_seq));
-		tcp_tap_window_update(conn, ntohs(th->window));
+		tcp_tap_window_update(c, conn, ntohs(th->window));
 		tcp_data_from_sock(c, conn);
 
 		if (conn->events & SOCK_FIN_RCVD &&
