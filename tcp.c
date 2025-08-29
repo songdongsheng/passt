@@ -1653,6 +1653,23 @@ static int tcp_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 }
 
 /**
+ * tcp_packet_data_len() - Get data (TCP payload) length for a TCP packet
+ * @th:		Pointer to TCP header
+ * @l4len:	TCP packet length, including TCP header
+ *
+ * Return: data length of TCP packet, -1 on invalid value of Data Offset field
+ */
+static ssize_t tcp_packet_data_len(const struct tcphdr *th, size_t l4len)
+{
+	size_t off = th->doff * 4UL;
+
+	if (off < sizeof(*th) || off > l4len)
+		return -1;
+
+	return l4len - off;
+}
+
+/**
  * tcp_data_from_tap() - tap/guest data for established connection
  * @c:		Execution context
  * @conn:	Connection pointer
@@ -2113,9 +2130,28 @@ int tcp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 
 	/* Established connections not accepting data from tap */
 	if (conn->events & TAP_FIN_RCVD) {
-		tcp_sock_consume(conn, ntohl(th->ack_seq));
-		tcp_update_seqack_from_tap(c, conn, ntohl(th->ack_seq));
-		if (tcp_tap_window_update(c, conn, ntohs(th->window)))
+		bool retr;
+
+		retr = th->ack && !tcp_packet_data_len(th, l4len) && !th->fin &&
+		       ntohl(th->ack_seq) == conn->seq_ack_from_tap &&
+		       ntohs(th->window) == conn->wnd_from_tap;
+
+		/* On socket flush failure, pretend there was no ACK, try again
+		 * later
+		 */
+		if (th->ack && !tcp_sock_consume(conn, ntohl(th->ack_seq)))
+			tcp_update_seqack_from_tap(c, conn, ntohl(th->ack_seq));
+
+		if (retr) {
+			flow_trace(conn,
+				   "fast re-transmit, ACK: %u, previous sequence: %u",
+				   ntohl(th->ack_seq), conn->seq_to_tap);
+
+			if (tcp_rewind_seq(c, conn))
+				return -1;
+		}
+
+		if (tcp_tap_window_update(c, conn, ntohs(th->window)) || retr)
 			tcp_data_from_sock(c, conn);
 
 		if (conn->seq_ack_from_tap == conn->seq_to_tap) {
