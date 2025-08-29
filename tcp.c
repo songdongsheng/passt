@@ -1108,6 +1108,26 @@ static void tcp_update_seqack_from_tap(const struct ctx *c,
 }
 
 /**
+ * tcp_rewind_seq() - Rewind sequence to tap and socket offset to current ACK
+ * @c:		Execution context
+ * @conn:	Connection pointer
+ *
+ * Return: 0 on success, -1 on failure, with connection reset
+ */
+static int tcp_rewind_seq(const struct ctx *c, struct tcp_tap_conn *conn)
+{
+	conn->seq_to_tap = conn->seq_ack_from_tap;
+	conn->events &= ~TAP_FIN_SENT;
+
+	if (tcp_set_peek_offset(conn, 0)) {
+		tcp_rst(c, conn);
+		return -1;
+	}
+
+	return 0;
+}
+
+/**
  * tcp_prepare_flags() - Prepare header for flags-only segment (no payload)
  * @c:		Execution context
  * @conn:	Connection pointer
@@ -1776,13 +1796,11 @@ static int tcp_data_from_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 	if (retr) {
 		flow_trace(conn,
 			   "fast re-transmit, ACK: %u, previous sequence: %u",
-			   max_ack_seq, conn->seq_to_tap);
-		conn->seq_to_tap = max_ack_seq;
-		conn->events &= ~TAP_FIN_SENT;
-		if (tcp_set_peek_offset(conn, 0)) {
-			tcp_rst(c, conn);
+			   conn->seq_ack_from_tap, conn->seq_to_tap);
+
+		if (tcp_rewind_seq(c, conn))
 			return -1;
-		}
+
 		tcp_data_from_sock(c, conn);
 	}
 
@@ -2311,17 +2329,16 @@ void tcp_timer_handler(const struct ctx *c, union epoll_ref ref)
 			tcp_rst(c, conn);
 		} else {
 			flow_dbg(conn, "ACK timeout, retry");
-			conn->retrans++;
-			conn->seq_to_tap = conn->seq_ack_from_tap;
-			conn->events &= ~TAP_FIN_SENT;
+
 			if (!conn->wnd_from_tap)
 				conn->wnd_from_tap = 1; /* Zero-window probe */
-			if (tcp_set_peek_offset(conn, 0)) {
-				tcp_rst(c, conn);
-			} else {
-				tcp_data_from_sock(c, conn);
-				tcp_timer_ctl(c, conn);
-			}
+
+			conn->retrans++;
+			if (tcp_rewind_seq(c, conn))
+				return;
+
+			tcp_data_from_sock(c, conn);
+			tcp_timer_ctl(c, conn);
 		}
 	} else {
 		struct itimerspec new = { { 0 }, { ACT_TIMEOUT, 0 } };
