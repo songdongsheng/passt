@@ -18,10 +18,14 @@
 						   sizeof(struct ipv6hdr), \
 						   sizeof(uint32_t))
 
-#define SEQ_LE(a, b)			((b) - (a) < MAX_WINDOW)
-#define SEQ_LT(a, b)			((b) - (a) - 1 < MAX_WINDOW)
-#define SEQ_GE(a, b)			((a) - (b) < MAX_WINDOW)
-#define SEQ_GT(a, b)			((a) - (b) - 1 < MAX_WINDOW)
+#define SEQ_LE(a, b)			\
+	((uint32_t)(b) - (uint32_t)(a) < MAX_WINDOW)
+#define SEQ_LT(a, b)			\
+	((uint32_t)(b) - (uint32_t)(a) - 1 < MAX_WINDOW)
+#define SEQ_GE(a, b)			\
+	((uint32_t)(a) - (uint32_t)(b) < MAX_WINDOW)
+#define SEQ_GT(a, b)			\
+	((uint32_t)(a) - (uint32_t)(b) - 1 < MAX_WINDOW)
 
 #define FIN		(1 << 0)
 #define SYN		(1 << 1)
