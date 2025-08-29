@@ -1778,6 +1778,7 @@ static int tcp_data_from_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 			   "fast re-transmit, ACK: %u, previous sequence: %u",
 			   max_ack_seq, conn->seq_to_tap);
 		conn->seq_to_tap = max_ack_seq;
+		conn->events &= ~TAP_FIN_SENT;
 		if (tcp_set_peek_offset(conn, 0)) {
 			tcp_rst(c, conn);
 			return -1;
@@ -2312,6 +2313,7 @@ void tcp_timer_handler(const struct ctx *c, union epoll_ref ref)
 			flow_dbg(conn, "ACK timeout, retry");
 			conn->retrans++;
 			conn->seq_to_tap = conn->seq_ack_from_tap;
+			conn->events &= ~TAP_FIN_SENT;
 			if (!conn->wnd_from_tap)
 				conn->wnd_from_tap = 1; /* Zero-window probe */
 			if (tcp_set_peek_offset(conn, 0)) {
