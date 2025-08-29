@@ -2116,9 +2116,14 @@ int tcp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		tcp_tap_window_update(c, conn, ntohs(th->window));
 		tcp_data_from_sock(c, conn);
 
-		if (conn->events & SOCK_FIN_RCVD &&
-		    conn->seq_ack_from_tap == conn->seq_to_tap)
-			conn_event(c, conn, CLOSED);
+		if (conn->seq_ack_from_tap == conn->seq_to_tap) {
+			if (th->ack && conn->events & TAP_FIN_SENT)
+				conn_event(c, conn, TAP_FIN_ACKED);
+
+			if (conn->events & SOCK_FIN_RCVD &&
+			    conn->events & TAP_FIN_ACKED)
+				conn_event(c, conn, CLOSED);
+		}
 
 		return 1;
 	}
@@ -2398,7 +2403,7 @@ void tcp_sock_handler(const struct ctx *c, union epoll_ref ref,
 		return;
 	}
 
-	if ((conn->events & TAP_FIN_SENT) && (events & EPOLLHUP)) {
+	if ((conn->events & TAP_FIN_ACKED) && (events & EPOLLHUP)) {
 		conn_event(c, conn, CLOSED);
 		return;
 	}
