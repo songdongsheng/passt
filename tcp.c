@@ -1271,8 +1271,10 @@ static void tcp_get_tap_ws(struct tcp_tap_conn *conn,
  * @c:		Execution context
  * @conn:	Connection pointer
  * @wnd:	Window value, host order, unscaled
+ *
+ * Return: false on zero window (not stored to wnd_from_tap), true otherwise
  */
-static void tcp_tap_window_update(const struct ctx *c,
+static bool tcp_tap_window_update(const struct ctx *c,
 				  struct tcp_tap_conn *conn, unsigned wnd)
 {
 	wnd = MIN(MAX_WINDOW, wnd << conn->ws_from_tap);
@@ -1285,13 +1287,14 @@ static void tcp_tap_window_update(const struct ctx *c,
 	 */
 	if (!wnd && SEQ_LT(conn->seq_ack_from_tap, conn->seq_to_tap)) {
 		tcp_rewind_seq(c, conn);
-		return;
+		return false;
 	}
 
 	conn->wnd_from_tap = MIN(wnd >> conn->ws_from_tap, USHRT_MAX);
 
 	/* FIXME: reflect the tap-side receiver's window back to the sock-side
 	 * sender by adjusting SO_RCVBUF? */
+	return true;
 }
 
 /**
@@ -2101,9 +2104,8 @@ int tcp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		if (!th->ack)
 			goto reset;
 
-		tcp_tap_window_update(c, conn, ntohs(th->window));
-
-		tcp_data_from_sock(c, conn);
+		if (tcp_tap_window_update(c, conn, ntohs(th->window)))
+			tcp_data_from_sock(c, conn);
 
 		if (p->count - idx == 1)
 			return 1;
@@ -2113,8 +2115,8 @@ int tcp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 	if (conn->events & TAP_FIN_RCVD) {
 		tcp_sock_consume(conn, ntohl(th->ack_seq));
 		tcp_update_seqack_from_tap(c, conn, ntohl(th->ack_seq));
-		tcp_tap_window_update(c, conn, ntohs(th->window));
-		tcp_data_from_sock(c, conn);
+		if (tcp_tap_window_update(c, conn, ntohs(th->window)))
+			tcp_data_from_sock(c, conn);
 
 		if (conn->seq_ack_from_tap == conn->seq_to_tap) {
 			if (th->ack && conn->events & TAP_FIN_SENT)
