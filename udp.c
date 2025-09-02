@@ -978,9 +978,11 @@ int udp_tap_handler(const struct ctx *c, uint8_t pif,
 	struct mmsghdr mm[UIO_MAXIOV];
 	union sockaddr_inany to_sa;
 	struct iovec m[UIO_MAXIOV];
+	struct udphdr uh_storage;
 	const struct udphdr *uh;
 	struct udp_flow *uflow;
-	int i, s, count = 0;
+	int i, j, s, count = 0;
+	struct iov_tail data;
 	flow_sidx_t tosidx;
 	in_port_t src, dst;
 	uint8_t topif;
@@ -988,7 +990,10 @@ int udp_tap_handler(const struct ctx *c, uint8_t pif,
 
 	ASSERT(!c->no_udp);
 
-	uh = packet_get(p, idx, 0, sizeof(*uh), NULL);
+	if (!packet_data(p, idx, &data))
+		return 1;
+
+	uh = IOV_PEEK_HEADER(&data, uh_storage);
 	if (!uh)
 		return 1;
 
@@ -1025,23 +1030,29 @@ int udp_tap_handler(const struct ctx *c, uint8_t pif,
 
 	pif_sockaddr(c, &to_sa, &sl, topif, &toside->eaddr, toside->eport);
 
-	for (i = 0; i < (int)p->count - idx; i++) {
-		struct udphdr *uh_send;
-		size_t len;
+	for (i = 0, j = 0; i < (int)p->count - idx && j < UIO_MAXIOV; i++) {
+		const struct udphdr *uh_send;
 
-		uh_send = packet_get(p, idx + i, 0, sizeof(*uh), &len);
+		if (!packet_data(p, idx + i, &data))
+			return p->count - idx;
+
+		uh_send = IOV_REMOVE_HEADER(&data, uh_storage);
 		if (!uh_send)
 			return p->count - idx;
 
 		mm[i].msg_hdr.msg_name = &to_sa;
 		mm[i].msg_hdr.msg_namelen = sl;
 
-		if (len) {
-			m[i].iov_base = (char *)(uh_send + 1);
-			m[i].iov_len = len;
+		if (data.cnt) {
+			int cnt;
 
-			mm[i].msg_hdr.msg_iov = m + i;
-			mm[i].msg_hdr.msg_iovlen = 1;
+			cnt = iov_tail_clone(&m[j], UIO_MAXIOV - j, &data);
+			if (cnt < 0)
+				return p->count - idx;
+
+			mm[i].msg_hdr.msg_iov = &m[j];
+			mm[i].msg_hdr.msg_iovlen = cnt;
+			j += cnt;
 		} else {
 			mm[i].msg_hdr.msg_iov = NULL;
 			mm[i].msg_hdr.msg_iovlen = 0;
