@@ -54,14 +54,14 @@ struct opt_hdr {
 	uint16_t l;
 } __attribute__((packed));
 
+#define UDP_MSG_HDR_SIZE	(sizeof(struct udphdr) + sizeof(struct msg_hdr))
 # define OPT_SIZE_CONV(x)	(htons_constant(x))
 #define OPT_SIZE(x)		OPT_SIZE_CONV(sizeof(struct opt_##x) -	\
 					      sizeof(struct opt_hdr))
 #define OPT_VSIZE(x)		(sizeof(struct opt_##x) - 		\
 				 sizeof(struct opt_hdr))
 #define OPT_MAX_SIZE		IPV6_MIN_MTU - (sizeof(struct ipv6hdr) + \
-						sizeof(struct udphdr) + \
-						sizeof(struct msg_hdr))
+						UDP_MSG_HDR_SIZE)
 
 /**
  * struct opt_client_id - DHCPv6 Client Identifier option
@@ -292,8 +292,7 @@ static struct opt_hdr *dhcpv6_opt(const struct pool *p, size_t *offset,
 	struct opt_hdr *o;
 	size_t left;
 
-	if (!*offset)
-		*offset = sizeof(struct udphdr) + sizeof(struct msg_hdr);
+	ASSERT(*offset >= UDP_MSG_HDR_SIZE);
 
 	while ((o = packet_get_try(p, 0, *offset, sizeof(*o), &left))) {
 		unsigned int opt_len = ntohs(o->l) + sizeof(*o);
@@ -329,7 +328,7 @@ static struct opt_hdr *dhcpv6_ia_notonlink(const struct pool *p,
 	size_t offset;
 
 	foreach(ia_type, ia_types) {
-		offset = 0;
+		offset = UDP_MSG_HDR_SIZE;
 		while ((ia = dhcpv6_opt(p, &offset, *ia_type))) {
 			if (ntohs(ia->l) < OPT_VSIZE(ia_na))
 				return NULL;
@@ -466,8 +465,9 @@ static size_t dhcpv6_client_fqdn_fill(const struct pool *p, const struct ctx *c,
 
 	o = (struct opt_client_fqdn *)(buf + offset);
 	encode_domain_name(o->domain_name, c->fqdn);
-	req_opt = (struct opt_client_fqdn *)dhcpv6_opt(p, &(size_t){ 0 },
-						       OPT_CLIENT_FQDN);
+	req_opt = (struct opt_client_fqdn *)dhcpv6_opt(p,
+						&(size_t){ UDP_MSG_HDR_SIZE },
+						OPT_CLIENT_FQDN);
 	if (req_opt && req_opt->flags & 0x01 /* S flag */)
 		o->flags = 0x02 /* O flag */;
 	else
@@ -524,15 +524,15 @@ int dhcpv6(struct ctx *c, const struct pool *p,
 	if (!mh)
 		return -1;
 
-	client_id = dhcpv6_opt(p, &(size_t){ 0 }, OPT_CLIENTID);
+	client_id = dhcpv6_opt(p, &(size_t){ UDP_MSG_HDR_SIZE }, OPT_CLIENTID);
 	if (!client_id || ntohs(client_id->l) > OPT_VSIZE(client_id))
 		return -1;
 
-	server_id = dhcpv6_opt(p, &(size_t){ 0 }, OPT_SERVERID);
+	server_id = dhcpv6_opt(p, &(size_t){ UDP_MSG_HDR_SIZE }, OPT_SERVERID);
 	if (server_id && ntohs(server_id->l) != OPT_VSIZE(server_id))
 		return -1;
 
-	ia =        dhcpv6_opt(p, &(size_t){ 0 }, OPT_IA_NA);
+	ia =        dhcpv6_opt(p, &(size_t){ UDP_MSG_HDR_SIZE }, OPT_IA_NA);
 	if (ia && ntohs(ia->l) < MIN(OPT_VSIZE(ia_na), OPT_VSIZE(ia_ta)))
 		return -1;
 
@@ -582,7 +582,7 @@ int dhcpv6(struct ctx *c, const struct pool *p,
 		    memcmp(&resp.server_id, server_id, sizeof(resp.server_id)))
 			return -1;
 
-		if (ia || dhcpv6_opt(p, &(size_t){ 0 }, OPT_IA_TA))
+		if (ia || dhcpv6_opt(p, &(size_t){ UDP_MSG_HDR_SIZE }, OPT_IA_TA))
 			return -1;
 
 		info("DHCPv6: received INFORMATION_REQUEST, sending REPLY");
