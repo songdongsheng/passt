@@ -896,20 +896,27 @@ resume:
 	for (seq_count = 0, seq = NULL; i < in->count; i++) {
 		size_t l4len, plen, check;
 		struct in6_addr *saddr, *daddr;
+		struct ipv6hdr ip6h_storage;
+		struct ethhdr eh_storage;
+		struct udphdr uh_storage;
 		const struct ethhdr *eh;
 		const struct udphdr *uh;
 		struct iov_tail data;
 		struct ipv6hdr *ip6h;
 		uint8_t proto;
-		char *l4h;
 
-		eh =   packet_get(in, i, 0,		sizeof(*eh), NULL);
+		if (!packet_data(in, i, &data))
+			return -1;
+
+		eh = IOV_REMOVE_HEADER(&data, eh_storage);
 		if (!eh)
 			continue;
 
-		ip6h = packet_get(in, i, sizeof(*eh),	sizeof(*ip6h), &check);
+		ip6h = IOV_PEEK_HEADER(&data, ip6h_storage);
 		if (!ip6h)
 			continue;
+
+		check = iov_tail_size(&data) - sizeof(*ip6h);
 
 		saddr = &ip6h->saddr;
 		daddr = &ip6h->daddr;
@@ -918,10 +925,8 @@ resume:
 		if (plen != check)
 			continue;
 
-		data = IOV_TAIL_FROM_BUF(ip6h, sizeof(*ip6h) + check, 0);
 		if (!ipv6_l4hdr(&data, &proto, &l4len))
 			continue;
-		l4h = (char *)data.iov[0].iov_base + data.off;
 
 		if (IN6_IS_ADDR_LOOPBACK(saddr) || IN6_IS_ADDR_LOOPBACK(daddr)) {
 			char sstr[INET6_ADDRSTRLEN], dstr[INET6_ADDRSTRLEN];
@@ -946,6 +951,8 @@ resume:
 		}
 
 		if (proto == IPPROTO_ICMPV6) {
+			struct icmp6hdr l4h_storage;
+			const struct icmp6hdr *l4h;
 			PACKET_POOL_P(pkt, 1, in->buf, in->buf_size);
 
 			if (c->no_icmp)
@@ -954,9 +961,9 @@ resume:
 			if (l4len < sizeof(struct icmp6hdr))
 				continue;
 
-			data = IOV_TAIL_FROM_BUF(l4h, l4len, 0);
 			packet_add(pkt, &data);
 
+			l4h = IOV_PEEK_HEADER(&data, l4h_storage);
 			if (ndp(c, (struct icmp6hdr *)l4h, saddr, pkt))
 				continue;
 
@@ -969,12 +976,13 @@ resume:
 
 		if (l4len < sizeof(*uh))
 			continue;
-		uh = (struct udphdr *)l4h;
+		uh = IOV_PEEK_HEADER(&data, uh_storage);
+		if (!uh)
+			continue;
 
 		if (proto == IPPROTO_UDP) {
 			PACKET_POOL_P(pkt, 1, in->buf, in->buf_size);
 
-			data = IOV_TAIL_FROM_BUF(l4h, l4len, 0);
 			packet_add(pkt, &data);
 
 			if (dhcpv6(c, pkt, saddr, daddr))
@@ -1031,7 +1039,6 @@ resume:
 #undef L4_SET
 
 append:
-		data = IOV_TAIL_FROM_BUF(l4h, l4len, 0);
 		packet_add((struct pool *)&seq->p, &data);
 	}
 
