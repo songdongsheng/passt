@@ -350,9 +350,14 @@ int ndp(const struct ctx *c, const struct icmp6hdr *ih,
 		return 1;
 
 	if (ih->icmp6_type == NS) {
+		struct ndp_ns ns_storage;
 		const struct ndp_ns *ns;
+		struct iov_tail data;
 
-		ns = packet_get(p, 0, 0, sizeof(struct ndp_ns), NULL);
+		if (!packet_data(p, 0, &data))
+			return -1;
+
+		ns = IOV_REMOVE_HEADER(&data, ns_storage);
 		if (!ns)
 			return -1;
 
