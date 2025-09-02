@@ -193,6 +193,21 @@ size_t iov_tail_size(struct iov_tail *tail)
 }
 
 /**
+ * iov_drop_header() - Discard a header from an IOV tail
+ * @tail:	IO vector tail
+ * @len:	length to move the head of the tail
+ *
+ * Return: true if the item still contains any bytes, otherwise false
+ */
+/* cppcheck-suppress unusedFunction */
+bool iov_drop_header(struct iov_tail *tail, size_t len)
+{
+	tail->off = tail->off + len;
+
+	return iov_tail_prune(tail);
+}
+
+/**
  * iov_peek_header_() - Get pointer to a header from an IOV tail
  * @tail:	IOV tail to get header from
  * @len:	Length of header to get, in bytes
@@ -247,4 +262,40 @@ void *iov_remove_header_(struct iov_tail *tail, size_t len, size_t align)
 
 	tail->off = tail->off + len;
 	return p;
+}
+
+/**
+ * iov_tail_clone() - Clone an iov tail into a new iovec array
+ *
+ * @dst_iov:     Pointer to the destination array of struct iovec describing
+ *		 the scatter/gather I/O vector to shallow copy to.
+ * @dst_iov_cnt: Maximum number of elements in the destination iov array.
+ * @tail:	 Pointer to the source iov_tail
+ *
+ * Return: the number of elements successfully referenced from the destination
+ *	   iov array, a negative value if there is not enough room in the
+ *	   destination iov array
+ */
+/* cppcheck-suppress unusedFunction */
+ssize_t iov_tail_clone(struct iovec *dst_iov, size_t dst_iov_cnt,
+		       struct iov_tail *tail)
+{
+	const struct iovec *iov = &tail->iov[0];
+	size_t iov_cnt = tail->cnt;
+	size_t offset = tail->off;
+	unsigned int i, j;
+
+	i = iov_skip_bytes(iov, iov_cnt, offset, &offset);
+
+	/* assign iov references referencing a subset of the source one */
+	for (j = 0; i < iov_cnt && j < dst_iov_cnt; i++, j++) {
+		dst_iov[j].iov_base = (char *)iov[i].iov_base + offset;
+		dst_iov[j].iov_len = iov[i].iov_len - offset;
+		offset = 0;
+	}
+
+	if (j == dst_iov_cnt && i != iov_cnt)
+		return -1;
+
+	return j;
 }
