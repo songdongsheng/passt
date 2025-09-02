@@ -200,7 +200,6 @@ size_t iov_tail_size(struct iov_tail *tail)
  *
  * Return: true if the item still contains any bytes, otherwise false
  */
-/* cppcheck-suppress unusedFunction */
 bool iov_drop_header(struct iov_tail *tail, size_t len)
 {
 	tail->off = tail->off + len;

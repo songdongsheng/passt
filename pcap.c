@@ -74,6 +74,7 @@ static void pcap_frame(const struct iovec *iov, size_t iovcnt,
  * @pkt:	Pointer to data buffer, including L2 headers
  * @l2len:	L2 frame length
  */
+/* cppcheck-suppress unusedFunction */
 void pcap(const char *pkt, size_t l2len)
 {
 	struct iovec iov = { (char *)pkt, l2len };

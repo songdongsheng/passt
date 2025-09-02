@@ -163,7 +163,6 @@ static void vu_handle_tx(struct vu_dev *vdev, int index,
 	struct vu_virtq_element elem[VIRTQUEUE_MAX_SIZE];
 	struct iovec out_sg[VIRTQUEUE_MAX_SIZE];
 	struct vu_virtq *vq = &vdev->vq[index];
-	int hdrlen = sizeof(struct virtio_net_hdr_mrg_rxbuf);
 	int out_sg_count;
 	int count;
 
@@ -176,6 +175,7 @@ static void vu_handle_tx(struct vu_dev *vdev, int index,
 	while (count < VIRTQUEUE_MAX_SIZE &&
 	       out_sg_count + VU_MAX_TX_BUFFER_NB <= VIRTQUEUE_MAX_SIZE) {
 		int ret;
+		struct iov_tail data;
 
 		elem[count].out_num = VU_MAX_TX_BUFFER_NB;
 		elem[count].out_sg = &out_sg[out_sg_count];
@@ -191,26 +191,10 @@ static void vu_handle_tx(struct vu_dev *vdev, int index,
 			warn("virtio-net transmit queue contains no out buffers");
 			break;
 		}
-		if (elem[count].out_num == 1) {
-			tap_add_packet(vdev->context,
-				       elem[count].out_sg[0].iov_len - hdrlen,
-				       (char *)elem[count].out_sg[0].iov_base +
-				       hdrlen, now);
-		} else {
-			/* vnet header can be in a separate iovec */
-			if (elem[count].out_num != 2) {
-				debug("virtio-net transmit queue contains more than one buffer ([%d]: %u)",
-				      count, elem[count].out_num);
-			} else if (elem[count].out_sg[0].iov_len != (size_t)hdrlen) {
-				debug("virtio-net transmit queue entry not aligned on hdrlen ([%d]: %d != %zu)",
-				      count, hdrlen, elem[count].out_sg[0].iov_len);
-			} else {
-				tap_add_packet(vdev->context,
-					       elem[count].out_sg[1].iov_len,
-					       (char *)elem[count].out_sg[1].iov_base,
-					       now);
-			}
-		}
+
+		data = IOV_TAIL(elem[count].out_sg, elem[count].out_num, 0);
+		if (IOV_DROP_HEADER(&data, struct virtio_net_hdr_mrg_rxbuf))
+			tap_add_packet(vdev->context, &data, now);
 
 		count++;
 	}

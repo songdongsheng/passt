@@ -1070,23 +1070,28 @@ void tap_handler(struct ctx *c, const struct timespec *now)
 /**
  * tap_add_packet() - Queue/capture packet, update notion of guest MAC address
  * @c:		Execution context
- * @l2len:	Total L2 packet length
- * @p:		Packet buffer
+ * @data:	Packet to add to the pool
  * @now:	Current timestamp
  */
-void tap_add_packet(struct ctx *c, ssize_t l2len, char *p,
+void tap_add_packet(struct ctx *c, struct iov_tail *data,
 		    const struct timespec *now)
 {
+	struct ethhdr eh_storage;
 	const struct ethhdr *eh;
 
-	pcap(p, l2len);
+	pcap_iov(data->iov, data->cnt, data->off);
 
-	eh = (struct ethhdr *)p;
+	eh = IOV_PEEK_HEADER(data, eh_storage);
+	if (!eh)
+		return;
 
 	if (memcmp(c->guest_mac, eh->h_source, ETH_ALEN)) {
 		memcpy(c->guest_mac, eh->h_source, ETH_ALEN);
 		proto_update_l2_buf(c->guest_mac, NULL);
 	}
+
+	iov_tail_prune(data);
+	ASSERT(data->cnt == 1); /* packet_add() doesn't support iovec */
 
 	switch (ntohs(eh->h_proto)) {
 	case ETH_P_ARP:
@@ -1095,14 +1100,16 @@ void tap_add_packet(struct ctx *c, ssize_t l2len, char *p,
 			tap4_handler(c, pool_tap4, now);
 			pool_flush(pool_tap4);
 		}
-		packet_add(pool_tap4, l2len, p);
+		packet_add(pool_tap4, data->iov[0].iov_len - data->off,
+			   (char *)data->iov[0].iov_base + data->off);
 		break;
 	case ETH_P_IPV6:
 		if (pool_full(pool_tap6)) {
 			tap6_handler(c, pool_tap6, now);
 			pool_flush(pool_tap6);
 		}
-		packet_add(pool_tap6, l2len, p);
+		packet_add(pool_tap6, data->iov[0].iov_len - data->off,
+			   (char *)data->iov[0].iov_base + data->off);
 		break;
 	default:
 		break;
@@ -1170,6 +1177,7 @@ static void tap_passt_input(struct ctx *c, const struct timespec *now)
 
 	while (n >= (ssize_t)sizeof(uint32_t)) {
 		uint32_t l2len = ntohl_unaligned(p);
+		struct iov_tail data;
 
 		if (l2len < sizeof(struct ethhdr) || l2len > L2_MAX_LEN_PASST) {
 			err("Bad frame size from guest, resetting connection");
@@ -1184,7 +1192,8 @@ static void tap_passt_input(struct ctx *c, const struct timespec *now)
 		p += sizeof(uint32_t);
 		n -= sizeof(uint32_t);
 
-		tap_add_packet(c, l2len, p, now);
+		data = IOV_TAIL_FROM_BUF(p, l2len, 0);
+		tap_add_packet(c, &data, now);
 
 		p += l2len;
 		n -= l2len;
@@ -1228,6 +1237,8 @@ static void tap_pasta_input(struct ctx *c, const struct timespec *now)
 	for (n = 0;
 	     n <= (ssize_t)(sizeof(pkt_buf) - L2_MAX_LEN_PASTA);
 	     n += len) {
+		struct iov_tail data;
+
 		len = read(c->fd_tap, pkt_buf + n, L2_MAX_LEN_PASTA);
 
 		if (len == 0) {
@@ -1249,7 +1260,8 @@ static void tap_pasta_input(struct ctx *c, const struct timespec *now)
 		    len > (ssize_t)L2_MAX_LEN_PASTA)
 			continue;
 
-		tap_add_packet(c, len, pkt_buf + n, now);
+		data = IOV_TAIL_FROM_BUF(pkt_buf + n, len, 0);
+		tap_add_packet(c, &data, now);
 	}
 
 	tap_handler(c, now);

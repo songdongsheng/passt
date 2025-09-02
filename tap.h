@@ -119,7 +119,6 @@ void tap_sock_update_pool(void *base, size_t size);
 void tap_backend_init(struct ctx *c);
 void tap_flush_pools(void);
 void tap_handler(struct ctx *c, const struct timespec *now);
-void tap_add_packet(struct ctx *c, ssize_t l2len, char *p,
+void tap_add_packet(struct ctx *c, struct iov_tail *data,
 		    const struct timespec *now);
-
 #endif /* TAP_H */

@@ -70,6 +70,18 @@ struct iov_tail {
 #define IOV_TAIL(iov_, cnt_, off_) \
 	(struct iov_tail){ .iov = (iov_), .cnt = (cnt_), .off = (off_) }
 
+/**
+ * IOV_TAIL_FROM_BUF() - Create a new IOV tail from a buffer
+ * @buf_:	Buffer address to use in the iovec
+ * @len_:	Buffer size
+ * @off_:	Byte offset in the buffer where the tail begins
+ */
+#define IOV_TAIL_FROM_BUF(buf_, len_, off_) \
+	IOV_TAIL((&(const struct iovec){ .iov_base = (buf_),		\
+					 .iov_len = (len_) }),		\
+		 1,							\
+		 (off_))
+
 bool iov_tail_prune(struct iov_tail *tail);
 size_t iov_tail_size(struct iov_tail *tail);
 bool iov_drop_header(struct iov_tail *tail, size_t len);
@@ -113,5 +125,13 @@ ssize_t iov_tail_clone(struct iovec *dst_iov, size_t dst_iov_cnt,
 #define IOV_REMOVE_HEADER(tail_, var_)					\
 	((__typeof__(var_) *)(iov_remove_header_((tail_), &(var_),	\
 				    sizeof(var_), __alignof__(var_))))
+
+/** IOV_DROP_HEADER() - Remove a typed header from an IOV tail
+ * @tail_:	IOV tail to remove header from (modified)
+ * @type_:	Data type of the header to remove
+ *
+ * Return: true if the tail still contains any bytes, otherwise false
+ */
+#define IOV_DROP_HEADER(tail_, type_) 	iov_drop_header((tail_), sizeof(type_))
 
 #endif /* IOVEC_H */
