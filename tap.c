@@ -785,11 +785,8 @@ resume:
 		if (iph->protocol == IPPROTO_UDP) {
 			struct iov_tail eh_data;
 
-			PACKET_POOL_P(pkt, 1, in->buf, in->buf_size);
-
 			packet_get(in, i, &eh_data);
-			packet_add(pkt, &eh_data);
-			if (dhcp(c, pkt))
+			if (dhcp(c, &eh_data))
 				continue;
 		}
 

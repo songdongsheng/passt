@@ -296,11 +296,11 @@ static void opt_set_dns_search(const struct ctx *c, size_t max_len)
 /**
  * dhcp() - Check if this is a DHCP message, reply as needed
  * @c:		Execution context
- * @p:		Packet pool, single packet with Ethernet buffer
+ * @data:	Single packet with Ethernet buffer
  *
  * Return: 0 if it's not a DHCP message, 1 if handled, -1 on failure
  */
-int dhcp(const struct ctx *c, const struct pool *p)
+int dhcp(const struct ctx *c, struct iov_tail *data)
 {
 	char macstr[ETH_ADDRSTRLEN];
 	size_t mlen, dlen, opt_len;
@@ -311,24 +311,20 @@ int dhcp(const struct ctx *c, const struct pool *p)
 	const struct ethhdr *eh;
 	const struct iphdr *iph;
 	const struct udphdr *uh;
-	struct iov_tail data;
 	struct msg const *m;
 	struct msg reply;
 	unsigned int i;
 	struct msg m_storage;
 
-	if (!packet_get(p, 0, &data))
-		return -1;
-
-	eh = IOV_REMOVE_HEADER(&data, eh_storage);
-	iph = IOV_PEEK_HEADER(&data, iph_storage);
+	eh = IOV_REMOVE_HEADER(data, eh_storage);
+	iph = IOV_PEEK_HEADER(data, iph_storage);
 	if (!eh || !iph)
 		return -1;
 
-	if (!iov_drop_header(&data, iph->ihl * 4UL))
+	if (!iov_drop_header(data, iph->ihl * 4UL))
 		return -1;
 
-	uh = IOV_REMOVE_HEADER(&data, uh_storage);
+	uh = IOV_REMOVE_HEADER(data, uh_storage);
 	if (!uh)
 		return -1;
 
@@ -338,8 +334,8 @@ int dhcp(const struct ctx *c, const struct pool *p)
 	if (c->no_dhcp)
 		return 1;
 
-	mlen = iov_tail_size(&data);
-	m = (struct msg const *)iov_remove_header_(&data, &m_storage,
+	mlen = iov_tail_size(data);
+	m = (struct msg const *)iov_remove_header_(data, &m_storage,
 						   offsetof(struct msg, o),
 						   __alignof__(struct msg));
 	if (!m						||
@@ -367,24 +363,24 @@ int dhcp(const struct ctx *c, const struct pool *p)
 	for (i = 0; i < ARRAY_SIZE(opts); i++)
 		opts[i].clen = -1;
 
-	opt_len = iov_tail_size(&data);
+	opt_len = iov_tail_size(data);
 	while (opt_len >= 2) {
 		uint8_t olen_storage, type_storage;
 		const uint8_t *olen;
 		uint8_t *type;
 
-		type = IOV_REMOVE_HEADER(&data, type_storage);
-		olen = IOV_REMOVE_HEADER(&data, olen_storage);
+		type = IOV_REMOVE_HEADER(data, type_storage);
+		olen = IOV_REMOVE_HEADER(data, olen_storage);
 		if (!type || !olen)
 			return -1;
 
-		opt_len = iov_tail_size(&data);
+		opt_len = iov_tail_size(data);
 		if (opt_len < *olen)
 			return -1;
 
-		iov_to_buf(&data.iov[0], data.cnt, data.off, &opts[*type].c, *olen);
+		iov_to_buf(&data->iov[0], data->cnt, data->off, &opts[*type].c, *olen);
 		opts[*type].clen = *olen;
-		iov_drop_header(&data, *olen);
+		iov_drop_header(data, *olen);
 		opt_len -= *olen;
 	}
 
