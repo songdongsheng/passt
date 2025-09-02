@@ -533,12 +533,18 @@ int dhcpv6(struct ctx *c, const struct pool *p,
 {
 	const struct opt_hdr *client_id, *server_id, *ia;
 	const struct in6_addr *src;
+	struct msg_hdr mh_storage;
 	const struct msg_hdr *mh;
+	struct udphdr uh_storage;
 	const struct udphdr *uh;
 	struct opt_hdr *bad_ia;
+	struct iov_tail data;
 	size_t mlen, n;
 
-	uh = packet_get(p, 0, 0, sizeof(*uh), &mlen);
+	if (!packet_data(p, 0, &data))
+		return -1;
+
+	uh = IOV_REMOVE_HEADER(&data, uh_storage);
 	if (!uh)
 		return -1;
 
@@ -551,6 +557,7 @@ int dhcpv6(struct ctx *c, const struct pool *p,
 	if (!IN6_IS_ADDR_MULTICAST(daddr))
 		return -1;
 
+	mlen = iov_tail_size(&data);
 	if (mlen + sizeof(*uh) != ntohs(uh->len) || mlen < sizeof(*mh))
 		return -1;
 
@@ -558,7 +565,7 @@ int dhcpv6(struct ctx *c, const struct pool *p,
 
 	src = &c->ip6.our_tap_ll;
 
-	mh = packet_get(p, 0, sizeof(*uh), sizeof(*mh), NULL);
+	mh = IOV_PEEK_HEADER(&data, mh_storage);
 	if (!mh)
 		return -1;
 
