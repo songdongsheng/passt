@@ -1651,16 +1651,22 @@ static int tcp_data_from_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 
 	for (i = idx, iov_i = 0; i < (int)p->count; i++) {
 		uint32_t seq, seq_offset, ack_seq;
+		struct tcphdr th_storage;
 		const struct tcphdr *th;
-		char *data;
-		size_t off;
+		struct iov_tail data;
+		size_t off, size;
+		int count;
 
-		th = packet_get(p, i, 0, sizeof(*th), &len);
+		if (!packet_data(p, i, &data))
+			return -1;
+
+		th = IOV_PEEK_HEADER(&data, th_storage);
 		if (!th)
 			return -1;
-		len += sizeof(*th);
+		len = iov_tail_size(&data);
 
 		off = th->doff * 4UL;
+
 		if (off < sizeof(*th) || off > len)
 			return -1;
 
@@ -1670,9 +1676,7 @@ static int tcp_data_from_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 		}
 
 		len -= off;
-		data = packet_get(p, i, off, len, NULL);
-		if (!data)
-			continue;
+		iov_drop_header(&data, off);
 
 		seq = ntohl(th->seq);
 		if (SEQ_LT(seq, conn->seq_from_tap) && len <= 1) {
@@ -1746,10 +1750,14 @@ static int tcp_data_from_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 			continue;
 		}
 
-		tcp_iov[iov_i].iov_base = data + seq_offset;
-		tcp_iov[iov_i].iov_len = len - seq_offset;
-		seq_from_tap += tcp_iov[iov_i].iov_len;
-		iov_i++;
+		iov_drop_header(&data, seq_offset);
+		size = len - seq_offset;
+		count = iov_tail_clone(&tcp_iov[iov_i], UIO_MAXIOV - iov_i,
+				       &data);
+		if (count < 0)
+			break;
+		seq_from_tap += size;
+		iov_i += count;
 
 		if (keep == i)
 			keep = -1;
