@@ -1657,7 +1657,7 @@ static int tcp_data_from_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 		size_t off, size;
 		int count;
 
-		if (!packet_data(p, i, &data))
+		if (!packet_get(p, i, &data))
 			return -1;
 
 		th = IOV_PEEK_HEADER(&data, th_storage);
@@ -1988,7 +1988,7 @@ int tcp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 
 	(void)pif;
 
-	if (!packet_data(p, idx, &data))
+	if (!packet_get(p, idx, &data))
 		return 1;
 
 	l4len = iov_tail_size(&data);

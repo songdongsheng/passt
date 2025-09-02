@@ -122,7 +122,7 @@ void packet_add_do(struct pool *p, struct iov_tail *data,
 }
 
 /**
- * packet_data_do() - Get data range from packet descriptor from given pool
+ * packet_get_do() - Get data range from packet descriptor from given pool
  * @p:		Packet pool
  * @idx:	Index of packet descriptor in pool
  * @data:	IOV tail to store the address of the data (output)
@@ -132,9 +132,9 @@ void packet_add_do(struct pool *p, struct iov_tail *data,
  * Return: false if packet index is invalid, true otherwise.
  * 	   If something wrong with @data, don't return at all (assert).
  */
-bool packet_data_do(const struct pool *p, size_t idx,
-		    struct iov_tail *data,
-		    const char *func, int line)
+bool packet_get_do(const struct pool *p, size_t idx,
+		   struct iov_tail *data,
+		   const char *func, int line)
 {
 	size_t i;
 

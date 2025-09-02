@@ -562,7 +562,7 @@ int dhcpv6(struct ctx *c, const struct pool *p,
 	const struct udphdr *uh;
 	size_t mlen, n;
 
-	if (!packet_data(p, 0, &data))
+	if (!packet_get(p, 0, &data))
 		return -1;
 
 	uh = IOV_REMOVE_HEADER(&data, uh_storage);

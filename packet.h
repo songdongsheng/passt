@@ -33,16 +33,15 @@ struct pool {
 int vu_packet_check_range(void *buf, const char *ptr, size_t len);
 void packet_add_do(struct pool *p, struct iov_tail *data,
 		   const char *func, int line);
-bool packet_data_do(const struct pool *p, const size_t idx,
-		    struct iov_tail *data,
-		    const char *func, int line);
+bool packet_get_do(const struct pool *p, const size_t idx,
+		   struct iov_tail *data, const char *func, int line);
 bool pool_full(const struct pool *p);
 void pool_flush(struct pool *p);
 
 #define packet_add(p, data)					\
 	packet_add_do(p, data, __func__, __LINE__)
-#define packet_data(p, idx, data)					\
-	packet_data_do(p, idx, data, __func__, __LINE__)
+#define packet_get(p, idx, data)					\
+	packet_get_do(p, idx, data, __func__, __LINE__)
 
 #define PACKET_POOL_DECL(_name, _size, _buf)				\
 struct _name ## _t {							\

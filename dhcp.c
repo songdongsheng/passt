@@ -317,7 +317,7 @@ int dhcp(const struct ctx *c, const struct pool *p)
 	unsigned int i;
 	struct msg m_storage;
 
-	if (!packet_data(p, 0, &data))
+	if (!packet_get(p, 0, &data))
 		return -1;
 
 	eh = IOV_REMOVE_HEADER(&data, eh_storage);

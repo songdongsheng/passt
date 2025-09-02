@@ -715,7 +715,7 @@ resume:
 		struct iov_tail data;
 		struct iphdr *iph;
 
-		if (!packet_data(in, i, &data))
+		if (!packet_get(in, i, &data))
 			continue;
 
 		eh = IOV_PEEK_HEADER(&data, eh_storage);
@@ -790,7 +790,7 @@ resume:
 
 			PACKET_POOL_P(pkt, 1, in->buf, in->buf_size);
 
-			packet_data(in, i, &eh_data);
+			packet_get(in, i, &eh_data);
 			packet_add(pkt, &eh_data);
 			if (dhcp(c, pkt))
 				continue;
@@ -905,7 +905,7 @@ resume:
 		struct ipv6hdr *ip6h;
 		uint8_t proto;
 
-		if (!packet_data(in, i, &data))
+		if (!packet_get(in, i, &data))
 			return -1;
 
 		eh = IOV_REMOVE_HEADER(&data, eh_storage);

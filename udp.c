@@ -990,7 +990,7 @@ int udp_tap_handler(const struct ctx *c, uint8_t pif,
 
 	ASSERT(!c->no_udp);
 
-	if (!packet_data(p, idx, &data))
+	if (!packet_get(p, idx, &data))
 		return 1;
 
 	uh = IOV_PEEK_HEADER(&data, uh_storage);
@@ -1033,7 +1033,7 @@ int udp_tap_handler(const struct ctx *c, uint8_t pif,
 	for (i = 0, j = 0; i < (int)p->count - idx && j < UIO_MAXIOV; i++) {
 		const struct udphdr *uh_send;
 
-		if (!packet_data(p, idx + i, &data))
+		if (!packet_get(p, idx + i, &data))
 			return p->count - idx;
 
 		uh_send = IOV_REMOVE_HEADER(&data, uh_storage);

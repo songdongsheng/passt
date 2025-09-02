@@ -253,7 +253,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 	(void)saddr;
 	ASSERT(pif == PIF_TAP);
 
-	if (!packet_data(p, 0, &data))
+	if (!packet_get(p, 0, &data))
 		return -1;
 
 	if (af == AF_INET) {

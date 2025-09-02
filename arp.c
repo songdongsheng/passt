@@ -82,7 +82,7 @@ int arp(const struct ctx *c, const struct pool *p)
 	const struct arpmsg *am;
 	struct iov_tail data;
 
-	if (!packet_data(p, 0, &data))
+	if (!packet_get(p, 0, &data))
 		return -1;
 
 	eh = IOV_REMOVE_HEADER(&data, eh_storage);
