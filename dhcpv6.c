@@ -358,6 +358,44 @@ err:
 }
 
 /**
+ * dhcpv6_send_ia_notonlink() - Send NotOnLink status
+ * @c:		Execution context
+ * @ia:		Pointer to non-appropriate IA_NA or IA_TA
+ * @client_id:	Client ID message option
+ * xid:		Transaction ID for message exchange
+ */
+static void dhcpv6_send_ia_notonlink(struct ctx *c, struct opt_hdr *ia,
+				     const struct opt_hdr *client_id,
+				     uint32_t xid)
+{
+	const struct in6_addr *src = &c->ip6.our_tap_ll;
+	size_t n;
+
+	info("DHCPv6: received CONFIRM with inappropriate IA,"
+	     " sending NotOnLink status in REPLY");
+
+	ia->l = htons(OPT_VSIZE(ia_na) + sizeof(sc_not_on_link));
+
+	n = sizeof(struct opt_ia_na);
+	memcpy(resp_not_on_link.var, ia, n);
+	memcpy(resp_not_on_link.var + n, &sc_not_on_link,
+	       sizeof(sc_not_on_link));
+
+	n += sizeof(sc_not_on_link);
+	memcpy(resp_not_on_link.var + n, client_id,
+	       sizeof(struct opt_hdr) + ntohs(client_id->l));
+
+	n += sizeof(struct opt_hdr) + ntohs(client_id->l);
+
+	n = offsetof(struct resp_not_on_link_t, var) + n;
+
+	resp_not_on_link.hdr.xid = xid;
+
+	tap_udp6_send(c, src, 547, tap_ip6_daddr(c, src), 546,
+		      xid, &resp_not_on_link, n);
+}
+
+/**
  * dhcpv6_dns_fill() - Fill in DNS Servers and Domain Search list options
  * @c:		Execution context
  * @buf:	Response message buffer where options will be appended
@@ -549,28 +587,8 @@ int dhcpv6(struct ctx *c, const struct pool *p,
 			return -1;
 
 		if ((bad_ia = dhcpv6_ia_notonlink(p, &c->ip6.addr))) {
-			info("DHCPv6: received CONFIRM with inappropriate IA,"
-			     " sending NotOnLink status in REPLY");
 
-			bad_ia->l = htons(OPT_VSIZE(ia_na) +
-					  sizeof(sc_not_on_link));
-			n = sizeof(struct opt_ia_na);
-			memcpy(resp_not_on_link.var, bad_ia, n);
-
-			memcpy(resp_not_on_link.var + n,
-			       &sc_not_on_link, sizeof(sc_not_on_link));
-			n += sizeof(sc_not_on_link);
-
-			memcpy(resp_not_on_link.var + n, client_id,
-			       sizeof(struct opt_hdr) + ntohs(client_id->l));
-			n += sizeof(struct opt_hdr) + ntohs(client_id->l);
-
-			n = offsetof(struct resp_not_on_link_t, var) + n;
-
-			resp_not_on_link.hdr.xid = mh->xid;
-
-			tap_udp6_send(c, src, 547, tap_ip6_daddr(c, src), 546,
-				      mh->xid, &resp_not_on_link, n);
+			dhcpv6_send_ia_notonlink(c, bad_ia, client_id, mh->xid);
 
 			return 1;
 		}
