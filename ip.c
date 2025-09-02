@@ -23,50 +23,47 @@
 
 /**
  * ipv6_l4hdr() - Find pointer to L4 header in IPv6 packet and extract protocol
- * @p:		Packet pool, packet number @idx has IPv6 header at @offset
- * @idx:	Index of packet in pool
- * @offset:	Pre-calculated IPv6 header offset
+ * @data:	IPv6 packet
  * @proto:	Filled with L4 protocol number
  * @dlen:	Data length (payload excluding header extensions), set on return
  *
- * Return: pointer to L4 header, NULL if not found
+ * Return: true if the L4 header is found and @data, @proto, @dlen are set,
+ * 	   false on error. Outputs are indeterminate on failure.
  */
-char *ipv6_l4hdr(const struct pool *p, int idx, size_t offset, uint8_t *proto,
-		 size_t *dlen)
+bool ipv6_l4hdr(struct iov_tail *data, uint8_t *proto, size_t *dlen)
 {
+	struct ipv6_opt_hdr o_storage;
 	const struct ipv6_opt_hdr *o;
+	struct ipv6hdr ip6h_storage;
 	const struct ipv6hdr *ip6h;
-	char *base;
 	int hdrlen;
 	uint8_t nh;
 
-	base = packet_get(p, idx, 0, 0, NULL);
-	ip6h = packet_get(p, idx, offset, sizeof(*ip6h), dlen);
+	ip6h = IOV_REMOVE_HEADER(data, ip6h_storage);
 	if (!ip6h)
-		return NULL;
-
-	offset += sizeof(*ip6h);
+		return false;
 
 	nh = ip6h->nexthdr;
 	if (!IPV6_NH_OPT(nh))
 		goto found;
 
-	while ((o = packet_get_try(p, idx, offset, sizeof(*o), dlen))) {
+	while ((o = IOV_PEEK_HEADER(data, o_storage))) {
 		nh = o->nexthdr;
 		hdrlen = (o->hdrlen + 1) * 8;
 
 		if (IPV6_NH_OPT(nh))
-			offset += hdrlen;
+			iov_drop_header(data, hdrlen);
 		else
 			goto found;
 	}
 
-	return NULL;
+	return false;
 
 found:
-	if (nh == 59)
-		return NULL;
+	if (nh == IPPROTO_NONE)
+		return false;
 
+	*dlen = iov_tail_size(data);
 	*proto = nh;
-	return base + offset;
+	return true;
 }

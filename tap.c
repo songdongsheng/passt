@@ -911,8 +911,10 @@ resume:
 		if (plen != check)
 			continue;
 
-		if (!(l4h = ipv6_l4hdr(in, i, sizeof(*eh), &proto, &l4len)))
+		data = IOV_TAIL_FROM_BUF(ip6h, sizeof(*ip6h) + check, 0);
+		if (!ipv6_l4hdr(&data, &proto, &l4len))
 			continue;
+		l4h = (char *)data.iov[0].iov_base + data.off;
 
 		if (IN6_IS_ADDR_LOOPBACK(saddr) || IN6_IS_ADDR_LOOPBACK(daddr)) {
 			char sstr[INET6_ADDRSTRLEN], dstr[INET6_ADDRSTRLEN];

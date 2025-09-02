@@ -133,6 +133,7 @@ void packet_add_do(struct pool *p, struct iov_tail *data,
  *
  * Return: pointer to start of data range, NULL on invalid range or descriptor
  */
+/* cppcheck-suppress [staticFunction] */
 void *packet_get_try_do(const struct pool *p, size_t idx, size_t offset,
 			size_t len, size_t *left, const char *func, int line)
 {
