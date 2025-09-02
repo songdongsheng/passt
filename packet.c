@@ -91,14 +91,17 @@ static int packet_check_range(const struct pool *p, const char *ptr, size_t len,
 	return 0;
 }
 /**
- * pool_full() - Is a packet pool full?
+ * pool_can_fit() - Can a new packet fit in the pool?
  * @p:		Pointer to packet pool
+ * @data:	check data can fit in the pool
  *
- * Return: true if the pool is full, false if more packets can be added
+ * Return: true if @data can be added, false otherwise
  */
-bool pool_full(const struct pool *p)
+bool pool_can_fit(const struct pool *p, struct iov_tail *data)
 {
-	return p->count >= p->size;
+	iov_tail_prune(data);
+
+	return p->count + data->cnt  + (data->cnt > 1) <= p->size;
 }
 
 /**
@@ -111,11 +114,9 @@ bool pool_full(const struct pool *p)
 void packet_add_do(struct pool *p, struct iov_tail *data,
 		   const char *func, int line)
 {
-	size_t idx = p->count;
-	const char *start;
-	size_t len;
+	size_t idx = p->count, i, offset;
 
-	if (pool_full(p)) {
+	if (!pool_can_fit(p, data)) {
 		debug("add packet index %zu to pool with size %zu, %s:%i",
 		      idx, p->size, func, line);
 		return;
@@ -124,18 +125,30 @@ void packet_add_do(struct pool *p, struct iov_tail *data,
 	if (!iov_tail_prune(data))
 		return;
 
-	ASSERT(data->cnt == 1); /* we don't support iovec */
+	if (data->cnt > 1) {
+		p->pkt[idx].iov_base = NULL;
+		p->pkt[idx].iov_len = data->cnt;
+		idx++;
+	}
 
-	len = data->iov[0].iov_len - data->off;
-	start = (char *)data->iov[0].iov_base + data->off;
+	offset = data->off;
+	for (i = 0; i < data->cnt; i++) {
+		const char *start;
+		size_t len;
 
-	if (packet_check_range(p, start, len, func, line))
-		return;
+		len = data->iov[i].iov_len - offset;
+		start = (char *)data->iov[i].iov_base + offset;
+		offset = 0;
 
-	p->pkt[idx].iov_base = (void *)start;
-	p->pkt[idx].iov_len = len;
+		if (packet_check_range(p, start, len, func, line))
+			return;
 
-	p->count++;
+		p->pkt[idx].iov_base = (void *)start;
+		p->pkt[idx].iov_len = len;
+		idx++;
+	}
+
+	p->count = idx;
 }
 
 /**
@@ -165,9 +178,14 @@ bool packet_get_do(const struct pool *p, size_t idx,
 		return false;
 	}
 
-	data->cnt = 1;
+	if (p->pkt[idx].iov_base) {
+		data->cnt = 1;
+		data->iov = &p->pkt[idx];
+	} else {
+		data->cnt = p->pkt[idx].iov_len;
+		data->iov = &p->pkt[idx + 1];
+	}
 	data->off = 0;
-	data->iov = &p->pkt[idx];
 
 	for (i = 0; i < data->cnt; i++) {
 		ASSERT_WITH_MSG(!packet_check_range(p, data->iov[i].iov_base,

@@ -1103,14 +1103,14 @@ void tap_add_packet(struct ctx *c, struct iov_tail *data,
 	switch (ntohs(eh->h_proto)) {
 	case ETH_P_ARP:
 	case ETH_P_IP:
-		if (pool_full(pool_tap4)) {
+		if (!pool_can_fit(pool_tap4, data)) {
 			tap4_handler(c, pool_tap4, now);
 			pool_flush(pool_tap4);
 		}
 		packet_add(pool_tap4, data);
 		break;
 	case ETH_P_IPV6:
-		if (pool_full(pool_tap6)) {
+		if (!pool_can_fit(pool_tap6, data)) {
 			tap6_handler(c, pool_tap6, now);
 			pool_flush(pool_tap6);
 		}

@@ -37,7 +37,7 @@ void packet_add_do(struct pool *p, struct iov_tail *data,
 		   const char *func, int line);
 bool packet_get_do(const struct pool *p, const size_t idx,
 		   struct iov_tail *data, const char *func, int line);
-bool pool_full(const struct pool *p);
+bool pool_can_fit(const struct pool *p, struct iov_tail *data);
 void pool_flush(struct pool *p);
 
 #define packet_add(p, data)					\
