@@ -97,10 +97,21 @@ struct vu_dev_region {
 #define VHOST_USER_MAX_RAM_SLOTS 32
 
 /**
+ * struct vdev_memory - Describes the shared memory regions for a vhost-user
+ * 			device
+ * @nregions:		Number of shared memory regions
+ * @regions:		Guest shared memory regions
+ */
+struct vdev_memory {
+	uint32_t nregions;
+	struct vu_dev_region regions[VHOST_USER_MAX_RAM_SLOTS];
+};
+
+/**
  * struct vu_dev - vhost-user device information
  * @context:			Execution context
- * @nregions:			Number of shared memory regions
- * @regions:			Guest shared memory regions
+ * @memory:			Shared memory regions
+ * @vq:				Virtqueues of the device
  * @features:			Vhost-user features
  * @protocol_features:		Vhost-user protocol features
  * @log_call_fd:		Eventfd to report logging update
@@ -109,8 +120,7 @@ struct vu_dev_region {
  */
 struct vu_dev {
 	struct ctx *context;
-	uint32_t nregions;
-	struct vu_dev_region regions[VHOST_USER_MAX_RAM_SLOTS];
+	struct vdev_memory memory;
 	struct vu_virtq vq[VHOST_USER_MAX_QUEUES];
 	uint64_t features;
 	uint64_t protocol_features;

@@ -8,6 +8,7 @@
 
 #include <stdbool.h>
 #include "iov.h"
+#include "virtio.h"
 
 /* Maximum size of a single packet stored in pool, including headers */
 #define PACKET_MAX_LEN	((size_t)UINT16_MAX)
@@ -15,7 +16,7 @@
 /**
  * struct pool - Generic pool of packets stored in a buffer
  * @buf:	Buffer storing packet descriptors,
- * 		a struct vu_dev_region array for passt vhost-user mode
+ * 		a struct vdev_region for passt vhost-user mode
  * @buf_size:	Total size of buffer,
  * 		0 for passt vhost-user mode
  * @size:	Number of usable descriptors for the pool
@@ -30,7 +31,8 @@ struct pool {
 	struct iovec pkt[];
 };
 
-int vu_packet_check_range(void *buf, const char *ptr, size_t len);
+int vu_packet_check_range(struct vdev_memory *memory,
+			  const char *ptr, size_t len);
 void packet_add_do(struct pool *p, struct iov_tail *data,
 		   const char *func, int line);
 bool packet_get_do(const struct pool *p, const size_t idx,

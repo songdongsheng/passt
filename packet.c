@@ -23,6 +23,20 @@
 #include "log.h"
 
 /**
+ * get_vdev_memory() - Return a pointer to the memory regions of the pool
+ * @p:		Packet pool
+ *
+ * Return: Null if none, otherwise a pointer to vdev_memory structure
+ */
+static struct vdev_memory *get_vdev_memory(const struct pool *p)
+{
+	if (p->buf_size)
+		return NULL;
+
+	return (struct vdev_memory *)p->buf;
+}
+
+/**
  * packet_check_range() - Check if a memory range is valid for a pool
  * @p:		Packet pool
  * @ptr:	Start of desired data range
@@ -35,16 +49,19 @@
 static int packet_check_range(const struct pool *p, const char *ptr, size_t len,
 			      const char *func, int line)
 {
+	struct vdev_memory *memory;
+
 	if (len > PACKET_MAX_LEN) {
 		debug("packet range length %zu (max %zu), %s:%i",
 		      len, PACKET_MAX_LEN, func, line);
 		return -1;
 	}
 
-	if (p->buf_size == 0) {
+	memory = get_vdev_memory(p);
+	if (memory) {
 		int ret;
 
-		ret = vu_packet_check_range((void *)p->buf, ptr, len);
+		ret = vu_packet_check_range(memory, ptr, len);
 
 		if (ret == -1)
 			debug("cannot find region, %s:%i", func, line);

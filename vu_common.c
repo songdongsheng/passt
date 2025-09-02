@@ -25,26 +25,28 @@
 /**
  * vu_packet_check_range() - Check if a given memory zone is contained in
  * 			     a mapped guest memory region
- * @buf:	Array of the available memory regions
+ * @memory:	Array of the available memory regions
  * @ptr:	Start of desired data range
- * @size:	Length of desired data range
+ * @len:	Length of desired data range
  *
  * Return: 0 if the zone is in a mapped memory region, -1 otherwise
  */
-int vu_packet_check_range(void *buf, const char *ptr, size_t len)
+int vu_packet_check_range(struct vdev_memory *memory,
+			  const char *ptr, size_t len)
 {
-	struct vu_dev_region *dev_region;
+	struct vu_dev_region *dev_region = memory->regions;
+	unsigned int i;
 
-	for (dev_region = buf; dev_region->mmap_addr; dev_region++) {
-		uintptr_t base_addr = dev_region->mmap_addr +
-			dev_region->mmap_offset;
+	for (i = 0; i < memory->nregions; i++) {
+		uintptr_t base_addr = dev_region[i].mmap_addr +
+			dev_region[i].mmap_offset;
 		/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
 		const char *base = (const char *)base_addr;
 
-		ASSERT(base_addr >= dev_region->mmap_addr);
+		ASSERT(base_addr >= dev_region[i].mmap_addr);
 
-		if (len <= dev_region->size && base <= ptr &&
-		    (size_t)(ptr - base) <= dev_region->size - len)
+		if (len <= dev_region[i].size && base <= ptr &&
+		    (size_t)(ptr - base) <= dev_region[i].size - len)
 			return 0;
 	}
 

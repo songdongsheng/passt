@@ -102,8 +102,8 @@ static void *vu_gpa_to_va(const struct vu_dev *dev, uint64_t *plen,
 		return NULL;
 
 	/* Find matching memory region. */
-	for (i = 0; i < dev->nregions; i++) {
-		const struct vu_dev_region *r = &dev->regions[i];
+	for (i = 0; i < dev->memory.nregions; i++) {
+		const struct vu_dev_region *r = &dev->memory.regions[i];
 
 		if ((guest_addr >= r->gpa) &&
 		    (guest_addr < (r->gpa + r->size))) {

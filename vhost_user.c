@@ -137,8 +137,8 @@ static void *qva_to_va(struct vu_dev *dev, uint64_t qemu_addr)
 	unsigned int i;
 
 	/* Find matching memory region.  */
-	for (i = 0; i < dev->nregions; i++) {
-		const struct vu_dev_region *r = &dev->regions[i];
+	for (i = 0; i < dev->memory.nregions; i++) {
+		const struct vu_dev_region *r = &dev->memory.regions[i];
 
 		if ((qemu_addr >= r->qva) && (qemu_addr < (r->qva + r->size))) {
 			/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
@@ -428,8 +428,8 @@ static bool vu_set_mem_table_exec(struct vu_dev *vdev,
 	struct vhost_user_memory m = vmsg->payload.memory, *memory = &m;
 	unsigned int i;
 
-	for (i = 0; i < vdev->nregions; i++) {
-		const struct vu_dev_region *r = &vdev->regions[i];
+	for (i = 0; i < vdev->memory.nregions; i++) {
+		const struct vu_dev_region *r = &vdev->memory.regions[i];
 
 		if (r->mmap_addr) {
 			/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
@@ -437,12 +437,12 @@ static bool vu_set_mem_table_exec(struct vu_dev *vdev,
 			       r->size + r->mmap_offset);
 		}
 	}
-	vdev->nregions = memory->nregions;
+	vdev->memory.nregions = memory->nregions;
 
 	debug("vhost-user nregions: %u", memory->nregions);
-	for (i = 0; i < vdev->nregions; i++) {
+	for (i = 0; i < vdev->memory.nregions; i++) {
 		struct vhost_user_memory_region *msg_region = &memory->regions[i];
-		struct vu_dev_region *dev_region = &vdev->regions[i];
+		struct vu_dev_region *dev_region = &vdev->memory.regions[i];
 		void *mmap_addr;
 
 		debug("vhost-user region %d", i);
@@ -484,13 +484,7 @@ static bool vu_set_mem_table_exec(struct vu_dev *vdev,
 		}
 	}
 
-	/* As vu_packet_check_range() has no access to the number of
-	 * memory regions, mark the end of the array with mmap_addr = 0
-	 */
-	ASSERT(vdev->nregions < VHOST_USER_MAX_RAM_SLOTS - 1);
-	vdev->regions[vdev->nregions].mmap_addr = 0;
-
-	tap_sock_update_pool(vdev->regions, 0);
+	ASSERT(vdev->memory.nregions < VHOST_USER_MAX_RAM_SLOTS);
 
 	return false;
 }
@@ -1106,8 +1100,8 @@ void vu_cleanup(struct vu_dev *vdev)
 		vq->vring.avail = 0;
 	}
 
-	for (i = 0; i < vdev->nregions; i++) {
-		const struct vu_dev_region *r = &vdev->regions[i];
+	for (i = 0; i < vdev->memory.nregions; i++) {
+		const struct vu_dev_region *r = &vdev->memory.regions[i];
 
 		if (r->mmap_addr) {
 			/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
@@ -1115,7 +1109,7 @@ void vu_cleanup(struct vu_dev *vdev)
 			       r->size + r->mmap_offset);
 		}
 	}
-	vdev->nregions = 0;
+	vdev->memory.nregions = 0;
 
 	vu_close_log(vdev);
 

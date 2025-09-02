@@ -1460,7 +1460,7 @@ static void tap_sock_tun_init(struct ctx *c)
  * @base:	Buffer base
  * @size	Buffer size
  */
-void tap_sock_update_pool(void *base, size_t size)
+static void tap_sock_update_pool(void *base, size_t size)
 {
 	int i;
 
@@ -1481,8 +1481,8 @@ void tap_sock_update_pool(void *base, size_t size)
 void tap_backend_init(struct ctx *c)
 {
 	if (c->mode == MODE_VU) {
-		tap_sock_update_pool(NULL, 0);
 		vu_init(c);
+		tap_sock_update_pool(&c->vdev->memory, 0);
 	} else {
 		tap_sock_update_pool(pkt_buf, sizeof(pkt_buf));
 	}
