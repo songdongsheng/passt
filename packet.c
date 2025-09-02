@@ -201,7 +201,6 @@ void *packet_get_do(const struct pool *p, const size_t idx,
  * Return: false if packet index is invalid, true otherwise.
  * 	   If something wrong with @data, don't return at all (assert).
  */
-/* cppcheck-suppress unusedFunction */
 bool packet_data_do(const struct pool *p, size_t idx,
 		    struct iov_tail *data,
 		    const char *func, int line)

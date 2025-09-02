@@ -74,14 +74,20 @@ int arp(const struct ctx *c, const struct pool *p)
 		struct arphdr ah;
 		struct arpmsg am;
 	} __attribute__((__packed__)) resp;
+	struct arphdr ah_storage;
+	struct ethhdr eh_storage;
+	struct arpmsg am_storage;
 	const struct ethhdr *eh;
 	const struct arphdr *ah;
 	const struct arpmsg *am;
+	struct iov_tail data;
 
-	eh = packet_get(p, 0, 0,			 sizeof(*eh), NULL);
-	ah = packet_get(p, 0, sizeof(*eh),		 sizeof(*ah), NULL);
-	am = packet_get(p, 0, sizeof(*eh) + sizeof(*ah), sizeof(*am), NULL);
+	if (!packet_data(p, 0, &data))
+		return -1;
 
+	eh = IOV_REMOVE_HEADER(&data, eh_storage);
+	ah = IOV_REMOVE_HEADER(&data, ah_storage);
+	am = IOV_REMOVE_HEADER(&data, am_storage);
 	if (!eh || !ah || !am)
 		return -1;
 
