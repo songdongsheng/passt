@@ -63,11 +63,11 @@ static bool ignore_arp(const struct ctx *c,
 /**
  * arp() - Check if this is a supported ARP message, reply as needed
  * @c:		Execution context
- * @p:		Packet pool, single packet with Ethernet buffer
+ * @data:	Single packet with Ethernet buffer
  *
  * Return: 1 if handled, -1 on failure
  */
-int arp(const struct ctx *c, const struct pool *p)
+int arp(const struct ctx *c, struct iov_tail *data)
 {
 	struct {
 		struct ethhdr eh;
@@ -80,14 +80,10 @@ int arp(const struct ctx *c, const struct pool *p)
 	const struct ethhdr *eh;
 	const struct arphdr *ah;
 	const struct arpmsg *am;
-	struct iov_tail data;
 
-	if (!packet_get(p, 0, &data))
-		return -1;
-
-	eh = IOV_REMOVE_HEADER(&data, eh_storage);
-	ah = IOV_REMOVE_HEADER(&data, ah_storage);
-	am = IOV_REMOVE_HEADER(&data, am_storage);
+	eh = IOV_REMOVE_HEADER(data, eh_storage);
+	ah = IOV_REMOVE_HEADER(data, ah_storage);
+	am = IOV_REMOVE_HEADER(data, am_storage);
 	if (!eh || !ah || !am)
 		return -1;
 

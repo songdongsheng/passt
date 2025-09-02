@@ -20,6 +20,6 @@ struct arpmsg {
 	unsigned char tip[4];
 } __attribute__((__packed__));
 
-int arp(const struct ctx *c, const struct pool *p);
+int arp(const struct ctx *c, struct iov_tail *data);
 
 #endif /* ARP_H */

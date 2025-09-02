@@ -722,10 +722,7 @@ resume:
 		if (!eh)
 			continue;
 		if (ntohs(eh->h_proto) == ETH_P_ARP) {
-			PACKET_POOL_P(pkt, 1, in->buf, in->buf_size);
-
-			packet_add(pkt, &data);
-			arp(c, pkt);
+			arp(c, &data);
 			continue;
 		}
 
