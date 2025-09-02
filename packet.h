@@ -43,7 +43,7 @@ void pool_flush(struct pool *p);
 #define packet_get(p, idx, data)					\
 	packet_get_do(p, idx, data, __func__, __LINE__)
 
-#define PACKET_POOL_DECL(_name, _size, _buf)				\
+#define PACKET_POOL_DECL(_name, _size)					\
 struct _name ## _t {							\
 	char *buf;							\
 	size_t buf_size;						\
@@ -62,7 +62,7 @@ struct _name ## _t {							\
 #define PACKET_INIT(name, size, buf, buf_size)				\
 	(struct name ## _t) PACKET_POOL_INIT_NOCAST(size, buf, buf_size)
 
-#define PACKET_POOL_NOINIT(name, size, buf)				\
-	PACKET_POOL_DECL(name, size, buf) name ## _storage;		\
+#define PACKET_POOL_NOINIT(name, size)					\
+	PACKET_POOL_DECL(name, size) name ## _storage;			\
 	static struct pool *name = (struct pool *)&name ## _storage
 #endif /* PACKET_H */

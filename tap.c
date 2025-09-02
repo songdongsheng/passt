@@ -95,8 +95,8 @@ CHECK_FRAME_LEN(L2_MAX_LEN_VU);
 		     ETH_HLEN + sizeof(struct ipv6hdr) + sizeof(struct udphdr))
 
 /* IPv4 (plus ARP) and IPv6 message batches from tap/guest to IP handlers */
-static PACKET_POOL_NOINIT(pool_tap4, TAP_MSGS_IP4, pkt_buf);
-static PACKET_POOL_NOINIT(pool_tap6, TAP_MSGS_IP6, pkt_buf);
+static PACKET_POOL_NOINIT(pool_tap4, TAP_MSGS_IP4);
+static PACKET_POOL_NOINIT(pool_tap6, TAP_MSGS_IP6);
 
 #define TAP_SEQS		128 /* Different L4 tuples in one batch */
 #define FRAGMENT_MSG_RATE	10  /* # seconds between fragment warnings */
@@ -555,7 +555,7 @@ void eth_update_mac(struct ethhdr *eh,
 		memcpy(eh->h_source, eth_s, sizeof(eh->h_source));
 }
 
-PACKET_POOL_DECL(pool_l4, UIO_MAXIOV, pkt_buf);
+PACKET_POOL_DECL(pool_l4, UIO_MAXIOV);
 
 /**
  * struct l4_seq4_t - Message sequence for one protocol handler call, IPv4
