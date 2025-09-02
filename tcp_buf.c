@@ -160,7 +160,7 @@ static void tcp_l2_buf_fill_headers(const struct tcp_tap_conn *conn,
 				    uint32_t seq, bool no_tcp_csum)
 {
 	struct iov_tail tail = IOV_TAIL(&iov[TCP_IOV_PAYLOAD], 1, 0);
-	struct tcphdr *th = IOV_REMOVE_HEADER(&tail, struct tcphdr);
+	struct tcphdr th_storage, *th = IOV_REMOVE_HEADER(&tail, th_storage);
 	struct tap_hdr *taph = iov[TCP_IOV_TAP].iov_base;
 	const struct flowside *tapside = TAPFLOW(conn);
 	const struct in_addr *a4 = inany_v4(&tapside->oaddr);

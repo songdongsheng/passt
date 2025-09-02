@@ -109,7 +109,7 @@ size_t iov_from_buf(const struct iovec *iov, size_t iov_cnt,
  *
  * Return: the number of bytes successfully copied.
  */
-/* cppcheck-suppress unusedFunction */
+/* cppcheck-suppress [staticFunction] */
 size_t iov_to_buf(const struct iovec *iov, size_t iov_cnt,
 		  size_t offset, void *buf, size_t bytes)
 {
@@ -127,6 +127,7 @@ size_t iov_to_buf(const struct iovec *iov, size_t iov_cnt,
 	/* copying data */
 	for (copied = 0; copied < bytes && i < iov_cnt; i++) {
 		size_t len = MIN(iov[i].iov_len - offset, bytes - copied);
+		ASSERT(iov[i].iov_base);
 		memcpy((char *)buf + copied, (char *)iov[i].iov_base + offset,
 		       len);
 		copied += len;
@@ -208,7 +209,7 @@ bool iov_drop_header(struct iov_tail *tail, size_t len)
 }
 
 /**
- * iov_peek_header_() - Get pointer to a header from an IOV tail
+ * iov_check_header() - Check if a header can be accessed
  * @tail:	IOV tail to get header from
  * @len:	Length of header to get, in bytes
  * @align:	Required alignment of header, in bytes
@@ -219,8 +220,7 @@ bool iov_drop_header(struct iov_tail *tail, size_t len)
  *	   overruns the IO vector, is not contiguous or doesn't have the
  *	   requested alignment.
  */
-/* cppcheck-suppress [staticFunction,unmatchedSuppression] */
-void *iov_peek_header_(struct iov_tail *tail, size_t len, size_t align)
+static void *iov_check_header(struct iov_tail *tail, size_t len, size_t align)
 {
 	char *p;
 
@@ -241,26 +241,61 @@ void *iov_peek_header_(struct iov_tail *tail, size_t len, size_t align)
 }
 
 /**
+ * iov_peek_header_() - Get pointer to a header from an IOV tail
+ * @tail:	IOV tail to get header from
+ * @v:		Temporary memory to use if the memory in @tail
+ *		is discontinuous
+ * @len:	Length of header to get, in bytes
+ * @align:	Required alignment of header, in bytes
+ *
+ * @tail may be pruned, but will represent the same bytes as before.
+ *
+ * Return: pointer to the first @len logical bytes of the tail, or to
+ *         a copy if that overruns the IO vector, is not contiguous or
+ *         doesn't have the requested alignment. NULL if that overruns the
+ *         IO vector.
+ */
+/* cppcheck-suppress [staticFunction,unmatchedSuppression] */
+void *iov_peek_header_(struct iov_tail *tail, void *v, size_t len, size_t align)
+{
+	char *p = iov_check_header(tail, len, align);
+	size_t l;
+
+	if (p)
+		return p;
+
+	l = iov_to_buf(tail->iov, tail->cnt, tail->off, v, len);
+	if (l != len)
+		return NULL;
+
+	return v;
+}
+
+/**
  * iov_remove_header_() - Remove a header from an IOV tail
  * @tail:	IOV tail to remove header from (modified)
+ * @v:		Temporary memory to use if the memory in @tail
+ *		is discontinuous
  * @len:	Length of header to remove, in bytes
  * @align:	Required alignment of header, in bytes
  *
  * On success, @tail is updated so that it longer includes the bytes of the
  * returned header.
  *
- * Return: pointer to the first @len logical bytes of the tail, NULL if that
- *	   overruns the IO vector, is not contiguous or doesn't have the
- *	   requested alignment.
+ * Return: pointer to the first @len logical bytes of the tail, or to
+ *         a copy if that overruns the IO vector, is not contiguous or
+ *         doesn't have the requested alignment. NULL if that overruns the
+ *         IO vector.
  */
-void *iov_remove_header_(struct iov_tail *tail, size_t len, size_t align)
+void *iov_remove_header_(struct iov_tail *tail, void *v, size_t len, size_t align)
 {
-	char *p = iov_peek_header_(tail, len, align);
+	char *p = iov_peek_header_(tail, v, len, align);
 
 	if (!p)
 		return NULL;
 
 	tail->off = tail->off + len;
+
 	return p;
 }
 
