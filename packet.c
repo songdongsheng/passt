@@ -191,6 +191,48 @@ void *packet_get_do(const struct pool *p, const size_t idx,
 }
 
 /**
+ * packet_data_do() - Get data range from packet descriptor from given pool
+ * @p:		Packet pool
+ * @idx:	Index of packet descriptor in pool
+ * @data:	IOV tail to store the address of the data (output)
+ * @func:	For tracing: name of calling function, NULL means no trace()
+ * @line:	For tracing: caller line of function call
+ *
+ * Return: false if packet index is invalid, true otherwise.
+ * 	   If something wrong with @data, don't return at all (assert).
+ */
+/* cppcheck-suppress unusedFunction */
+bool packet_data_do(const struct pool *p, size_t idx,
+		    struct iov_tail *data,
+		    const char *func, int line)
+{
+	size_t i;
+
+	ASSERT_WITH_MSG(p->count <= p->size,
+			"Corrupted pool count: %zu, size: %zu, %s:%i",
+			p->count, p->size, func, line);
+
+	if (idx >= p->count) {
+		debug("packet %zu from pool size: %zu, count: %zu, "
+		      "%s:%i", idx, p->size, p->count, func, line);
+		return false;
+	}
+
+	data->cnt = 1;
+	data->off = 0;
+	data->iov = &p->pkt[idx];
+
+	for (i = 0; i < data->cnt; i++) {
+		ASSERT_WITH_MSG(!packet_check_range(p, data->iov[i].iov_base,
+						    data->iov[i].iov_len,
+						    func, line),
+				"Corrupt packet pool, %s:%i", func, line);
+	}
+
+	return true;
+}
+
+/**
  * pool_flush() - Flush a packet pool
  * @p:		Pointer to packet pool
  */

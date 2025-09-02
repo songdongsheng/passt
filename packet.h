@@ -39,6 +39,9 @@ void *packet_get_try_do(const struct pool *p, const size_t idx,
 void *packet_get_do(const struct pool *p, const size_t idx,
 		    size_t offset, size_t len, size_t *left,
 		    const char *func, int line);
+bool packet_data_do(const struct pool *p, const size_t idx,
+		    struct iov_tail *data,
+		    const char *func, int line);
 bool pool_full(const struct pool *p);
 void pool_flush(struct pool *p);
 
@@ -49,6 +52,8 @@ void pool_flush(struct pool *p);
 	packet_get_try_do(p, idx, offset, len, left, __func__, __LINE__)
 #define packet_get(p, idx, offset, len, left)				\
 	packet_get_do(p, idx, offset, len, left, __func__, __LINE__)
+#define packet_data(p, idx, data)					\
+	packet_data_do(p, idx, data, __func__, __LINE__)
 
 #define PACKET_POOL_DECL(_name, _size, _buf)				\
 struct _name ## _t {							\
