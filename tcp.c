@@ -310,6 +310,16 @@
 #include "tcp_buf.h"
 #include "tcp_vu.h"
 
+/*
+ * The size of TCP header (including options) is given by doff (Data Offset)
+ * that is a 4-bit value specifying the number of 32-bit words in the header.
+ * The maximum value of doff is 15 [(1 << 4) - 1].
+ * The maximum length in bytes of options is 15 minus the number of 32-bit
+ * words in the minimal TCP header (5) multiplied by the length of a 32-bit
+ * word (4).
+ */
+#define OPTLEN_MAX (((1UL << 4) - 1 - 5) * 4UL)
+
 #ifndef __USE_MISC
 /* From Linux UAPI, missing in netinet/tcp.h provided by musl */
 struct tcp_repair_opt {
@@ -1957,8 +1967,11 @@ int tcp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		    const struct pool *p, int idx, const struct timespec *now)
 {
 	struct tcp_tap_conn *conn;
+	struct tcphdr th_storage;
 	const struct tcphdr *th;
-	size_t optlen, len;
+	char optsc[OPTLEN_MAX];
+	struct iov_tail data;
+	size_t optlen, l4len;
 	const char *opts;
 	union flow *flow;
 	flow_sidx_t sidx;
@@ -1967,15 +1980,19 @@ int tcp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 
 	(void)pif;
 
-	th = packet_get(p, idx, 0, sizeof(*th), &len);
+	if (!packet_data(p, idx, &data))
+		return 1;
+
+	l4len = iov_tail_size(&data);
+
+	th = IOV_REMOVE_HEADER(&data, th_storage);
 	if (!th)
 		return 1;
-	len += sizeof(*th);
 
 	optlen = th->doff * 4UL - sizeof(*th);
 	/* Static checkers might fail to see this: */
-	optlen = MIN(optlen, ((1UL << 4) /* from doff width */ - 6) * 4UL);
-	opts = packet_get(p, idx, sizeof(*th), optlen, NULL);
+	optlen = MIN(optlen, OPTLEN_MAX);
+	opts = (char *)iov_remove_header_(&data, &optsc[0], optlen, 1);
 
 	sidx = flow_lookup_af(c, IPPROTO_TCP, PIF_TAP, af, saddr, daddr,
 			      ntohs(th->source), ntohs(th->dest));
@@ -1987,7 +2004,7 @@ int tcp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 			tcp_conn_from_tap(c, af, saddr, daddr, th,
 					  opts, optlen, now);
 		else
-			tcp_rst_no_conn(c, af, saddr, daddr, flow_lbl, th, len);
+			tcp_rst_no_conn(c, af, saddr, daddr, flow_lbl, th, l4len);
 		return 1;
 	}
 
@@ -1995,7 +2012,7 @@ int tcp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 	ASSERT(pif_at_sidx(sidx) == PIF_TAP);
 	conn = &flow->tcp;
 
-	flow_trace(conn, "packet length %zu from tap", len);
+	flow_trace(conn, "packet length %zu from tap", l4len);
 
 	if (th->rst) {
 		conn_event(c, conn, CLOSED);
