@@ -706,28 +706,34 @@ static int tap4_handler(struct ctx *c, const struct pool *in,
 	i = 0;
 resume:
 	for (seq_count = 0, seq = NULL; i < in->count; i++) {
-		size_t l2len, l3len, hlen, l4len;
+		size_t l3len, hlen, l4len;
+		struct ethhdr eh_storage;
+		struct iphdr iph_storage;
+		struct udphdr uh_storage;
 		const struct ethhdr *eh;
 		const struct udphdr *uh;
 		struct iov_tail data;
 		struct iphdr *iph;
-		const char *l4h;
 
-		packet_get(in, i, 0, 0, &l2len);
+		if (!packet_data(in, i, &data))
+			continue;
 
-		eh = packet_get(in, i, 0, sizeof(*eh), &l3len);
+		eh = IOV_PEEK_HEADER(&data, eh_storage);
 		if (!eh)
 			continue;
 		if (ntohs(eh->h_proto) == ETH_P_ARP) {
 			PACKET_POOL_P(pkt, 1, in->buf, in->buf_size);
 
-			data = IOV_TAIL_FROM_BUF((void *)eh, l2len, 0);
 			packet_add(pkt, &data);
 			arp(c, pkt);
 			continue;
 		}
 
-		iph = packet_get(in, i, sizeof(*eh), sizeof(*iph), NULL);
+		if (!iov_drop_header(&data, sizeof(*eh)))
+			continue;
+		l3len = iov_tail_size(&data);
+
+		iph = IOV_PEEK_HEADER(&data, iph_storage);
 		if (!iph)
 			continue;
 
@@ -755,8 +761,9 @@ resume:
 		if (iph->saddr && c->ip4.addr_seen.s_addr != iph->saddr)
 			c->ip4.addr_seen.s_addr = iph->saddr;
 
-		l4h = packet_get(in, i, sizeof(*eh) + hlen, l4len, NULL);
-		if (!l4h)
+		if (!iov_drop_header(&data, hlen))
+			continue;
+		if (iov_tail_size(&data) != l4len)
 			continue;
 
 		if (iph->protocol == IPPROTO_ICMP) {
@@ -767,7 +774,6 @@ resume:
 
 			tap_packet_debug(iph, NULL, NULL, 0, NULL, 1);
 
-			data = IOV_TAIL_FROM_BUF((void *)l4h, l4len, 0);
 			packet_add(pkt, &data);
 			icmp_tap_handler(c, PIF_TAP, AF_INET,
 					 &iph->saddr, &iph->daddr,
@@ -775,15 +781,17 @@ resume:
 			continue;
 		}
 
-		uh = packet_get(in, i, sizeof(*eh) + hlen, sizeof(*uh), NULL);
+		uh = IOV_PEEK_HEADER(&data, uh_storage);
 		if (!uh)
 			continue;
 
 		if (iph->protocol == IPPROTO_UDP) {
+			struct iov_tail eh_data;
+
 			PACKET_POOL_P(pkt, 1, in->buf, in->buf_size);
 
-			data = IOV_TAIL_FROM_BUF((void *)eh, l2len, 0);
-			packet_add(pkt, &data);
+			packet_data(in, i, &eh_data);
+			packet_add(pkt, &eh_data);
 			if (dhcp(c, pkt))
 				continue;
 		}
@@ -834,7 +842,6 @@ resume:
 #undef L4_SET
 
 append:
-		data = IOV_TAIL_FROM_BUF((void *)l4h, l4len, 0);
 		packet_add((struct pool *)&seq->p, &data);
 	}
 
