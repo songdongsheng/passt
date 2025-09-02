@@ -87,21 +87,30 @@ bool pool_full(const struct pool *p)
 /**
  * packet_add_do() - Add data as packet descriptor to given pool
  * @p:		Existing pool
- * @len:	Length of new descriptor
- * @start:	Start of data
+ * @data:	Data to add
  * @func:	For tracing: name of calling function
  * @line:	For tracing: caller line of function call
  */
-void packet_add_do(struct pool *p, size_t len, const char *start,
+void packet_add_do(struct pool *p, struct iov_tail *data,
 		   const char *func, int line)
 {
 	size_t idx = p->count;
+	const char *start;
+	size_t len;
 
 	if (pool_full(p)) {
 		debug("add packet index %zu to pool with size %zu, %s:%i",
 		      idx, p->size, func, line);
 		return;
 	}
+
+	if (!iov_tail_prune(data))
+		return;
+
+	ASSERT(data->cnt == 1); /* we don't support iovec */
+
+	len = data->iov[0].iov_len - data->off;
+	start = (char *)data->iov[0].iov_base + data->off;
 
 	if (packet_check_range(p, start, len, func, line))
 		return;

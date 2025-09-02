@@ -7,6 +7,7 @@
 #define PACKET_H
 
 #include <stdbool.h>
+#include "iov.h"
 
 /* Maximum size of a single packet stored in pool, including headers */
 #define PACKET_MAX_LEN	((size_t)UINT16_MAX)
@@ -30,7 +31,7 @@ struct pool {
 };
 
 int vu_packet_check_range(void *buf, const char *ptr, size_t len);
-void packet_add_do(struct pool *p, size_t len, const char *start,
+void packet_add_do(struct pool *p, struct iov_tail *data,
 		   const char *func, int line);
 void *packet_get_try_do(const struct pool *p, const size_t idx,
 			size_t offset, size_t len, size_t *left,
@@ -41,8 +42,8 @@ void *packet_get_do(const struct pool *p, const size_t idx,
 bool pool_full(const struct pool *p);
 void pool_flush(struct pool *p);
 
-#define packet_add(p, len, start)					\
-	packet_add_do(p, len, start, __func__, __LINE__)
+#define packet_add(p, data)					\
+	packet_add_do(p, data, __func__, __LINE__)
 
 #define packet_get_try(p, idx, offset, len, left)			\
 	packet_get_try_do(p, idx, offset, len, left, __func__, __LINE__)

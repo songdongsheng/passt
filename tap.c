@@ -709,6 +709,7 @@ resume:
 		size_t l2len, l3len, hlen, l4len;
 		const struct ethhdr *eh;
 		const struct udphdr *uh;
+		struct iov_tail data;
 		struct iphdr *iph;
 		const char *l4h;
 
@@ -720,7 +721,8 @@ resume:
 		if (ntohs(eh->h_proto) == ETH_P_ARP) {
 			PACKET_POOL_P(pkt, 1, in->buf, in->buf_size);
 
-			packet_add(pkt, l2len, (char *)eh);
+			data = IOV_TAIL_FROM_BUF((void *)eh, l2len, 0);
+			packet_add(pkt, &data);
 			arp(c, pkt);
 			continue;
 		}
@@ -765,7 +767,8 @@ resume:
 
 			tap_packet_debug(iph, NULL, NULL, 0, NULL, 1);
 
-			packet_add(pkt, l4len, l4h);
+			data = IOV_TAIL_FROM_BUF((void *)l4h, l4len, 0);
+			packet_add(pkt, &data);
 			icmp_tap_handler(c, PIF_TAP, AF_INET,
 					 &iph->saddr, &iph->daddr,
 					 pkt, now);
@@ -779,7 +782,8 @@ resume:
 		if (iph->protocol == IPPROTO_UDP) {
 			PACKET_POOL_P(pkt, 1, in->buf, in->buf_size);
 
-			packet_add(pkt, l2len, (char *)eh);
+			data = IOV_TAIL_FROM_BUF((void *)eh, l2len, 0);
+			packet_add(pkt, &data);
 			if (dhcp(c, pkt))
 				continue;
 		}
@@ -830,7 +834,8 @@ resume:
 #undef L4_SET
 
 append:
-		packet_add((struct pool *)&seq->p, l4len, l4h);
+		data = IOV_TAIL_FROM_BUF((void *)l4h, l4len, 0);
+		packet_add((struct pool *)&seq->p, &data);
 	}
 
 	for (j = 0, seq = tap4_l4; j < seq_count; j++, seq++) {
@@ -886,6 +891,7 @@ resume:
 		struct in6_addr *saddr, *daddr;
 		const struct ethhdr *eh;
 		const struct udphdr *uh;
+		struct iov_tail data;
 		struct ipv6hdr *ip6h;
 		uint8_t proto;
 		char *l4h;
@@ -939,7 +945,8 @@ resume:
 			if (l4len < sizeof(struct icmp6hdr))
 				continue;
 
-			packet_add(pkt, l4len, l4h);
+			data = IOV_TAIL_FROM_BUF(l4h, l4len, 0);
+			packet_add(pkt, &data);
 
 			if (ndp(c, (struct icmp6hdr *)l4h, saddr, pkt))
 				continue;
@@ -958,7 +965,8 @@ resume:
 		if (proto == IPPROTO_UDP) {
 			PACKET_POOL_P(pkt, 1, in->buf, in->buf_size);
 
-			packet_add(pkt, l4len, l4h);
+			data = IOV_TAIL_FROM_BUF(l4h, l4len, 0);
+			packet_add(pkt, &data);
 
 			if (dhcpv6(c, pkt, saddr, daddr))
 				continue;
@@ -1014,7 +1022,8 @@ resume:
 #undef L4_SET
 
 append:
-		packet_add((struct pool *)&seq->p, l4len, l4h);
+		data = IOV_TAIL_FROM_BUF(l4h, l4len, 0);
+		packet_add((struct pool *)&seq->p, &data);
 	}
 
 	for (j = 0, seq = tap6_l4; j < seq_count; j++, seq++) {
@@ -1090,9 +1099,6 @@ void tap_add_packet(struct ctx *c, struct iov_tail *data,
 		proto_update_l2_buf(c->guest_mac, NULL);
 	}
 
-	iov_tail_prune(data);
-	ASSERT(data->cnt == 1); /* packet_add() doesn't support iovec */
-
 	switch (ntohs(eh->h_proto)) {
 	case ETH_P_ARP:
 	case ETH_P_IP:
@@ -1100,16 +1106,14 @@ void tap_add_packet(struct ctx *c, struct iov_tail *data,
 			tap4_handler(c, pool_tap4, now);
 			pool_flush(pool_tap4);
 		}
-		packet_add(pool_tap4, data->iov[0].iov_len - data->off,
-			   (char *)data->iov[0].iov_base + data->off);
+		packet_add(pool_tap4, data);
 		break;
 	case ETH_P_IPV6:
 		if (pool_full(pool_tap6)) {
 			tap6_handler(c, pool_tap6, now);
 			pool_flush(pool_tap6);
 		}
-		packet_add(pool_tap6, data->iov[0].iov_len - data->off,
-			   (char *)data->iov[0].iov_base + data->off);
+		packet_add(pool_tap6, data);
 		break;
 	default:
 		break;
