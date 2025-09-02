@@ -302,27 +302,33 @@ static void opt_set_dns_search(const struct ctx *c, size_t max_len)
  */
 int dhcp(const struct ctx *c, const struct pool *p)
 {
-	size_t mlen, dlen, offset = 0, opt_len, opt_off = 0;
 	char macstr[ETH_ADDRSTRLEN];
+	size_t mlen, dlen, opt_len;
 	struct in_addr mask, dst;
+	struct ethhdr eh_storage;
+	struct iphdr iph_storage;
+	struct udphdr uh_storage;
 	const struct ethhdr *eh;
 	const struct iphdr *iph;
 	const struct udphdr *uh;
+	struct iov_tail data;
 	struct msg const *m;
 	struct msg reply;
 	unsigned int i;
+	struct msg m_storage;
 
-	eh  = packet_get(p, 0, offset, sizeof(*eh),  NULL);
-	offset += sizeof(*eh);
+	if (!packet_data(p, 0, &data))
+		return -1;
 
-	iph = packet_get(p, 0, offset, sizeof(*iph), NULL);
+	eh = IOV_REMOVE_HEADER(&data, eh_storage);
+	iph = IOV_PEEK_HEADER(&data, iph_storage);
 	if (!eh || !iph)
 		return -1;
 
-	offset += iph->ihl * 4UL;
-	uh  = packet_get(p, 0, offset, sizeof(*uh),  &mlen);
-	offset += sizeof(*uh);
+	if (!iov_drop_header(&data, iph->ihl * 4UL))
+		return -1;
 
+	uh = IOV_REMOVE_HEADER(&data, uh_storage);
 	if (!uh)
 		return -1;
 
@@ -332,7 +338,10 @@ int dhcp(const struct ctx *c, const struct pool *p)
 	if (c->no_dhcp)
 		return 1;
 
-	m   = packet_get(p, 0, offset, offsetof(struct msg, o), &opt_len);
+	mlen = iov_tail_size(&data);
+	m = (struct msg const *)iov_remove_header_(&data, &m_storage,
+						   offsetof(struct msg, o),
+						   __alignof__(struct msg));
 	if (!m						||
 	    mlen  != ntohs(uh->len) - sizeof(*uh)	||
 	    mlen  <  offsetof(struct msg, o)		||
@@ -355,27 +364,28 @@ int dhcp(const struct ctx *c, const struct pool *p)
 	memset(&reply.file,	0,		sizeof(reply.file));
 	reply.magic		= m->magic;
 
-	offset += offsetof(struct msg, o);
-
 	for (i = 0; i < ARRAY_SIZE(opts); i++)
 		opts[i].clen = -1;
 
-	while (opt_off + 2 < opt_len) {
-		const uint8_t *olen, *val;
+	opt_len = iov_tail_size(&data);
+	while (opt_len >= 2) {
+		uint8_t olen_storage, type_storage;
+		const uint8_t *olen;
 		uint8_t *type;
 
-		type = packet_get(p, 0, offset + opt_off,	1,	NULL);
-		olen = packet_get(p, 0, offset + opt_off + 1,	1,	NULL);
+		type = IOV_REMOVE_HEADER(&data, type_storage);
+		olen = IOV_REMOVE_HEADER(&data, olen_storage);
 		if (!type || !olen)
 			return -1;
 
-		val =  packet_get(p, 0, offset + opt_off + 2,	*olen,	NULL);
-		if (!val)
+		opt_len = iov_tail_size(&data);
+		if (opt_len < *olen)
 			return -1;
 
-		memcpy(&opts[*type].c, val, *olen);
+		iov_to_buf(&data.iov[0], data.cnt, data.off, &opts[*type].c, *olen);
 		opts[*type].clen = *olen;
-		opt_off += *olen + 2;
+		iov_drop_header(&data, *olen);
+		opt_len -= *olen;
 	}
 
 	opts[80].slen = -1;
