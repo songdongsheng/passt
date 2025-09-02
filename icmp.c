@@ -44,6 +44,7 @@
 
 #define ICMP_ECHO_TIMEOUT	60 /* s, timeout for ICMP socket activity */
 #define ICMP_NUM_IDS		(1U << 16)
+#define MAX_IOV_ICMP		16 /* Arbitrary, should be enough */
 
 /**
  * ping_at_sidx() - Get ping specific flow at given sidx
@@ -238,27 +239,30 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		     const void *saddr, const void *daddr,
 		     const struct pool *p, const struct timespec *now)
 {
+	struct iovec iov[MAX_IOV_ICMP];
 	struct icmp_ping_flow *pingf;
 	const struct flowside *tgt;
 	union sockaddr_inany sa;
-	size_t dlen, l4len;
+	struct iov_tail data;
+	struct msghdr msh;
 	uint16_t id, seq;
 	union flow *flow;
 	uint8_t proto;
-	socklen_t sl;
-	void *pkt;
+	int cnt;
 
 	(void)saddr;
 	ASSERT(pif == PIF_TAP);
 
+	if (!packet_data(p, 0, &data))
+		return -1;
+
 	if (af == AF_INET) {
+		struct icmphdr ih_storage;
 		const struct icmphdr *ih;
 
-		if (!(pkt = packet_get(p, 0, 0, sizeof(*ih), &dlen)))
+		ih = IOV_PEEK_HEADER(&data, ih_storage);
+		if (!ih)
 			return 1;
-
-		ih =  (struct icmphdr *)pkt;
-		l4len = dlen + sizeof(*ih);
 
 		if (ih->type != ICMP_ECHO)
 			return 1;
@@ -267,13 +271,12 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		id = ntohs(ih->un.echo.id);
 		seq = ntohs(ih->un.echo.sequence);
 	} else if (af == AF_INET6) {
+		struct icmp6hdr ih_storage;
 		const struct icmp6hdr *ih;
 
-		if (!(pkt = packet_get(p, 0, 0, sizeof(*ih), &dlen)))
+		ih = IOV_PEEK_HEADER(&data, ih_storage);
+		if (!ih)
 			return 1;
-
-		ih = (struct icmp6hdr *)pkt;
-		l4len = dlen + sizeof(*ih);
 
 		if (ih->icmp6_type != ICMPV6_ECHO_REQUEST)
 			return 1;
@@ -284,6 +287,10 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 	} else {
 		ASSERT(0);
 	}
+
+	cnt = iov_tail_clone(&iov[0], MAX_IOV_ICMP, &data);
+	if (cnt < 0)
+		return 1;
 
 	flow = flow_at_sidx(flow_lookup_af(c, proto, PIF_TAP,
 					   af, saddr, daddr, id, id));
@@ -298,8 +305,15 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 	ASSERT(flow_proto[pingf->f.type] == proto);
 	pingf->ts = now->tv_sec;
 
-	pif_sockaddr(c, &sa, &sl, PIF_HOST, &tgt->eaddr, 0);
-	if (sendto(pingf->sock, pkt, l4len, MSG_NOSIGNAL, &sa.sa, sl) < 0) {
+	pif_sockaddr(c, &sa, &msh.msg_namelen, PIF_HOST, &tgt->eaddr, 0);
+	msh.msg_name = &sa;
+	msh.msg_iov = iov;
+	msh.msg_iovlen = cnt;
+	msh.msg_control = NULL;
+	msh.msg_controllen = 0;
+	msh.msg_flags = 0;
+
+	if (sendmsg(pingf->sock, &msh, MSG_NOSIGNAL) < 0) {
 		flow_dbg_perror(pingf, "failed to relay request to socket");
 	} else {
 		flow_dbg(pingf,

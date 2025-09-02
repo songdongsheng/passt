@@ -310,7 +310,6 @@ void *iov_remove_header_(struct iov_tail *tail, void *v, size_t len, size_t alig
  *	   iov array, a negative value if there is not enough room in the
  *	   destination iov array
  */
-/* cppcheck-suppress unusedFunction */
 ssize_t iov_tail_clone(struct iovec *dst_iov, size_t dst_iov_cnt,
 		       struct iov_tail *tail)
 {
