@@ -539,19 +539,19 @@ static size_t dhcpv6_client_fqdn_fill(const struct iov_tail *data,
 /**
  * dhcpv6() - Check if this is a DHCPv6 message, reply as needed
  * @c:		Execution context
- * @p:		Packet pool, single packet starting from UDP header
+ * @data:	Single packet starting from UDP header
  * @saddr:	Source IPv6 address of original message
  * @daddr:	Destination IPv6 address of original message
  *
  * Return: 0 if it's not a DHCPv6 message, 1 if handled, -1 on failure
  */
-int dhcpv6(struct ctx *c, const struct pool *p,
+int dhcpv6(struct ctx *c, struct iov_tail *data,
 	   const struct in6_addr *saddr, const struct in6_addr *daddr)
 {
 	const struct opt_server_id *server_id = NULL;
-	struct iov_tail data, opt, client_id_base;
 	const struct opt_hdr *client_id = NULL;
 	struct opt_server_id server_id_storage;
+	struct iov_tail opt, client_id_base;
 	const struct opt_ia_na *ia = NULL;
 	struct opt_hdr client_id_storage;
 	struct opt_ia_na ia_storage;
@@ -562,10 +562,7 @@ int dhcpv6(struct ctx *c, const struct pool *p,
 	const struct udphdr *uh;
 	size_t mlen, n;
 
-	if (!packet_get(p, 0, &data))
-		return -1;
-
-	uh = IOV_REMOVE_HEADER(&data, uh_storage);
+	uh = IOV_REMOVE_HEADER(data, uh_storage);
 	if (!uh)
 		return -1;
 
@@ -578,7 +575,7 @@ int dhcpv6(struct ctx *c, const struct pool *p,
 	if (!IN6_IS_ADDR_MULTICAST(daddr))
 		return -1;
 
-	mlen = iov_tail_size(&data);
+	mlen = iov_tail_size(data);
 	if (mlen + sizeof(*uh) != ntohs(uh->len) || mlen < sizeof(*mh))
 		return -1;
 
@@ -586,23 +583,23 @@ int dhcpv6(struct ctx *c, const struct pool *p,
 
 	src = &c->ip6.our_tap_ll;
 
-	mh = IOV_REMOVE_HEADER(&data, mh_storage);
+	mh = IOV_REMOVE_HEADER(data, mh_storage);
 	if (!mh)
 		return -1;
 
-	client_id_base = data;
+	client_id_base = *data;
 	if (dhcpv6_opt(&client_id_base, OPT_CLIENTID))
 		client_id = IOV_PEEK_HEADER(&client_id_base, client_id_storage);
 	if (!client_id || ntohs(client_id->l) > OPT_VSIZE(client_id))
 		return -1;
 
-	opt = data;
+	opt = *data;
 	if (dhcpv6_opt(&opt, OPT_SERVERID))
 		server_id = IOV_PEEK_HEADER(&opt, server_id_storage);
 	if (server_id && ntohs(server_id->hdr.l) != OPT_VSIZE(server_id))
 		return -1;
 
-	opt = data;
+	opt = *data;
 	if (dhcpv6_opt(&opt, OPT_IA_NA))
 		ia = IOV_PEEK_HEADER(&opt, ia_storage);
 	if (ia && ntohs(ia->hdr.l) < MIN(OPT_VSIZE(ia_na), OPT_VSIZE(ia_ta)))
@@ -620,9 +617,9 @@ int dhcpv6(struct ctx *c, const struct pool *p,
 		if (mh->type == TYPE_CONFIRM && server_id)
 			return -1;
 
-		if (dhcpv6_ia_notonlink(&data, &c->ip6.addr)) {
+		if (dhcpv6_ia_notonlink(data, &c->ip6.addr)) {
 
-			dhcpv6_send_ia_notonlink(c, &data, &client_id_base,
+			dhcpv6_send_ia_notonlink(c, data, &client_id_base,
 						 ntohs(client_id->l), mh->xid);
 
 			return 1;
@@ -635,7 +632,7 @@ int dhcpv6(struct ctx *c, const struct pool *p,
 		    memcmp(&resp.server_id, server_id, sizeof(resp.server_id)))
 			return -1;
 
-		if (ia || dhcpv6_opt(&data, OPT_IA_TA))
+		if (ia || dhcpv6_opt(data, OPT_IA_TA))
 			return -1;
 
 		info("DHCPv6: received INFORMATION_REQUEST, sending REPLY");
@@ -668,7 +665,7 @@ int dhcpv6(struct ctx *c, const struct pool *p,
 	n = offsetof(struct resp_t, client_id) +
 	    sizeof(struct opt_hdr) + ntohs(client_id->l);
 	n = dhcpv6_dns_fill(c, (char *)&resp, n);
-	n = dhcpv6_client_fqdn_fill(&data, c, (char *)&resp, n);
+	n = dhcpv6_client_fqdn_fill(data, c, (char *)&resp, n);
 
 	resp.hdr.xid = mh->xid;
 

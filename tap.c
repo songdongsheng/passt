@@ -975,11 +975,9 @@ resume:
 			continue;
 
 		if (proto == IPPROTO_UDP) {
-			PACKET_POOL_P(pkt, 1, in->buf, in->buf_size);
+			struct iov_tail uh_data = data;
 
-			packet_add(pkt, &data);
-
-			if (dhcpv6(c, pkt, saddr, daddr))
+			if (dhcpv6(c, &uh_data, saddr, daddr))
 				continue;
 		}
 
