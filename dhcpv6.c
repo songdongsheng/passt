@@ -280,112 +280,125 @@ static struct resp_not_on_link_t {
 
 /**
  * dhcpv6_opt() - Get option from DHCPv6 message
- * @p:		Packet pool, single packet with UDP header
- * @offset:	Offset to look at, 0: end of header, set to option start
+ * @data:	Buffer with options, set to matching option on return
  * @type:	Option type to look up, network order
  *
- * Return: pointer to option header, or NULL on malformed or missing option
+ * Return: true if found and @data points to the option header,
+ *         or false on malformed or missing option and @data is
+ *         unmodified.
  */
-static struct opt_hdr *dhcpv6_opt(const struct pool *p, size_t *offset,
-				  uint16_t type)
+static bool dhcpv6_opt(struct iov_tail *data, uint16_t type)
 {
-	struct opt_hdr *o;
-	size_t left;
+	struct iov_tail head = *data;
+	struct opt_hdr o_storage;
+	const struct opt_hdr *o;
 
-	ASSERT(*offset >= UDP_MSG_HDR_SIZE);
-
-	while ((o = packet_get_try(p, 0, *offset, sizeof(*o), &left))) {
+	while ((o = IOV_PEEK_HEADER(data, o_storage))) {
 		unsigned int opt_len = ntohs(o->l) + sizeof(*o);
 
-		if (ntohs(o->l) > left)
-			return NULL;
+		if (opt_len > iov_tail_size(data))
+			break;
 
 		if (o->t == type)
-			return o;
+			return true;
 
-		*offset += opt_len;
+		iov_drop_header(data, opt_len);
 	}
 
-	return NULL;
+	*data = head;
+	return false;
 }
 
 /**
  * dhcpv6_ia_notonlink() - Check if any IA contains non-appropriate addresses
- * @p:		Packet pool, single packet starting from UDP header
+ * @data:	Data to look at, packet starting from UDP header (input/output)
  * @la:		Address we want to lease to the client
  *
- * Return: pointer to non-appropriate IA_NA or IA_TA, if any, NULL otherwise
+ * Return: true and @data points to non-appropriate IA_NA or IA_TA, if any,
+ *         false otherwise and @data is unmodified
  */
-static struct opt_hdr *dhcpv6_ia_notonlink(const struct pool *p,
-					   struct in6_addr *la)
+static bool dhcpv6_ia_notonlink(struct iov_tail *data,
+				struct in6_addr *la)
 {
 	int ia_types[2] = { OPT_IA_NA, OPT_IA_TA }, *ia_type;
+	struct opt_ia_addr opt_addr_storage;
 	const struct opt_ia_addr *opt_addr;
+	struct iov_tail current, ia_base;
+	struct opt_ia_na ia_storage;
 	char buf[INET6_ADDRSTRLEN];
+	const struct opt_ia_na *ia;
 	struct in6_addr req_addr;
+	struct opt_hdr h_storage;
 	const struct opt_hdr *h;
-	struct opt_hdr *ia;
-	size_t offset;
 
 	foreach(ia_type, ia_types) {
-		offset = UDP_MSG_HDR_SIZE;
-		while ((ia = dhcpv6_opt(p, &offset, *ia_type))) {
-			if (ntohs(ia->l) < OPT_VSIZE(ia_na))
-				return NULL;
+		current = *data;
+		while (dhcpv6_opt(&current, *ia_type)) {
+			ia_base = current;
+			ia = IOV_REMOVE_HEADER(&current, ia_storage);
+			if (!ia || ntohs(ia->hdr.l) < OPT_VSIZE(ia_na))
+				goto notfound;
 
-			offset += sizeof(struct opt_ia_na);
+			while (dhcpv6_opt(&current, OPT_IAAADR)) {
+				h = IOV_PEEK_HEADER(&current, h_storage);
+				if (!h || ntohs(h->l) != OPT_VSIZE(ia_addr))
+					goto notfound;
 
-			while ((h = dhcpv6_opt(p, &offset, OPT_IAAADR))) {
-				if (ntohs(h->l) != OPT_VSIZE(ia_addr))
-					return NULL;
+				opt_addr = IOV_REMOVE_HEADER(&current,
+							     opt_addr_storage);
+				if (!opt_addr)
+					goto notfound;
 
-				opt_addr = (const struct opt_ia_addr *)h;
 				req_addr = opt_addr->addr;
 				if (!IN6_ARE_ADDR_EQUAL(la, &req_addr))
-					goto err;
-
-				offset += sizeof(struct opt_ia_addr);
+					goto notonlink;
 			}
 		}
 	}
 
-	return NULL;
+notfound:
+	return false;
 
-err:
+notonlink:
 	info("DHCPv6: requested address %s not on link",
 	     inet_ntop(AF_INET6, &req_addr, buf, sizeof(buf)));
-	return ia;
+	*data = ia_base;
+	return true;
 }
 
 /**
  * dhcpv6_send_ia_notonlink() - Send NotOnLink status
- * @c:		Execution context
- * @ia:		Pointer to non-appropriate IA_NA or IA_TA
- * @client_id:	Client ID message option
- * xid:		Transaction ID for message exchange
+ * @c:			Execution context
+ * @ia_base:		Non-appropriate IA_NA or IA_TA base
+ * @client_id_base:	Client ID message option base
+ * @len:		Client ID length
+ * @xid:		Transaction ID for message exchange
  */
-static void dhcpv6_send_ia_notonlink(struct ctx *c, struct opt_hdr *ia,
-				     const struct opt_hdr *client_id,
-				     uint32_t xid)
+static void dhcpv6_send_ia_notonlink(struct ctx *c,
+				     const struct iov_tail *ia_base,
+				     const struct iov_tail *client_id_base,
+				     int len, uint32_t xid)
 {
 	const struct in6_addr *src = &c->ip6.our_tap_ll;
+	struct opt_hdr *ia = (struct opt_hdr *)resp_not_on_link.var;
 	size_t n;
 
 	info("DHCPv6: received CONFIRM with inappropriate IA,"
 	     " sending NotOnLink status in REPLY");
 
-	ia->l = htons(OPT_VSIZE(ia_na) + sizeof(sc_not_on_link));
-
 	n = sizeof(struct opt_ia_na);
-	memcpy(resp_not_on_link.var, ia, n);
+	iov_to_buf(&ia_base->iov[0], ia_base->cnt, ia_base->off,
+		   resp_not_on_link.var, n);
+	ia->l = htons(OPT_VSIZE(ia_na) + sizeof(sc_not_on_link));
 	memcpy(resp_not_on_link.var + n, &sc_not_on_link,
 	       sizeof(sc_not_on_link));
 
 	n += sizeof(sc_not_on_link);
-	memcpy(resp_not_on_link.var + n, client_id,
-	       sizeof(struct opt_hdr) + ntohs(client_id->l));
+	iov_to_buf(&client_id_base->iov[0], client_id_base->cnt,
+		   client_id_base->off, resp_not_on_link.var + n,
+		   sizeof(struct opt_hdr) + len);
 
-	n += sizeof(struct opt_hdr) + ntohs(client_id->l);
+	n += sizeof(struct opt_hdr) + len;
 
 	n = offsetof(struct resp_not_on_link_t, var) + n;
 
@@ -474,17 +487,19 @@ search:
 
 /**
  * dhcpv6_client_fqdn_fill() - Fill in client FQDN option
+ * @data:	Data to look at
  * @c:		Execution context
  * @buf:	Response message buffer where options will be appended
  * @offset:	Offset in message buffer for new options
  *
  * Return: updated length of response message buffer.
  */
-static size_t dhcpv6_client_fqdn_fill(const struct pool *p, const struct ctx *c,
+static size_t dhcpv6_client_fqdn_fill(const struct iov_tail *data,
+				      const struct ctx *c,
 				      char *buf, int offset)
 
 {
-	struct opt_client_fqdn const *req_opt;
+	struct iov_tail current = *data;
 	struct opt_client_fqdn *o;
 	size_t opt_len;
 
@@ -502,14 +517,16 @@ static size_t dhcpv6_client_fqdn_fill(const struct pool *p, const struct ctx *c,
 	}
 
 	o = (struct opt_client_fqdn *)(buf + offset);
+	o->flags = 0x00;
 	encode_domain_name(o->domain_name, c->fqdn);
-	req_opt = (struct opt_client_fqdn *)dhcpv6_opt(p,
-						&(size_t){ UDP_MSG_HDR_SIZE },
-						OPT_CLIENT_FQDN);
-	if (req_opt && req_opt->flags & 0x01 /* S flag */)
-		o->flags = 0x02 /* O flag */;
-	else
-		o->flags = 0x00;
+	if (dhcpv6_opt(&current, OPT_CLIENT_FQDN)) {
+		struct opt_client_fqdn req_opt_storage;
+		struct opt_client_fqdn const *req_opt;
+
+		req_opt = IOV_PEEK_HEADER(&current, req_opt_storage);
+		if (req_opt && req_opt->flags & 0x01 /* S flag */)
+			o->flags = 0x02 /* O flag */;
+	}
 
 	opt_len++;
 
@@ -531,14 +548,18 @@ static size_t dhcpv6_client_fqdn_fill(const struct pool *p, const struct ctx *c,
 int dhcpv6(struct ctx *c, const struct pool *p,
 	   const struct in6_addr *saddr, const struct in6_addr *daddr)
 {
-	const struct opt_hdr *client_id, *server_id, *ia;
+	const struct opt_server_id *server_id = NULL;
+	struct iov_tail data, opt, client_id_base;
+	const struct opt_hdr *client_id = NULL;
+	struct opt_server_id server_id_storage;
+	const struct opt_ia_na *ia = NULL;
+	struct opt_hdr client_id_storage;
+	struct opt_ia_na ia_storage;
 	const struct in6_addr *src;
 	struct msg_hdr mh_storage;
 	const struct msg_hdr *mh;
 	struct udphdr uh_storage;
 	const struct udphdr *uh;
-	struct opt_hdr *bad_ia;
-	struct iov_tail data;
 	size_t mlen, n;
 
 	if (!packet_data(p, 0, &data))
@@ -565,20 +586,26 @@ int dhcpv6(struct ctx *c, const struct pool *p,
 
 	src = &c->ip6.our_tap_ll;
 
-	mh = IOV_PEEK_HEADER(&data, mh_storage);
+	mh = IOV_REMOVE_HEADER(&data, mh_storage);
 	if (!mh)
 		return -1;
 
-	client_id = dhcpv6_opt(p, &(size_t){ UDP_MSG_HDR_SIZE }, OPT_CLIENTID);
+	client_id_base = data;
+	if (dhcpv6_opt(&client_id_base, OPT_CLIENTID))
+		client_id = IOV_PEEK_HEADER(&client_id_base, client_id_storage);
 	if (!client_id || ntohs(client_id->l) > OPT_VSIZE(client_id))
 		return -1;
 
-	server_id = dhcpv6_opt(p, &(size_t){ UDP_MSG_HDR_SIZE }, OPT_SERVERID);
-	if (server_id && ntohs(server_id->l) != OPT_VSIZE(server_id))
+	opt = data;
+	if (dhcpv6_opt(&opt, OPT_SERVERID))
+		server_id = IOV_PEEK_HEADER(&opt, server_id_storage);
+	if (server_id && ntohs(server_id->hdr.l) != OPT_VSIZE(server_id))
 		return -1;
 
-	ia =        dhcpv6_opt(p, &(size_t){ UDP_MSG_HDR_SIZE }, OPT_IA_NA);
-	if (ia && ntohs(ia->l) < MIN(OPT_VSIZE(ia_na), OPT_VSIZE(ia_ta)))
+	opt = data;
+	if (dhcpv6_opt(&opt, OPT_IA_NA))
+		ia = IOV_PEEK_HEADER(&opt, ia_storage);
+	if (ia && ntohs(ia->hdr.l) < MIN(OPT_VSIZE(ia_na), OPT_VSIZE(ia_ta)))
 		return -1;
 
 	resp.hdr.type = TYPE_REPLY;
@@ -593,9 +620,10 @@ int dhcpv6(struct ctx *c, const struct pool *p,
 		if (mh->type == TYPE_CONFIRM && server_id)
 			return -1;
 
-		if ((bad_ia = dhcpv6_ia_notonlink(p, &c->ip6.addr))) {
+		if (dhcpv6_ia_notonlink(&data, &c->ip6.addr)) {
 
-			dhcpv6_send_ia_notonlink(c, bad_ia, client_id, mh->xid);
+			dhcpv6_send_ia_notonlink(c, &data, &client_id_base,
+						 ntohs(client_id->l), mh->xid);
 
 			return 1;
 		}
@@ -607,7 +635,7 @@ int dhcpv6(struct ctx *c, const struct pool *p,
 		    memcmp(&resp.server_id, server_id, sizeof(resp.server_id)))
 			return -1;
 
-		if (ia || dhcpv6_opt(p, &(size_t){ UDP_MSG_HDR_SIZE }, OPT_IA_TA))
+		if (ia || dhcpv6_opt(&data, OPT_IA_TA))
 			return -1;
 
 		info("DHCPv6: received INFORMATION_REQUEST, sending REPLY");
@@ -633,13 +661,14 @@ int dhcpv6(struct ctx *c, const struct pool *p,
 	if (ia)
 		resp.ia_na.iaid = ((struct opt_ia_na *)ia)->iaid;
 
-	memcpy(&resp.client_id, client_id,
-	       ntohs(client_id->l) + sizeof(struct opt_hdr));
+	iov_to_buf(&client_id_base.iov[0], client_id_base.cnt,
+		   client_id_base.off, &resp.client_id,
+		   ntohs(client_id->l) + sizeof(struct opt_hdr));
 
 	n = offsetof(struct resp_t, client_id) +
 	    sizeof(struct opt_hdr) + ntohs(client_id->l);
 	n = dhcpv6_dns_fill(c, (char *)&resp, n);
-	n = dhcpv6_client_fqdn_fill(p, c, (char *)&resp, n);
+	n = dhcpv6_client_fqdn_fill(&data, c, (char *)&resp, n);
 
 	resp.hdr.xid = mh->xid;
 
