@@ -59,19 +59,10 @@ struct _name ## _t {							\
 	.size = _size,							\
 }
 
-#define PACKET_POOL(name, size, buf, buf_size)				\
-	PACKET_POOL_DECL(name, size, buf) name = 			\
-		PACKET_POOL_INIT_NOCAST(size, buf, buf_size)
-
 #define PACKET_INIT(name, size, buf, buf_size)				\
 	(struct name ## _t) PACKET_POOL_INIT_NOCAST(size, buf, buf_size)
 
 #define PACKET_POOL_NOINIT(name, size, buf)				\
 	PACKET_POOL_DECL(name, size, buf) name ## _storage;		\
 	static struct pool *name = (struct pool *)&name ## _storage
-
-#define PACKET_POOL_P(name, size, buf, buf_size)			\
-	PACKET_POOL(name ## _storage, size, buf, buf_size);		\
-	struct pool *name = (struct pool *)&name ## _storage
-
 #endif /* PACKET_H */
