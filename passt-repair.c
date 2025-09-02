@@ -40,6 +40,7 @@
 #include <linux/seccomp.h>
 
 #include "seccomp_repair.h"
+#include "linux_dep.h"
 
 #define SCM_MAX_FD 253 /* From Linux kernel (include/net/scm.h), not in UAPI */
 #define REPAIR_EXT		".repair"

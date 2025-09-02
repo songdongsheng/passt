@@ -135,6 +135,12 @@ struct tcp_info_linux {
 #define CLOSE_RANGE_UNSHARE	(1U << 1)
 #endif
 
+#ifndef TCP_REPAIR_ON
+#define TCP_REPAIR_ON		1
+#define TCP_REPAIR_OFF		0
+#define TCP_REPAIR_OFF_NO_WP	-1	/* Turn off without window probes */
+#endif
+
 __attribute__ ((weak))
 /* cppcheck-suppress funcArgNamesDifferent */
 int close_range(unsigned int first, unsigned int last, int flags) {
