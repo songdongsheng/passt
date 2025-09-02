@@ -942,9 +942,7 @@ resume:
 		}
 
 		if (proto == IPPROTO_ICMPV6) {
-			struct icmp6hdr l4h_storage;
-			const struct icmp6hdr *l4h;
-			PACKET_POOL_P(pkt, 1, in->buf, in->buf_size);
+			struct iov_tail ndp_data;
 
 			if (c->no_icmp)
 				continue;
@@ -952,10 +950,8 @@ resume:
 			if (l4len < sizeof(struct icmp6hdr))
 				continue;
 
-			packet_add(pkt, &data);
-
-			l4h = IOV_PEEK_HEADER(&data, l4h_storage);
-			if (ndp(c, (struct icmp6hdr *)l4h, saddr, pkt))
+			ndp_data = data;
+			if (ndp(c, saddr, &ndp_data))
 				continue;
 
 			tap_packet_debug(NULL, ip6h, NULL, proto, NULL, 1);

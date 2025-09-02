@@ -336,13 +336,20 @@ static void ndp_ra(const struct ctx *c, const struct in6_addr *dst)
  * ndp() - Check for NDP solicitations, reply as needed
  * @c:		Execution context
  * @saddr:	Source IPv6 address
- * @p:		Packet pool
+ * @data:	Single packet with ICMPv6 header
  *
  * Return: 0 if not handled here, 1 if handled, -1 on failure
  */
-int ndp(const struct ctx *c, const struct icmp6hdr *ih,
-	const struct in6_addr *saddr, const struct pool *p)
+int ndp(const struct ctx *c, const struct in6_addr *saddr,
+	struct iov_tail *data)
 {
+	struct icmp6hdr ih_storage;
+	const struct icmp6hdr *ih;
+
+	ih = IOV_PEEK_HEADER(data, ih_storage);
+	if (!ih)
+		return -1;
+
 	if (ih->icmp6_type < RS || ih->icmp6_type > NA)
 		return 0;
 
@@ -352,12 +359,8 @@ int ndp(const struct ctx *c, const struct icmp6hdr *ih,
 	if (ih->icmp6_type == NS) {
 		struct ndp_ns ns_storage;
 		const struct ndp_ns *ns;
-		struct iov_tail data;
 
-		if (!packet_get(p, 0, &data))
-			return -1;
-
-		ns = IOV_REMOVE_HEADER(&data, ns_storage);
+		ns = IOV_REMOVE_HEADER(data, ns_storage);
 		if (!ns)
 			return -1;
 
