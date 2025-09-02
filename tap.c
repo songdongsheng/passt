@@ -764,17 +764,14 @@ resume:
 			continue;
 
 		if (iph->protocol == IPPROTO_ICMP) {
-			PACKET_POOL_P(pkt, 1, in->buf, in->buf_size);
-
 			if (c->no_icmp)
 				continue;
 
 			tap_packet_debug(iph, NULL, NULL, 0, NULL, 1);
 
-			packet_add(pkt, &data);
 			icmp_tap_handler(c, PIF_TAP, AF_INET,
 					 &iph->saddr, &iph->daddr,
-					 pkt, now);
+					 &data, now);
 			continue;
 		}
 
@@ -964,7 +961,7 @@ resume:
 			tap_packet_debug(NULL, ip6h, NULL, proto, NULL, 1);
 
 			icmp_tap_handler(c, PIF_TAP, AF_INET6,
-					 saddr, daddr, pkt, now);
+					 saddr, daddr, &data, now);
 			continue;
 		}
 

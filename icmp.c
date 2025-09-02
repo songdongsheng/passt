@@ -230,20 +230,19 @@ cancel:
  * @af:		Address family, AF_INET or AF_INET6
  * @saddr:	Source address
  * @daddr:	Destination address
- * @p:		Packet pool, single packet with ICMP/ICMPv6 header
+ * @data:	Single packet with ICMP/ICMPv6 header
  * @now:	Current timestamp
  *
  * Return: count of consumed packets (always 1, even if malformed)
  */
 int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		     const void *saddr, const void *daddr,
-		     const struct pool *p, const struct timespec *now)
+		     struct iov_tail *data, const struct timespec *now)
 {
 	struct iovec iov[MAX_IOV_ICMP];
 	struct icmp_ping_flow *pingf;
 	const struct flowside *tgt;
 	union sockaddr_inany sa;
-	struct iov_tail data;
 	struct msghdr msh;
 	uint16_t id, seq;
 	union flow *flow;
@@ -253,14 +252,11 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 	(void)saddr;
 	ASSERT(pif == PIF_TAP);
 
-	if (!packet_get(p, 0, &data))
-		return -1;
-
 	if (af == AF_INET) {
 		struct icmphdr ih_storage;
 		const struct icmphdr *ih;
 
-		ih = IOV_PEEK_HEADER(&data, ih_storage);
+		ih = IOV_PEEK_HEADER(data, ih_storage);
 		if (!ih)
 			return 1;
 
@@ -274,7 +270,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		struct icmp6hdr ih_storage;
 		const struct icmp6hdr *ih;
 
-		ih = IOV_PEEK_HEADER(&data, ih_storage);
+		ih = IOV_PEEK_HEADER(data, ih_storage);
 		if (!ih)
 			return 1;
 
@@ -288,7 +284,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		ASSERT(0);
 	}
 
-	cnt = iov_tail_clone(&iov[0], MAX_IOV_ICMP, &data);
+	cnt = iov_tail_clone(&iov[0], MAX_IOV_ICMP, data);
 	if (cnt < 0)
 		return 1;
 

@@ -14,7 +14,7 @@ struct icmp_ping_flow;
 void icmp_sock_handler(const struct ctx *c, union epoll_ref ref);
 int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		     const void *saddr, const void *daddr,
-		     const struct pool *p, const struct timespec *now);
+		     struct iov_tail *data, const struct timespec *now);
 void icmp_init(void);
 
 /**
