@@ -345,7 +345,7 @@ static void vu_set_enable_all_rings(struct vu_dev *vdev, bool enable)
 {
 	uint16_t i;
 
-	for (i = 0; i < VHOST_USER_MAX_QUEUES; i++)
+	for (i = 0; i < VHOST_USER_MAX_VQS; i++)
 		vdev->vq[i].enable = enable;
 }
 
@@ -477,7 +477,7 @@ static bool vu_set_mem_table_exec(struct vu_dev *vdev,
 		close(vmsg->fds[i]);
 	}
 
-	for (i = 0; i < VHOST_USER_MAX_QUEUES; i++) {
+	for (i = 0; i < VHOST_USER_MAX_VQS; i++) {
 		if (vdev->vq[i].vring.desc) {
 			if (map_ring(vdev, &vdev->vq[i]))
 				die("remapping queue %d during setmemtable", i);
@@ -770,7 +770,7 @@ static void vu_check_queue_msg_file(struct vhost_user_msg *vmsg)
 	bool nofd = vmsg->payload.u64 & VHOST_USER_VRING_NOFD_MASK;
 	int idx = vmsg->payload.u64 & VHOST_USER_VRING_IDX_MASK;
 
-	if (idx >= VHOST_USER_MAX_QUEUES)
+	if (idx >= VHOST_USER_MAX_VQS)
 		die("Invalid vhost-user queue index: %u", idx);
 
 	if (nofd) {
@@ -939,7 +939,9 @@ static bool vu_get_queue_num_exec(struct vu_dev *vdev,
 {
 	(void)vdev;
 
-	vmsg_set_reply_u64(vmsg, VHOST_USER_MAX_QUEUES);
+	vmsg_set_reply_u64(vmsg, VHOST_USER_MAX_VQS / 2);
+
+	debug("VHOST_USER_MAX_VQS  %u", VHOST_USER_MAX_VQS / 2);
 
 	return true;
 }
@@ -960,7 +962,7 @@ static bool vu_set_vring_enable_exec(struct vu_dev *vdev,
 	debug("State.index:  %u", idx);
 	debug("State.enable: %u", enable);
 
-	if (idx >= VHOST_USER_MAX_QUEUES)
+	if (idx >= VHOST_USER_MAX_VQS)
 		die("Invalid vring_enable index: %u", idx);
 
 	vdev->vq[idx].enable = enable;
@@ -1052,7 +1054,7 @@ void vu_init(struct ctx *c)
 
 	c->vdev = &vdev_storage;
 	c->vdev->context = c;
-	for (i = 0; i < VHOST_USER_MAX_QUEUES; i++) {
+	for (i = 0; i < VHOST_USER_MAX_VQS; i++) {
 		c->vdev->vq[i] = (struct vu_virtq){
 			.call_fd = -1,
 			.kick_fd = -1,
@@ -1075,7 +1077,7 @@ void vu_cleanup(struct vu_dev *vdev)
 {
 	unsigned int i;
 
-	for (i = 0; i < VHOST_USER_MAX_QUEUES; i++) {
+	for (i = 0; i < VHOST_USER_MAX_VQS; i++) {
 		struct vu_virtq *vq = &vdev->vq[i];
 
 		vq->started = false;

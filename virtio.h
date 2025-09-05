@@ -88,7 +88,7 @@ struct vu_dev_region {
 	uint64_t mmap_addr;
 };
 
-#define VHOST_USER_MAX_QUEUES 2
+#define VHOST_USER_MAX_VQS 2
 
 /*
  * Set a reasonable maximum number of ram slots, which will be supported by
@@ -121,7 +121,7 @@ struct vdev_memory {
 struct vu_dev {
 	struct ctx *context;
 	struct vdev_memory memory;
-	struct vu_virtq vq[VHOST_USER_MAX_QUEUES];
+	struct vu_virtq vq[VHOST_USER_MAX_VQS];
 	uint64_t features;
 	uint64_t protocol_features;
 	int log_call_fd;
