@@ -30,19 +30,19 @@ endef
 
 test	Log creation
 
-set	PORTS -t 10001,10002 -u 10001,10002
+set	PORTS -t 10001,10002 -u 10001,10002 -T none -U none
 set	LOG_FILE __STATEDIR__/pasta.log
 
-passt	./pasta -l __LOG_FILE__ -- /bin/true
+passt	./pasta __PORTS__ -l __LOG_FILE__ -- /bin/true
 check	[ -s __LOG_FILE__ ]
 
 test	Log truncated on creation
-passt	./pasta -l __LOG_FILE__ -- /bin/true & wait
+passt	./pasta __PORTS__ -l __LOG_FILE__ -- /bin/true & wait
 pout	PID2 echo $!
 check	head -1 __LOG_FILE__ | grep '^pasta .* [(]__PID2__[)]$'
 
 test	Maximum log size
-passtb	./pasta --config-net -d -f -l __LOG_FILE__ --log-size $((100 * 1024)) -- sh -c 'while true; do tcp_crr --nolog -l1 -P 10001 -C 10002 -6; done'
+passtb	./pasta __PORTS__ --config-net -d -f -l __LOG_FILE__ --log-size $((100 * 1024)) -- sh -c 'while true; do tcp_crr --nolog -l1 -P 10001 -C 10002 -6; done'
 sleep	1
 
 flood_log_client
@@ -67,7 +67,7 @@ passt	unshare -rUm
 passt	mkdir __STATEDIR__/t
 passt	mount -t tmpfs none __STATEDIR__/t
 set	LOG_FILE __STATEDIR__/t/log
-passt	./pasta --config-net -d -l __LOG_FILE__ --log-size $((100 * 1024))
+passt	./pasta __PORTS__ --config-net -d -l __LOG_FILE__ --log-size $((100 * 1024))
 
 flood_log_server
 flood_log_client
