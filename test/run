@@ -43,6 +43,9 @@ KERNEL=${KERNEL:-"/boot/vmlinuz-$(uname -r)"}
 
 COMMIT="$(git log --oneline --no-decorate -1)"
 
+# Let exeter tests written in Python find their modules
+export PYTHONPATH=${BASEPATH}/exeter/py3
+
 . lib/util
 . lib/context
 . lib/setup
@@ -69,11 +72,8 @@ run() {
 	[ ${CI} -eq 1 ]   && video_start ci
 
 	exeter smoke/smoke.sh
+	exeter build/build.py
 	exeter build/static_checkers.sh
-
-	setup build
-	test build/all
-	teardown build
 
 	setup pasta
 	test pasta/ndp
