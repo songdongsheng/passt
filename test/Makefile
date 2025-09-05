@@ -5,6 +5,7 @@
 # Copyright Red Hat
 # Author: David Gibson <david@gibson.dropbear.id.au>
 
+BATS = bats -j $(shell nproc)
 EXETOOL = exeter/exetool/exetool
 WGET = wget -c
 
@@ -62,6 +63,12 @@ LOCAL_ASSETS = mbuto.img mbuto.mem.img podman/bin/podman QEMU_EFI.fd \
 	$(TESTDATA_ASSETS)
 
 ASSETS = $(DOWNLOAD_ASSETS) $(LOCAL_ASSETS)
+
+EXETER_PYPATH = exeter/py3
+EXETER_BATS = smoke/smoke.sh.bats \
+	build/build.py.bats build/static_checkers.sh.bats
+BATS_FILES = $(EXETER_BATS) \
+	podman/test/system/505-networking-pasta.bats
 
 CFLAGS = -Wall -Werror -Wextra -pedantic -std=c99
 
@@ -121,6 +128,12 @@ medium.bin:
 big.bin:
 	dd if=/dev/urandom bs=1M count=10 of=$@
 
+$(EXETER_BATS): %.bats: % $(EXETOOL)
+	PYTHONPATH=$(EXETER_PYPATH) $(EXETOOL) bats -- $< > $@
+
+bats: $(BATS_FILES) pull-podman
+	PYTHONPATH=$(EXETER_PYPATH) CONTAINERS_HELPER_BINARY_DIR=.. $(BATS) $(BATS_FILES)
+
 check: assets
 	./run
 
@@ -130,6 +143,7 @@ debug: assets
 clean:
 	rm -f perf.js *~
 	rm -f $(LOCAL_ASSETS)
+	rm -f $(EXETER_BATS)
 	rm -rf test_logs
 	rm -f prepared-*.qcow2 prepared-*.img
 
