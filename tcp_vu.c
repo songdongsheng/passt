@@ -171,6 +171,7 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 
 /** tcp_vu_sock_recv() - Receive datastream from socket into vhost-user buffers
  * @c:			Execution context
+ * @vq:			virtqueue to use to receive data
  * @conn:		Connection pointer
  * @v6:			Set for IPv6 connections
  * @already_sent:	Number of bytes already sent
@@ -181,13 +182,12 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
  * Return: number of bytes received from the socket, or a negative error code
  * on failure.
  */
-static ssize_t tcp_vu_sock_recv(const struct ctx *c,
+static ssize_t tcp_vu_sock_recv(const struct ctx *c, struct vu_virtq *vq,
 				const struct tcp_tap_conn *conn, bool v6,
 				uint32_t already_sent, size_t fillsize,
 				int *iov_cnt, int *head_cnt)
 {
-	struct vu_dev *vdev = c->vdev;
-	struct vu_virtq *vq = &vdev->vq[VHOST_USER_RX_QUEUE];
+	const struct vu_dev *vdev = c->vdev;
 	struct msghdr mh_sock = { 0 };
 	uint16_t mss = MSS_GET(conn);
 	int s = conn->sock;
@@ -398,7 +398,7 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 	/* collect the buffers from vhost-user and fill them with the
 	 * data from the socket
 	 */
-	len = tcp_vu_sock_recv(c, conn, v6, already_sent, fillsize,
+	len = tcp_vu_sock_recv(c, vq, conn, v6, already_sent, fillsize,
 			       &iov_cnt, &head_cnt);
 	if (len < 0) {
 		if (len != -EAGAIN && len != -EWOULDBLOCK) {
