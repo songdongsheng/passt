@@ -53,6 +53,7 @@ COMMIT="$(git log --oneline --no-decorate -1)"
 . lib/layout_ugly
 . lib/test
 . lib/video
+. lib/exeter
 
 # cleanup() - Remove temporary files
 cleanup() {
@@ -66,6 +67,8 @@ run() {
 	term
 	perf_init
 	[ ${CI} -eq 1 ]   && video_start ci
+
+	exeter smoke/smoke.sh
 
 	setup build
 	test build/all
@@ -223,6 +226,10 @@ run_selected() {
 
 	__setup=
 	for __test; do
+		if is_exeter "test/${__test}"; then
+			exeter "${__test}"
+			continue
+		fi
 		# HACK: the migrate tests need the setup repeated for
 		#       each test
 		if [ "${__test%%/*}" != "${__setup}" -o		\
@@ -234,7 +241,7 @@ run_selected() {
 
 		test "${__test}"
 	done
-	teardown "${__setup}"
+	[ -n "${__setup}" ] && teardown "${__setup}"
 
 	log "PASS: ${STATUS_PASS}, FAIL: ${STATUS_FAIL}, SKIPPED: ${STATUS_SKIPPED}"
 

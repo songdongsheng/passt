@@ -5,6 +5,7 @@
 # Copyright Red Hat
 # Author: David Gibson <david@gibson.dropbear.id.au>
 
+EXETOOL = exeter/exetool/exetool
 WGET = wget -c
 
 DEBIAN_IMGS = debian-8.11.0-openstack-amd64.qcow2 \
@@ -50,14 +51,14 @@ UBUNTU_NEW_IMGS = xenial-server-cloudimg-powerpc-disk1.img \
 	jammy-server-cloudimg-s390x.img
 UBUNTU_IMGS = $(UBUNTU_OLD_IMGS) $(UBUNTU_NEW_IMGS)
 
-DOWNLOAD_ASSETS = mbuto podman \
+DOWNLOAD_ASSETS = exeter mbuto podman \
 	$(DEBIAN_IMGS) $(FEDORA_IMGS) $(OPENSUSE_IMGS) $(UBUNTU_IMGS)
 TESTDATA_ASSETS = small.bin big.bin medium.bin \
 	rampstream
 LOCAL_ASSETS = mbuto.img mbuto.mem.img podman/bin/podman QEMU_EFI.fd \
 	$(DEBIAN_IMGS:%=prepared-%) $(FEDORA_IMGS:%=prepared-%) \
 	$(UBUNTU_NEW_IMGS:%=prepared-%) \
-	nstool guest-key guest-key.pub \
+	nstool guest-key guest-key.pub $(EXETOOL) \
 	$(TESTDATA_ASSETS)
 
 ASSETS = $(DOWNLOAD_ASSETS) $(LOCAL_ASSETS)
@@ -69,6 +70,11 @@ assets: $(ASSETS)
 .PHONY: pull-%
 pull-%: %
 	git -C $* pull
+
+exeter:
+	git clone https://gitlab.com/dgibson/exeter.git
+
+exeter/exetool/exetool: pull-exeter
 
 mbuto:
 	git clone git://mbuto.sh/mbuto
