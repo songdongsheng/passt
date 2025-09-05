@@ -208,7 +208,7 @@ struct ip6_ctx {
  * @guest_mac:		MAC address of guest or namespace, seen or configured
  * @hash_secret:	128-bit secret for siphash functions
  * @ifi4:		Template interface for IPv4, -1: none, 0: IPv4 disabled
- * @ip:			IPv4 configuration
+ * @ip4:		IPv4 configuration
  * @dns_search:		DNS search list
  * @hostname:		Guest hostname
  * @fqdn:		Guest FQDN
