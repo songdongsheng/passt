@@ -26,6 +26,7 @@
 #define FIN		(1 << 0)
 #define SYN		(1 << 1)
 #define RST		(1 << 2)
+#define PSH		(1 << 3)
 #define ACK		(1 << 4)
 
 /* Flags for internal usage */

@@ -1176,6 +1176,7 @@ int tcp_prepare_flags(const struct ctx *c, struct tcp_tap_conn *conn,
 	th->doff = (sizeof(*th) + *optlen) / 4;
 
 	th->ack = !!(flags & ACK);
+	th->psh = !!(flags & PSH);
 	th->rst = !!(flags & RST);
 	th->syn = !!(flags & SYN);
 	th->fin = !!(flags & FIN);
