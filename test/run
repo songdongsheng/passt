@@ -69,11 +69,10 @@ run() {
 	[ ${CI} -eq 1 ]   && video_start ci
 
 	exeter smoke/smoke.sh
+	exeter build/static_checkers.sh
 
 	setup build
 	test build/all
-	test build/cppcheck
-	test build/clang_tidy
 	teardown build
 
 	setup pasta
