@@ -60,16 +60,17 @@ static size_t udp_vu_hdrlen(bool v6)
 /**
  * udp_vu_sock_recv() - Receive datagrams from socket into vhost-user buffers
  * @c:		Execution context
+ * @vq:		virtqueue to use to receive data
  * @s:		Socket to receive from
  * @v6:		Set for IPv6 connections
  * @dlen:	Size of received data (output)
  *
  * Return: number of iov entries used to store the datagram
  */
-static int udp_vu_sock_recv(const struct ctx *c, int s, bool v6, ssize_t *dlen)
+static int udp_vu_sock_recv(const struct ctx *c, struct vu_virtq *vq, int s,
+			    bool v6, ssize_t *dlen)
 {
-	struct vu_dev *vdev = c->vdev;
-	struct vu_virtq *vq = &vdev->vq[VHOST_USER_RX_QUEUE];
+	const struct vu_dev *vdev = c->vdev;
 	int iov_cnt, idx, iov_used;
 	struct msghdr msg  = { 0 };
 	size_t off, hdrlen;
@@ -210,7 +211,7 @@ void udp_vu_sock_to_tap(const struct ctx *c, int s, int n, flow_sidx_t tosidx)
 		ssize_t dlen;
 		int iov_used;
 
-		iov_used = udp_vu_sock_recv(c, s, v6, &dlen);
+		iov_used = udp_vu_sock_recv(c, vq, s, v6, &dlen);
 		if (iov_used <= 0)
 			break;
 
