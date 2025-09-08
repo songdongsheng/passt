@@ -60,7 +60,7 @@ static struct tcp_tap_conn *tcp_frame_conns[TCP_FRAMES_MEM];
 static unsigned int tcp_payload_used;
 
 /* recvmsg()/sendmsg() data for tap */
-static struct iovec	iov_sock		[TCP_FRAMES_MEM + 1];
+static struct iovec	iov_sock		[TCP_FRAMES_MEM + DISCARD_IOV_NUM];
 
 static struct iovec	tcp_l2_iov[TCP_FRAMES_MEM][TCP_NUM_IOVS];
 
@@ -326,15 +326,9 @@ int tcp_buf_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 		iov_rem = (wnd_scaled - already_sent) % mss;
 	}
 
-	/* Prepare iov according to kernel capability */
-	if (!peek_offset_cap) {
-		mh_sock.msg_iov = iov_sock;
-		iov_sock[0].iov_base = tcp_buf_discard;
-		iov_sock[0].iov_len = already_sent;
-		mh_sock.msg_iovlen = fill_bufs + 1;
-	} else {
-		mh_sock.msg_iov = &iov_sock[1];
-		mh_sock.msg_iovlen = fill_bufs;
+	if (tcp_prepare_iov(&mh_sock, iov_sock, already_sent, fill_bufs)) {
+		tcp_rst(c, conn);
+		return -1;
 	}
 
 	if (tcp_payload_used + fill_bufs > TCP_FRAMES_MEM) {
@@ -344,12 +338,12 @@ int tcp_buf_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 		tcp_payload_used = 0;
 	}
 
-	for (i = 0, iov = iov_sock + 1; i < fill_bufs; i++, iov++) {
+	for (i = 0, iov = iov_sock + DISCARD_IOV_NUM; i < fill_bufs; i++, iov++) {
 		iov->iov_base = &tcp_payload[tcp_payload_used + i].data;
 		iov->iov_len = mss;
 	}
 	if (iov_rem)
-		iov_sock[fill_bufs].iov_len = iov_rem;
+		iov_sock[fill_bufs + DISCARD_IOV_NUM - 1].iov_len = iov_rem;
 
 	/* Receive into buffers, don't dequeue until acknowledged by guest. */
 	do

@@ -399,7 +399,7 @@ static int tcp_sock_ns		[NUM_PORTS][IP_VERSIONS];
  */
 static union inany_addr low_rtt_dst[LOW_RTT_TABLE_SIZE];
 
-char		tcp_buf_discard		[MAX_WINDOW];
+char		tcp_buf_discard		[BUF_DISCARD_SIZE];
 
 /* Does the kernel support TCP_PEEK_OFF? */
 bool peek_offset_cap;
@@ -3841,6 +3841,70 @@ fail:
 
 	conn->flags = 0; /* Not waiting for ACK, don't schedule timer */
 	tcp_rst(c, conn);
+
+	return 0;
+}
+
+/**
+ * tcp_prepare_iov() - Prepare iov according to kernel capability
+ * @msg:		Message header to update
+ * @iov:		iovec to receive TCP payload and data to discard
+ * @already_sent:	Bytes sent after the last acknowledged one
+ * @payload_iov_cnt:	Number of TCP payload iovec entries
+ *
+ * Return: 0 on success, -1 if already_sent cannot be discarded fully
+ */
+int tcp_prepare_iov(struct msghdr *msg, struct iovec *iov,
+		    uint32_t already_sent, int payload_iov_cnt)
+{
+	/*
+	 * IOV layout
+	 * |- tcp_buf_discard -|---------- TCP data slots ------------|
+	 *
+	 * with discarded data:
+	 * |------ddddddddddddd|ttttttttttttt-------------------------|
+	 *        ^
+	 *        |
+	 *     msg_iov
+	 *
+	 * without discarded data:
+	 * |-------------------|ttttttttttttt-------------------------|
+	 *                      ^
+	 *                      |
+	 *                   msg_iov
+	 * d: discard data
+	 * t: TCP data
+	 */
+	if (peek_offset_cap) {
+		msg->msg_iov = iov + DISCARD_IOV_NUM;
+		msg->msg_iovlen = payload_iov_cnt;
+	} else {
+		int discard_cnt, discard_iov_rem;
+		struct iovec *iov_start;
+		int i;
+
+		discard_cnt = DIV_ROUND_UP(already_sent, BUF_DISCARD_SIZE);
+		if (discard_cnt > DISCARD_IOV_NUM) {
+			debug("Failed to discard %u already sent bytes",
+				already_sent);
+			return -1;
+		}
+
+		discard_iov_rem = already_sent % BUF_DISCARD_SIZE;
+
+		iov_start = iov + (DISCARD_IOV_NUM - discard_cnt);
+
+		/* Multiple iov entries pointing to the same buffer */
+		for (i = 0; i < discard_cnt; i++) {
+			iov_start[i].iov_base = tcp_buf_discard;
+			iov_start[i].iov_len = BUF_DISCARD_SIZE;
+		}
+		if (discard_iov_rem)
+			iov[DISCARD_IOV_NUM - 1].iov_len = discard_iov_rem;
+
+		msg->msg_iov = iov_start;
+		msg->msg_iovlen = discard_cnt + payload_iov_cnt;
+	}
 
 	return 0;
 }

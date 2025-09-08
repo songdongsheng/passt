@@ -35,7 +35,7 @@
 #include "vu_common.h"
 #include <time.h>
 
-static struct iovec iov_vu[VIRTQUEUE_MAX_SIZE + 1];
+static struct iovec iov_vu[VIRTQUEUE_MAX_SIZE + DISCARD_IOV_NUM];
 static struct vu_virtq_element elem[VIRTQUEUE_MAX_SIZE];
 static int head[VIRTQUEUE_MAX_SIZE + 1];
 
@@ -200,7 +200,7 @@ static ssize_t tcp_vu_sock_recv(const struct ctx *c, struct vu_virtq *vq,
 
 	hdrlen = tcp_vu_hdrlen(v6);
 
-	vu_init_elem(elem, &iov_vu[1], VIRTQUEUE_MAX_SIZE);
+	vu_init_elem(elem, &iov_vu[DISCARD_IOV_NUM], VIRTQUEUE_MAX_SIZE);
 
 	elem_cnt = 0;
 	*head_cnt = 0;
@@ -228,16 +228,9 @@ static ssize_t tcp_vu_sock_recv(const struct ctx *c, struct vu_virtq *vq,
 		elem_cnt += cnt;
 	}
 
-	if (peek_offset_cap) {
-		mh_sock.msg_iov = iov_vu + 1;
-		mh_sock.msg_iovlen = elem_cnt;
-	} else {
-		iov_vu[0].iov_base = tcp_buf_discard;
-		iov_vu[0].iov_len = already_sent;
-
-		mh_sock.msg_iov = iov_vu;
-		mh_sock.msg_iovlen = elem_cnt + 1;
-	}
+	if (tcp_prepare_iov(&mh_sock, iov_vu, already_sent, elem_cnt))
+		/* Expect caller to do a TCP reset */
+		return -1;
 
 	do
 		ret = recvmsg(s, &mh_sock, MSG_PEEK);

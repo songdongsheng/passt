@@ -9,6 +9,9 @@
 #define MAX_WS				8
 #define MAX_WINDOW			(1 << (16 + (MAX_WS)))
 
+#define BUF_DISCARD_SIZE	(1 << 20)
+#define DISCARD_IOV_NUM		DIV_ROUND_UP(MAX_WINDOW, BUF_DISCARD_SIZE)
+
 #define MSS4				ROUND_DOWN(IP_MAX_MTU -		   \
 						   sizeof(struct tcphdr) - \
 						   sizeof(struct iphdr),   \
@@ -143,7 +146,7 @@ struct tcp_syn_opts {
 		.ws = TCP_OPT_WS(ws_),			\
 	})
 
-extern char tcp_buf_discard [MAX_WINDOW];
+extern char tcp_buf_discard [BUF_DISCARD_SIZE];
 
 void conn_flag_do(const struct ctx *c, struct tcp_tap_conn *conn,
 		  unsigned long flag);
@@ -184,4 +187,6 @@ int tcp_prepare_flags(const struct ctx *c, struct tcp_tap_conn *conn,
 		      size_t *optlen);
 int tcp_set_peek_offset(const struct tcp_tap_conn *conn, int offset);
 
+int tcp_prepare_iov(struct msghdr *msg, struct iovec *iov,
+		      uint32_t already_sent, int payload_iov_cnt);
 #endif /* TCP_INTERNAL_H */
