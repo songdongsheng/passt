@@ -369,7 +369,10 @@ int tcp_buf_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 	}
 
 	if (!len) {
-		if ((conn->events & (SOCK_FIN_RCVD | TAP_FIN_SENT)) == SOCK_FIN_RCVD) {
+		if (already_sent) {
+			conn_flag(c, conn, STALLED);
+		} else if ((conn->events & (SOCK_FIN_RCVD | TAP_FIN_SENT)) ==
+			   SOCK_FIN_RCVD) {
 			int ret = tcp_buf_send_flag(c, conn, FIN | ACK);
 			if (ret) {
 				tcp_rst(c, conn);
