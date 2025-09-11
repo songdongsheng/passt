@@ -209,13 +209,14 @@ int tcp_buf_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	if (ret <= 0)
 		return ret;
 
-	tcp_payload_used++;
+	tcp_frame_conns[tcp_payload_used++] = conn;
 	l4len = optlen + sizeof(struct tcphdr);
 	iov[TCP_IOV_PAYLOAD].iov_len = l4len;
 	tcp_l2_buf_fill_headers(conn, iov, NULL, seq, false);
 
 	if (flags & DUP_ACK) {
-		struct iovec *dup_iov = tcp_l2_iov[tcp_payload_used++];
+		struct iovec *dup_iov = tcp_l2_iov[tcp_payload_used];
+		tcp_frame_conns[tcp_payload_used++] = conn;
 
 		memcpy(dup_iov[TCP_IOV_TAP].iov_base, iov[TCP_IOV_TAP].iov_base,
 		       iov[TCP_IOV_TAP].iov_len);
