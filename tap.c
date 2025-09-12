@@ -507,12 +507,15 @@ static size_t tap_send_frames_passt(const struct ctx *c,
  * @iov must have total length @bufs_per_frame * @nframes, with each set of
  * @bufs_per_frame contiguous buffers representing a single frame.
  *
- * Return: number of frames actually sent
+ * Return: number of frames actually sent, or accounted as sent
  */
 size_t tap_send_frames(const struct ctx *c, const struct iovec *iov,
 		       size_t bufs_per_frame, size_t nframes)
 {
 	size_t m;
+
+	if (c->fd_tap == -1)
+		return nframes;
 
 	if (!nframes)
 		return 0;
