@@ -21,5 +21,6 @@ struct arpmsg {
 } __attribute__((__packed__));
 
 int arp(const struct ctx *c, struct iov_tail *data);
+void arp_send_init_req(const struct ctx *c);
 
 #endif /* ARP_H */

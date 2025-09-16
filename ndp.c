@@ -438,3 +438,23 @@ void ndp_timer(const struct ctx *c, const struct timespec *now)
 first:
 	next_ra = now->tv_sec + interval;
 }
+
+/**
+ * ndp_send_init_req() - Send initial NDP NS to retrieve guest MAC address
+ * @c:		Execution context
+ */
+void ndp_send_init_req(const struct ctx *c)
+{
+	struct ndp_ns ns = {
+		.ih = {
+			.icmp6_type		= NS,
+			.icmp6_code		= 0,
+			.icmp6_router		= 0, /* Reserved */
+			.icmp6_solicited	= 0, /* Reserved */
+			.icmp6_override		= 0, /* Reserved */
+		},
+		.target_addr = c->ip6.addr
+	};
+	debug("Sending initial NDP NS request for guest MAC address");
+	ndp_send(c, &c->ip6.addr, &ns, sizeof(ns));
+}

@@ -1359,6 +1359,11 @@ static void tap_start_connection(const struct ctx *c)
 	ev.events = EPOLLIN | EPOLLRDHUP;
 	ev.data.u64 = ref.u64;
 	epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap, &ev);
+
+	if (c->ifi4)
+		arp_send_init_req(c);
+	if (c->ifi6 && !c->no_ndp)
+		ndp_send_init_req(c);
 }
 
 /**

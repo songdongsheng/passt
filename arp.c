@@ -112,3 +112,37 @@ int arp(const struct ctx *c, struct iov_tail *data)
 
 	return 1;
 }
+
+/**
+ * arp_send_init_req() - Send initial ARP request to retrieve guest MAC address
+ * @c:		Execution context
+ */
+void arp_send_init_req(const struct ctx *c)
+{
+	struct {
+		struct ethhdr eh;
+		struct arphdr ah;
+		struct arpmsg am;
+	} __attribute__((__packed__)) req;
+
+	/* Ethernet header */
+	req.eh.h_proto = htons(ETH_P_ARP);
+	memcpy(req.eh.h_dest, MAC_BROADCAST, sizeof(req.eh.h_dest));
+	memcpy(req.eh.h_source, c->our_tap_mac, sizeof(req.eh.h_source));
+
+	/* ARP header */
+	req.ah.ar_op = htons(ARPOP_REQUEST);
+	req.ah.ar_hrd = htons(ARPHRD_ETHER);
+	req.ah.ar_pro = htons(ETH_P_IP);
+	req.ah.ar_hln = ETH_ALEN;
+	req.ah.ar_pln = 4;
+
+	/* ARP message */
+	memcpy(req.am.sha,	c->our_tap_mac,		sizeof(req.am.sha));
+	memcpy(req.am.sip,	&c->ip4.our_tap_addr,	sizeof(req.am.sip));
+	memcpy(req.am.tha,	MAC_BROADCAST,		sizeof(req.am.tha));
+	memcpy(req.am.tip,	&c->ip4.addr,		sizeof(req.am.tip));
+
+	debug("Sending initial ARP request for guest MAC address");
+	tap_send_single(c, &req, sizeof(req));
+}
