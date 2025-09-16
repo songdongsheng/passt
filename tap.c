@@ -1512,9 +1512,9 @@ void tap_backend_init(struct ctx *c)
 	case MODE_PASST:
 		tap_sock_unix_init(c);
 
-		/* In passt mode, we don't know the guest's MAC address until it
-		 * sends us packets.  Use the broadcast address so that our
-		 * first packets will reach it.
+		/* In passt mode, we don't know the guest's MAC address until
+		 * it sends us packets.  Until then, use the broadcast address
+		 * so that our first packets will have a chance to reach it.
 		 */
 		memcpy(&c->guest_mac, MAC_BROADCAST, sizeof(c->guest_mac));
 		break;
