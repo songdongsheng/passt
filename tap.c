@@ -1096,7 +1096,11 @@ void tap_add_packet(struct ctx *c, struct iov_tail *data,
 		return;
 
 	if (memcmp(c->guest_mac, eh->h_source, ETH_ALEN)) {
+		char bufmac[ETH_ADDRSTRLEN];
+
 		memcpy(c->guest_mac, eh->h_source, ETH_ALEN);
+		debug("New guest MAC address observed: %s",
+		      eth_ntop(c->guest_mac, bufmac, sizeof(bufmac)));
 		proto_update_l2_buf(c->guest_mac, NULL);
 	}
 
