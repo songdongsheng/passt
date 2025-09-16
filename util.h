@@ -97,6 +97,8 @@ void abort_with_msg(const char *fmt, ...)
 #define FD_PROTO(x, proto)						\
 	(IN_INTERVAL(c->proto.fd_min, c->proto.fd_max, (x)))
 
+#define MAC_BROADCAST							\
+	((uint8_t [ETH_ALEN]){ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff })
 #define MAC_ZERO		((uint8_t [ETH_ALEN]){ 0 })
 #define MAC_IS_ZERO(addr)	(!memcmp((addr), MAC_ZERO, ETH_ALEN))
 

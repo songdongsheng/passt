@@ -1511,7 +1511,7 @@ void tap_backend_init(struct ctx *c)
 		 * sends us packets.  Use the broadcast address so that our
 		 * first packets will reach it.
 		 */
-		memset(&c->guest_mac, 0xff, sizeof(c->guest_mac));
+		memcpy(&c->guest_mac, MAC_BROADCAST, sizeof(c->guest_mac));
 		break;
 	}
 
