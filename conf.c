@@ -2067,6 +2067,9 @@ void conf(struct ctx *c, int argc, char **argv)
 
 	isolate_user(uid, gid, !netns_only, userns, c->mode);
 
+	if (c->no_icmp)
+		c->no_ndp = 1;
+
 	if (c->pasta_conf_ns)
 		c->no_ra = 1;
 

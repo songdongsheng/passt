@@ -319,8 +319,8 @@ silently dropped.
 
 .TP
 .BR \-\-no-icmp
-Disable the ICMP/ICMPv6 echo handler. ICMP and ICMPv6 echo requests coming from
-guest or target namespace will be silently dropped.
+Disable the ICMP/ICMPv6 protocol handler. ICMP and ICMPv6 requests coming from
+guest or target namespace will be silently dropped. Implies \fB--no-ndp\fR.
 
 .TP
 .BR \-\-no-dhcp
