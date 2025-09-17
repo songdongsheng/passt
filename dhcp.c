@@ -311,10 +311,10 @@ int dhcp(const struct ctx *c, struct iov_tail *data)
 	const struct ethhdr *eh;
 	const struct iphdr *iph;
 	const struct udphdr *uh;
+	struct msg m_storage;
 	struct msg const *m;
 	struct msg reply;
 	unsigned int i;
-	struct msg m_storage;
 
 	eh = IOV_REMOVE_HEADER(data, eh_storage);
 	iph = IOV_PEEK_HEADER(data, iph_storage);
