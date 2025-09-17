@@ -96,6 +96,7 @@ require {
 	role staff_r;
 	role user_r;
 	type container_runtime_t;
+	type container_var_run_t;
 	type container_t;
 	type systemd_user_runtimedir_t;
 }
@@ -242,8 +243,12 @@ type_transition container_runtime_t pasta_exec_t : process pasta_t;
 allow container_runtime_t pasta_t:process transition;
 
 # Label the user network namespace files
+# Note: Podman files used to be user_tmp_t but are now container_var_run_t since
+# https://github.com/containers/container-selinux/pull/405
 type_transition container_runtime_t user_tmp_t : dir ifconfig_var_run_t "netns";
+type_transition container_runtime_t container_var_run_t : dir ifconfig_var_run_t "netns";
 type_transition container_runtime_t user_tmp_t : dir ifconfig_var_run_t "rootless-netns";
+type_transition container_runtime_t container_var_run_t : dir ifconfig_var_run_t "rootless-netns";
 allow pasta_t ifconfig_var_run_t:dir { add_name open rmdir write };
 allow pasta_t ifconfig_var_run_t:file { create open write };
 allow systemd_user_runtimedir_t ifconfig_var_run_t:dir rmdir;
