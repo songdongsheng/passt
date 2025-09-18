@@ -625,7 +625,9 @@ See also the [test logs](/builds/latest/test/).
 
 ### [Mailing Lists](/passt/lists)
 * Submit, review patches, and discuss development ideas on
-  [`passt-dev`](https://lists.passt.top/postorius/lists/passt-dev.passt.top/)
+  [`passt-dev`](https://lists.passt.top/postorius/lists/passt-dev.passt.top/).
+  Please refer to the [CONTRIBUTING.md](/passt/tree/CONTRIBUTING.md) file for
+  details.
 
 * Ask your questions and discuss usage needs on
   [`passt-user`](https://lists.passt.top/postorius/lists/passt-user.passt.top/)
