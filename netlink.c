@@ -565,6 +565,11 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
 		if (nh->nlmsg_type != RTM_NEWROUTE)
 			continue;
 
+		/* nexthop state flags don't apply to freshly created routes,
+		 * and the kernel will refuse our route if they are set.
+		 */
+		rtm->rtm_flags &= ~RTNH_COMPARE_MASK;
+
 		for (rta = RTM_RTA(rtm), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
 		     rta = RTA_NEXT(rta, na)) {
 			/* RTA_OIF and RTA_MULTIPATH attributes carry the
