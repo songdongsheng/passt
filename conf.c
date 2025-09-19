@@ -835,6 +835,8 @@ static void usage(const char *name, FILE *f, int status)
 		"\n"
 		"  -d, --debug		Be verbose\n"
 		"      --trace		Be extra verbose, implies --debug\n"
+		"  --stats DELAY  	Display events statistics\n"
+		"    minimum DELAY seconds between updates\n"
 		"  -q, --quiet		Don't print informational messages\n"
 		"  -f, --foreground	Don't run in background\n"
 		"    default: run in background\n"
@@ -1480,6 +1482,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		{"repair-path",	required_argument,	NULL,		28 },
 		{"migrate-exit", no_argument,		NULL,		29 },
 		{"migrate-no-linger", no_argument,	NULL,		30 },
+		{"stats", required_argument,		NULL,		31 },
 		{ 0 },
 	};
 	const char *optstring = "+dqfel:hs:F:I:p:P:m:a:n:M:g:i:o:D:S:H:461t:u:T:U:";
@@ -1708,6 +1711,11 @@ void conf(struct ctx *c, int argc, char **argv)
 				die("--migrate-no-linger is for vhost-user mode only");
 			c->migrate_no_linger = true;
 
+			break;
+		case 31:
+			if (!c->foreground)
+				die("Can't display statistics if not running in foreground");
+			c->stats = strtol(optarg, NULL, 0);
 			break;
 		case 'd':
 			c->debug = 1;

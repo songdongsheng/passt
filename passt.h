@@ -187,6 +187,7 @@ struct ip6_ctx {
  * @mode:		Operation mode, qemu/UNIX domain socket or namespace/tap
  * @debug:		Enable debug mode
  * @trace:		Enable tracing (extra debug) mode
+ * @stats:		Events statistics delay (0 means disabled)
  * @quiet:		Don't print informational messages
  * @foreground:		Run in foreground, don't log to stderr by default
  * @nofile:		Maximum number of open files (ulimit -n)
@@ -248,6 +249,7 @@ struct ctx {
 	enum passt_modes mode;
 	int debug;
 	int trace;
+	int stats;
 	int quiet;
 	int foreground;
 	int nofile;

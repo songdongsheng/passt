@@ -84,6 +84,14 @@ static_assert(ARRAY_SIZE(epoll_type_str) == EPOLL_NUM_TYPES,
 	      "epoll_type_str[] doesn't match enum epoll_type");
 
 /**
+ * struct passt_stats - Statistics
+ * @events:	Event counters for epoll type events
+ */
+struct passt_stats {
+	unsigned long events[EPOLL_NUM_TYPES];
+};
+
+/**
  * post_handler() - Run periodic and deferred tasks for L4 protocol handlers
  * @c:		Execution context
  * @now:	Current timestamp
@@ -175,6 +183,53 @@ static void exit_handler(int signal)
 }
 
 /**
+ * print_stats() - Print event statistics table to stderr
+ * @c:		Execution context
+ * @stats:	Event counters
+ * @now:	Current timestamp
+ */
+static void print_stats(const struct ctx *c, const struct passt_stats *stats,
+			const struct timespec *now)
+{
+	static struct timespec before;
+	static int lines_printed;
+	long long elapsed_ns;
+	int i;
+
+	if (!c->stats)
+		return;
+
+	elapsed_ns = (now->tv_sec - before.tv_sec) * 1000000000LL +
+		     (now->tv_nsec - before.tv_nsec);
+
+	if (elapsed_ns < c->stats * 1000000000LL)
+		return;
+
+	before = *now;
+
+	if (!(lines_printed % 20)) {
+		/* Table header */
+		for (i = 1; i < EPOLL_NUM_TYPES; i++) {
+			int j;
+
+			for (j = 0; j < i * (6 + 1); j++) {
+				if (j && !(j % (6 + 1)))
+					FPRINTF(stderr, "|");
+				else
+					FPRINTF(stderr, " ");
+			}
+			FPRINTF(stderr, "%s\n", epoll_type_str[i]);
+		}
+	}
+
+	FPRINTF(stderr, " ");
+	for (i = 1; i < EPOLL_NUM_TYPES; i++)
+		FPRINTF(stderr, " %6lu", stats->events[i]);
+	FPRINTF(stderr, "\n");
+	lines_printed++;
+}
+
+/**
  * main() - Entry point and main loop
  * @argc:	Argument count
  * @argv:	Options, plus optional target PID for pasta mode
@@ -191,6 +246,7 @@ static void exit_handler(int signal)
 int main(int argc, char **argv)
 {
 	struct epoll_event events[EPOLL_EVENTS];
+	struct passt_stats stats = { 0 };
 	int nfds, i, devnull_fd = -1;
 	struct ctx c = { 0 };
 	struct rlimit limit;
@@ -362,6 +418,8 @@ loop:
 			/* Can't happen */
 			ASSERT(0);
 		}
+		stats.events[ref.type]++;
+		print_stats(&c, &stats, &now);
 	}
 
 	post_handler(&c, &now);
