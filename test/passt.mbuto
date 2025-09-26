@@ -64,7 +64,9 @@ set >> \$LOG
 exit 0
 EOF
 	chmod 755 /sbin/dhclient-script
-	ln -s /bin /usr/bin
+	mv /bin/* /usr/bin || :
+	rm -rf /bin
+	ln -s /usr/bin /bin
 	ln -s /run /var/run
 	:> /etc/fstab
 
