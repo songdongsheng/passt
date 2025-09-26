@@ -3,6 +3,10 @@
 IMG="$1"
 PASST_FILES="$(echo ../*.c ../*.h ../*.sh ../*.1 ../Makefile ../README.md)"
 
+# This is just a workaround for Fedora and related distributions.
+# Once it gets fixed, we can drop this.
+export LIBGUESTFS_BACKEND=direct
+
 virt-edit -a $IMG /lib/systemd/system/serial-getty@.service -e 's/ExecStart=.*/ExecStart=\/sbin\/agetty --autologin root -8 --keep-baud 115200,38400,9600 %I $TERM/g'
 
 guestfish --rw -a $IMG -i <<EOF
