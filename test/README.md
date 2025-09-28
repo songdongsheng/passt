@@ -32,7 +32,7 @@ Example for Debian, and possibly most Debian-based distributions:
     git go iperf3 isc-dhcp-common jq libgpgme-dev libseccomp-dev linux-cpupower
     lm-sensors lz4 netavark netcat-openbsd psmisc qemu-efi-aarch64
     qemu-system-arm qemu-system-misc qemu-system-ppc qemu-system-x86
-    qemu-system-x86 sipcalc socat strace tmux uidmap valgrind
+    sipcalc socat strace tmux uidmap valgrind
 
 NOTE: the tests need a qemu version >= 7.2, or one that contains commit
 13c6be96618c ("net: stream: add unix socket"): this change introduces support
@@ -81,7 +81,12 @@ The following additional packages are commonly needed:
 
 ## Regular test
 
-Just issue:
+Before running the tests, you need to prepare the required assets:
+
+    cd test
+    make assets
+
+Then issue:
 
     ./run
 
@@ -90,6 +95,32 @@ variable settings: DEBUG=1 enables debugging messages, TRACE=1 enables tracing
 (further debugging messages), PCAP=1 enables packet captures. Example:
 
     PCAP=1 TRACE=1 ./run
+
+**Note:**
+
+* Don't run the tests as root, the whole point of passt is not to run as root.
+
+* If you switch users before running the tests, you may hit "Permission denied"
+  error. It's probably due to
+  [Bug 967509](https://bugzilla.redhat.com/show_bug.cgi?id=967509).
+  If you switch users with `su` or `sudo`, the directory `/run/user/ID` may
+  not be created, and `XDG_RUNTIME_DIR` points to the /run/user directory of
+  the previous user rather than the target user.
+
+  **Workaround:** Log out and log back in as the intended user to ensure the
+  correct runtime directory is set up. Or use `machinectl shell --uid=$user`.
+
+* SELinux may prevent the tests from running correctly. To avoid this,
+  temporarily disable it by running:
+
+        setenforce 0
+
+* Some tests require a QEMU version >= 10.0.0, or a build that includes the
+  following commits:
+
+        60f543ad917f ("virtio-net: vhost-user: Implement internal migration")
+        3f65357313e0 ("vhost: Add stubs for the migration state transfer
+        interface")
 
 ## Running selected tests
 
