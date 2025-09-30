@@ -310,8 +310,8 @@ nl
 say	Everything is set now, let's start
 sleep	2
 hout	IFNAME ip -j link show | jq -rM '.[] | select(.link_type == "ether").ifname'
-hout	ADDR4 ip -j -4 addr show|jq -rM '.[] | select(.ifname == "__IFNAME__").addr_info[] | select(.scope == "global").local'
-hout	ADDR6 ip -j -6 addr show|jq -rM '.[] | select(.ifname == "__IFNAME__").addr_info[] | select(.scope == "global").local'
+hout	ADDR4 ip -j -4 addr show|jq -rM '.[] | select(.ifname == "__IFNAME__").addr_info[] | select(.scope != "host" and .scope != "link").local'
+hout	ADDR6 ip -j -6 addr show|jq -rM '.[] | select(.ifname == "__IFNAME__").addr_info[] | select(.scope != "host" and .scope != "link").local'
 hout	GW4 ip -j -4 route show|jq -rM '.[] | select(.dst == "default").gateway'
 hout	GW6 ip -j -6 route show|jq -rM '.[] | select(.dst == "default").gateway'
 
