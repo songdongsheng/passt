@@ -29,32 +29,32 @@ PR_NC='\033[0m'
 PR_DELAY_INIT=100 # ms
 
 # info() - Highlight test log pane, print message to it and to log file
-# $@:	Message to print
+# $*:	Message to print
 info() {
 	tmux select-pane -t ${PANE_INFO}
-	printf "${*}\n" >> $STATEBASE/log_pipe
-	printf "${*}\n" >> "${LOGFILE}"
+	printf "%b\n" "${*}" >> $STATEBASE/log_pipe
+	printf "%b\n" "${*}" >> "${LOGFILE}"
 }
 
 # info_n() - Highlight, print message to pane and to log file without newline
-# $@:	Message to print
+# $*:	Message to print
 info_n() {
 	tmux select-pane -t ${PANE_INFO}
-	printf "${*}" >> $STATEBASE/log_pipe
-	printf "${*}" >> "${LOGFILE}"
+	printf "%b" "${*}" >> $STATEBASE/log_pipe
+	printf "%b" "${*}" >> "${LOGFILE}"
 }
 
 # info_nolog() - Highlight test log pane, print message to it
-# $@:	Message to print
+# $*:	Message to print
 info_nolog() {
 	tmux select-pane -t ${PANE_INFO}
-	printf "${*}\n" >> $STATEBASE/log_pipe
+	printf "%b\n" "${*}" >> $STATEBASE/log_pipe
 }
 
 # info_nolog() - Print message to log file
-# $@:	Message to print
+# $*:	Message to print
 log() {
-	printf "${*}\n" >> "${LOGFILE}"
+	printf "%b\n" "${*}" >> "${LOGFILE}"
 }
 
 # info_nolog_n() - Send message to pane without highlighting it, without newline
@@ -363,8 +363,8 @@ status_test_start() {
 info_check() {
 	switch_pane ${PANE_INFO}
 
-	printf "${PR_YELLOW}?${PR_NC} ${*}" >> $STATEBASE/log_pipe
-	printf "? ${*}" >> "${LOGFILE}"
+	printf "%b" "${PR_YELLOW}?${PR_NC} ${*}" >> $STATEBASE/log_pipe
+	printf "? %b" "${*}" >> "${LOGFILE}"
 }
 
 # info_check_passed() - Display and log a new line when a check passes
