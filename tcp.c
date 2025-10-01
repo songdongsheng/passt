@@ -1881,7 +1881,7 @@ eintr:
 	}
 
 out:
-	if (keep != -1) {
+	if (keep != -1 || partial_send) {
 		/* We use an 8-bit approximation here: the associated risk is
 		 * that we skip a duplicate ACK on 8-bit sequence number
 		 * collision. Fast retransmit is a SHOULD in RFC 5681, 3.2.
