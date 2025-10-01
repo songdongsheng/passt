@@ -2135,9 +2135,15 @@ int tcp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 
 	/* Established connections not accepting data from tap */
 	if (conn->events & TAP_FIN_RCVD) {
+		size_t dlen;
 		bool retr;
 
-		retr = th->ack && !tcp_packet_data_len(th, l4len) && !th->fin &&
+		if ((dlen = tcp_packet_data_len(th, l4len))) {
+			flow_dbg(conn, "data segment in CLOSE-WAIT (%zu B)",
+				 dlen);
+		}
+
+		retr = th->ack && !th->fin &&
 		       ntohl(th->ack_seq) == conn->seq_ack_from_tap &&
 		       ntohs(th->window) == conn->wnd_from_tap;
 
