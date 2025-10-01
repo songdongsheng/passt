@@ -1774,7 +1774,7 @@ static int tcp_data_from_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 			}
 		}
 
-		if (th->fin)
+		if (th->fin && seq == seq_from_tap)
 			fin = 1;
 
 		if (!len)
