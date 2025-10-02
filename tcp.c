@@ -1030,6 +1030,11 @@ int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 					return 0;
 			}
 
+			/* This trips a cppcheck bug in some versions, including
+			 * cppcheck 2.18.3.
+			 * https://sourceforge.net/p/cppcheck/discussion/general/thread/fecde59085/
+			 */
+			/* cppcheck-suppress [uninitvar,unmatchedSuppression] */
 			conn->seq_ack_to_tap = tinfo->tcpi_bytes_acked +
 				conn->seq_init_from_tap;
 
