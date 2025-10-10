@@ -49,7 +49,15 @@ exeter() {
 	for __testid in $(${EXETOOL} list -- "${@}"); do
 		__desc="$(${EXETOOL} desc -- "${@}" -- "${__testid}")"
 		status_test_start "${__desc}"
-		context_run host "${*} '${__testid}'" && status_test_ok || status_test_fail
+		status=0
+		context_run host "${*} '${__testid}'" || status="${?}"
+		if [ "${status}" = 0 ]; then
+			status_test_ok
+		elif [ "${status}" = 77 ]; then
+			status_test_skip
+		else
+			status_test_fail
+		fi
 	done
 
 	cd ..
