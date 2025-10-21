@@ -996,12 +996,12 @@ void raw_random(void *buf, size_t buflen)
 
 /**
  * epoll_del() - Remove a file descriptor from our passt epoll
- * @c:		Execution context
+ * @epollfd:	epoll file descriptor to remove from
  * @fd:		File descriptor to remove
  */
-void epoll_del(const struct ctx *c, int fd)
+void epoll_del(int epollfd, int fd)
 {
-	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, fd, NULL);
+	epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, NULL);
 
 }
 

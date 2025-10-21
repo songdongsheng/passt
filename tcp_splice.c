@@ -204,8 +204,8 @@ static void conn_flag_do(const struct ctx *c, struct tcp_splice_conn *conn,
 	}
 
 	if (flag == CLOSING) {
-		epoll_del(c, conn->s[0]);
-		epoll_del(c, conn->s[1]);
+		epoll_del(c->epollfd, conn->s[0]);
+		epoll_del(c->epollfd, conn->s[1]);
 	}
 }
 

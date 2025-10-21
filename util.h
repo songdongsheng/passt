@@ -302,7 +302,7 @@ static inline bool mod_between(unsigned x, unsigned i, unsigned j, unsigned m)
 #define FPRINTF(f, ...)	(void)fprintf(f, __VA_ARGS__)
 
 void raw_random(void *buf, size_t buflen);
-void epoll_del(const struct ctx *c, int fd);
+void epoll_del(int epollfd, int fd);
 
 /*
  * Starting from glibc 2.40.9000 and commit 25a5eb4010df ("string: strerror,

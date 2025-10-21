@@ -511,9 +511,9 @@ static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 
 	if (conn->events == CLOSED) {
 		if (conn->in_epoll)
-			epoll_del(c, conn->sock);
+			epoll_del(c->epollfd, conn->sock);
 		if (conn->timer != -1)
-			epoll_del(c, conn->timer);
+			epoll_del(c->epollfd, conn->timer);
 		return 0;
 	}
 
@@ -3488,7 +3488,7 @@ int tcp_flow_migrate_source_ext(const struct ctx *c,
 	if (c->migrate_no_linger)
 		close(s);
 	else
-		epoll_del(c, s);
+		epoll_del(c->epollfd, s);
 
 	/* Adjustments unrelated to FIN segments: sequence numbers we dumped are
 	 * based on the end of the queues.

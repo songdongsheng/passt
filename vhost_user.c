@@ -733,7 +733,7 @@ static bool vu_get_vring_base_exec(struct vu_dev *vdev,
 		vdev->vq[idx].call_fd = -1;
 	}
 	if (vdev->vq[idx].kick_fd != -1) {
-		epoll_del(vdev->context, vdev->vq[idx].kick_fd);
+		epoll_del(vdev->context->epollfd, vdev->vq[idx].kick_fd);
 		close(vdev->vq[idx].kick_fd);
 		vdev->vq[idx].kick_fd = -1;
 	}
@@ -801,7 +801,7 @@ static bool vu_set_vring_kick_exec(struct vu_dev *vdev,
 	vu_check_queue_msg_file(vmsg);
 
 	if (vdev->vq[idx].kick_fd != -1) {
-		epoll_del(vdev->context, vdev->vq[idx].kick_fd);
+		epoll_del(vdev->context->epollfd, vdev->vq[idx].kick_fd);
 		close(vdev->vq[idx].kick_fd);
 		vdev->vq[idx].kick_fd = -1;
 	}
@@ -1093,7 +1093,7 @@ void vu_cleanup(struct vu_dev *vdev)
 			vq->err_fd = -1;
 		}
 		if (vq->kick_fd != -1) {
-			epoll_del(vdev->context, vq->kick_fd);
+			epoll_del(vdev->context->epollfd, vq->kick_fd);
 			close(vq->kick_fd);
 			vq->kick_fd = -1;
 		}

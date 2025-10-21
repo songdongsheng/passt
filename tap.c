@@ -1146,7 +1146,7 @@ void tap_sock_reset(struct ctx *c)
 	}
 
 	/* Close the connected socket, wait for a new connection */
-	epoll_del(c, c->fd_tap);
+	epoll_del(c->epollfd, c->fd_tap);
 	close(c->fd_tap);
 	c->fd_tap = -1;
 	if (c->mode == MODE_VU)
