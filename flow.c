@@ -116,6 +116,7 @@ static_assert(ARRAY_SIZE(flow_proto) == FLOW_NUM_TYPES,
 unsigned flow_first_free;
 union flow flowtab[FLOW_MAX];
 static const union flow *flow_new_entry; /* = NULL */
+static int epoll_id_to_fd[EPOLLFD_ID_MAX];
 
 /* Hash table to index it */
 #define FLOW_HASH_LOAD		70		/* % */
@@ -348,6 +349,63 @@ static void flow_set_state(struct flow_common *f, enum flow_state state)
 }
 
 /**
+ * flow_in_epoll() - Check if flow is registered with an epoll instance
+ * @f:		Flow to check
+ *
+ * Return: true if flow is registered with epoll, false otherwise
+ */
+bool flow_in_epoll(const struct flow_common *f)
+{
+	return f->epollid != EPOLLFD_ID_INVALID;
+}
+
+/**
+ * flow_epollfd() - Get the epoll file descriptor for a flow
+ * @f:		Flow to query
+ *
+ * Return: epoll file descriptor associated with the flow's thread
+ */
+int flow_epollfd(const struct flow_common *f)
+{
+	ASSERT(f->epollid < EPOLLFD_ID_MAX);
+
+	return epoll_id_to_fd[f->epollid];
+}
+
+/**
+ * flow_epollid_set() - Associate a flow with an epoll id
+ * @f:		Flow to update
+ * @epollid:	epoll id to associate with this flow
+ */
+void flow_epollid_set(struct flow_common *f, int epollid)
+{
+	ASSERT(epollid < EPOLLFD_ID_MAX);
+
+	f->epollid = epollid;
+}
+
+/**
+ * flow_epollid_clear() - Clear the flow epoll id
+ * @f:		Flow to update
+ */
+void flow_epollid_clear(struct flow_common *f)
+{
+	f->epollid = EPOLLFD_ID_INVALID;
+}
+
+/**
+ * flow_epollid_register() - Initialize the epoll id -> fd mapping
+ * @epollid:	epoll id to associate to
+ * @epollfd:	epoll file descriptor for this epoll id
+ */
+void flow_epollid_register(int epollid, int epollfd)
+{
+	ASSERT(epollid < EPOLLFD_ID_MAX);
+
+	epoll_id_to_fd[epollid] = epollfd;
+}
+
+/**
  * flow_initiate_() - Move flow to INI, setting pif[INISIDE]
  * @flow:	Flow to change state
  * @pif:	pif of the initiating side
@@ -550,6 +608,7 @@ union flow *flow_alloc(void)
 
 	flow_new_entry = flow;
 	memset(flow, 0, sizeof(*flow));
+	flow_epollid_clear(&flow->f);
 	flow_set_state(&flow->f, FLOW_STATE_NEW);
 
 	return flow;
@@ -829,7 +888,7 @@ void flow_defer_handler(const struct ctx *c, const struct timespec *now)
 		case FLOW_TCP_SPLICE:
 			closed = tcp_splice_flow_defer(&flow->tcp_splice);
 			if (!closed && timer)
-				tcp_splice_timer(c, &flow->tcp_splice);
+				tcp_splice_timer(&flow->tcp_splice);
 			break;
 		case FLOW_PING4:
 		case FLOW_PING6:

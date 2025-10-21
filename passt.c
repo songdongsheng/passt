@@ -286,6 +286,7 @@ int main(int argc, char **argv)
 	c.epollfd = epoll_create1(EPOLL_CLOEXEC);
 	if (c.epollfd == -1)
 		die_perror("Failed to create epoll file descriptor");
+	flow_epollid_register(EPOLLFD_ID_DEFAULT, c.epollfd);
 
 	if (getrlimit(RLIMIT_NOFILE, &limit))
 		die_perror("Failed to get maximum value of open files limit");
