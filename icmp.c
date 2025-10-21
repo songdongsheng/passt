@@ -174,10 +174,10 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 {
 	uint8_t proto = af == AF_INET ? IPPROTO_ICMP : IPPROTO_ICMPV6;
 	uint8_t flowtype = af == AF_INET ? FLOW_PING4 : FLOW_PING6;
-	union epoll_ref ref = { .type = EPOLL_TYPE_PING };
 	union flow *flow = flow_alloc();
 	struct icmp_ping_flow *pingf;
 	const struct flowside *tgt;
+	union epoll_ref ref;
 
 	if (!flow)
 		return NULL;
@@ -198,9 +198,7 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 
 	pingf->seq = -1;
 
-	ref.flowside = FLOW_SIDX(flow, TGTSIDE);
-	pingf->sock = flowside_sock_l4(c, EPOLL_TYPE_PING, PIF_HOST,
-				       tgt, ref.data);
+	pingf->sock = flowside_sock_l4(c, EPOLL_TYPE_PING, PIF_HOST, tgt);
 
 	if (pingf->sock < 0) {
 		warn("Cannot open \"ping\" socket. You might need to:");
@@ -211,6 +209,15 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 
 	if (pingf->sock > FD_REF_MAX)
 		goto cancel;
+
+	ref.type = EPOLL_TYPE_PING;
+	ref.flowside = FLOW_SIDX(flow, TGTSIDE);
+	ref.fd = pingf->sock;
+
+	if (epoll_add(c->epollfd, EPOLLIN, ref) < 0) {
+		close(pingf->sock);
+		goto cancel;
+	}
 
 	flow_dbg(pingf, "new socket %i for echo ID %"PRIu16, pingf->sock, id);
 

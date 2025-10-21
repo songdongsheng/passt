@@ -78,16 +78,28 @@ static int udp_flow_sock(const struct ctx *c,
 		flow_sidx_t sidx;
 		uint32_t data;
 	} fref = { .sidx = FLOW_SIDX(uflow, sidei) };
+	union epoll_ref ref;
+	int rc;
 	int s;
 
-	s = flowside_sock_l4(c, EPOLL_TYPE_UDP, pif, side, fref.data);
+	s = flowside_sock_l4(c, EPOLL_TYPE_UDP, pif, side);
 	if (s < 0) {
 		flow_dbg_perror(uflow, "Couldn't open flow specific socket");
 		return s;
 	}
 
+	ref.type = EPOLL_TYPE_UDP;
+	ref.data = fref.data;
+	ref.fd = s;
+
+	rc = epoll_add(c->epollfd, EPOLLIN, ref);
+	if (rc < 0) {
+		close(s);
+		return rc;
+	}
+
 	if (flowside_connect(c, s, pif, side) < 0) {
-		int rc = -errno;
+		rc = -errno;
 
 		epoll_del(c->epollfd, s);
 		close(s);

@@ -163,7 +163,6 @@ static void flowside_from_af(struct flowside *side, sa_family_t af,
  * @type:	Socket epoll type
  * @sa:		Socket address
  * @sl:		Length of @sa
- * @data:	epoll reference data
  */
 struct flowside_sock_args {
 	const struct ctx *c;
@@ -173,7 +172,6 @@ struct flowside_sock_args {
 	const struct sockaddr *sa;
 	socklen_t sl;
 	const char *path;
-	uint32_t data;
 };
 
 /** flowside_sock_splice() - Create and bind socket for PIF_SPLICE based on flowside
@@ -188,7 +186,7 @@ static int flowside_sock_splice(void *arg)
 	ns_enter(a->c);
 
 	a->fd = sock_l4_sa(a->c, a->type, a->sa, a->sl, NULL,
-	                   a->sa->sa_family == AF_INET6, a->data);
+	                   a->sa->sa_family == AF_INET6);
 	a->err = errno;
 
 	return 0;
@@ -205,7 +203,7 @@ static int flowside_sock_splice(void *arg)
  *         (if specified).
  */
 int flowside_sock_l4(const struct ctx *c, enum epoll_type type, uint8_t pif,
-		     const struct flowside *tgt, uint32_t data)
+		     const struct flowside *tgt)
 {
 	const char *ifname = NULL;
 	union sockaddr_inany sa;
@@ -225,12 +223,12 @@ int flowside_sock_l4(const struct ctx *c, enum epoll_type type, uint8_t pif,
 			ifname = c->ip6.ifname_out;
 
 		return sock_l4_sa(c, type, &sa, sl, ifname,
-				  sa.sa_family == AF_INET6, data);
+				  sa.sa_family == AF_INET6);
 
 	case PIF_SPLICE: {
 		struct flowside_sock_args args = {
 			.c = c, .type = type,
-			.sa = &sa.sa, .sl = sl, .data = data,
+			.sa = &sa.sa, .sl = sl,
 		};
 		NS_CALL(flowside_sock_splice, &args);
 		errno = args.err;
