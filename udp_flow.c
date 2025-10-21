@@ -52,7 +52,7 @@ void udp_flow_close(const struct ctx *c, struct udp_flow *uflow)
 	flow_foreach_sidei(sidei) {
 		flow_hash_remove(c, FLOW_SIDX(uflow, sidei));
 		if (uflow->s[sidei] >= 0) {
-			epoll_del(c->epollfd, uflow->s[sidei]);
+			epoll_del(flow_epollfd(&uflow->f), uflow->s[sidei]);
 			close(uflow->s[sidei]);
 			uflow->s[sidei] = -1;
 		}
@@ -92,7 +92,9 @@ static int udp_flow_sock(const struct ctx *c,
 	ref.data = fref.data;
 	ref.fd = s;
 
-	rc = epoll_add(c->epollfd, EPOLLIN, ref);
+	flow_epollid_set(&uflow->f, EPOLLFD_ID_DEFAULT);
+
+	rc = epoll_add(flow_epollfd(&uflow->f), EPOLLIN, ref);
 	if (rc < 0) {
 		close(s);
 		return rc;
@@ -101,7 +103,7 @@ static int udp_flow_sock(const struct ctx *c,
 	if (flowside_connect(c, s, pif, side) < 0) {
 		rc = -errno;
 
-		epoll_del(c->epollfd, s);
+		epoll_del(flow_epollfd(&uflow->f), s);
 		close(s);
 
 		flow_dbg_perror(uflow, "Couldn't connect flow socket");
