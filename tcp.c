@@ -279,7 +279,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
-#include <sys/epoll.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/timerfd.h>
@@ -309,6 +308,7 @@
 #include "tcp_internal.h"
 #include "tcp_buf.h"
 #include "tcp_vu.h"
+#include "epoll_ctl.h"
 
 /*
  * The size of TCP header (including options) is given by doff (Data Offset)

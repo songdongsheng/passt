@@ -15,6 +15,7 @@
 #include "passt.h"
 #include "flow_table.h"
 #include "udp_internal.h"
+#include "epoll_ctl.h"
 
 #define UDP_CONN_TIMEOUT	180 /* s, timeout for ephemeral or local bind */
 

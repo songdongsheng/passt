@@ -44,7 +44,6 @@
 #include <net/ethernet.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <sys/epoll.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -56,6 +55,7 @@
 #include "siphash.h"
 #include "inany.h"
 #include "flow.h"
+#include "epoll_ctl.h"
 
 #include "flow_table.h"
 

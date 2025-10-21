@@ -32,8 +32,6 @@
 #include <inttypes.h>
 #include <time.h>
 #include <net/ethernet.h>
-#include <netinet/in.h>
-#include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <sys/mman.h>
 #include <linux/vhost_types.h>
@@ -45,6 +43,7 @@
 #include "vhost_user.h"
 #include "pcap.h"
 #include "migrate.h"
+#include "epoll_ctl.h"
 
 /* vhost-user version we are compatible with */
 #define VHOST_USER_VERSION 1
@@ -753,11 +752,8 @@ static void vu_set_watch(const struct vu_dev *vdev, int idx)
 		.fd = vdev->vq[idx].kick_fd,
 		.queue = idx
 	 };
-	struct epoll_event ev = { 0 };
 
-	ev.data.u64 = ref.u64;
-	ev.events = EPOLLIN;
-	epoll_ctl(vdev->context->epollfd, EPOLL_CTL_ADD, ref.fd, &ev);
+	epoll_add(vdev->context->epollfd, EPOLLIN, ref);
 }
 
 /**

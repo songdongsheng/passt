@@ -18,7 +18,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/ethernet.h>
-#include <sys/epoll.h>
 #include <sys/uio.h>
 #include <fcntl.h>
 #include <string.h>
@@ -35,6 +34,7 @@
 #include "packet.h"
 #include "log.h"
 #include "pcap.h"
+#include "epoll_ctl.h"
 #ifdef HAS_GETRANDOM
 #include <sys/random.h>
 #endif
@@ -58,7 +58,6 @@ int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 	sa_family_t af = ((const struct sockaddr *)sa)->sa_family;
 	union epoll_ref ref = { .type = type, .data = data };
 	bool freebind = false;
-	struct epoll_event ev;
 	int fd, y = 1, ret;
 	uint8_t proto;
 	int socktype;
@@ -172,13 +171,9 @@ int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 		return ret;
 	}
 
-	ev.events = EPOLLIN;
-	ev.data.u64 = ref.u64;
-	if (epoll_ctl(c->epollfd, EPOLL_CTL_ADD, fd, &ev) == -1) {
-		ret = -errno;
-		warn("L4 epoll_ctl: %s", strerror_(-ret));
+	ret = epoll_add(c->epollfd, EPOLLIN, ref);
+	if (ret < 0)
 		return ret;
-	}
 
 	return fd;
 }
@@ -992,17 +987,6 @@ void raw_random(void *buf, size_t buflen)
 
 	if (random_read < buflen)
 		die("Unexpected EOF on random data source");
-}
-
-/**
- * epoll_del() - Remove a file descriptor from our passt epoll
- * @epollfd:	epoll file descriptor to remove from
- * @fd:		File descriptor to remove
- */
-void epoll_del(int epollfd, int fd)
-{
-	epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, NULL);
-
 }
 
 /**

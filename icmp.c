@@ -15,7 +15,6 @@
 #include <errno.h>
 #include <net/ethernet.h>
 #include <net/if.h>
-#include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
 #include <stdio.h>
@@ -23,10 +22,8 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
-#include <sys/epoll.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <unistd.h>
 #include <time.h>
 
 #include <linux/icmpv6.h>
@@ -41,6 +38,7 @@
 #include "inany.h"
 #include "icmp.h"
 #include "flow_table.h"
+#include "epoll_ctl.h"
 
 #define ICMP_ECHO_TIMEOUT	60 /* s, timeout for ICMP socket activity */
 #define ICMP_NUM_IDS		(1U << 16)

@@ -195,6 +195,9 @@ int do_clone(int (*fn)(void *), char *stack_area, size_t stack_size, int flags,
 #define SNDBUF_BIG		(4ULL * 1024 * 1024)
 #define SNDBUF_SMALL		(128ULL * 1024)
 
+#define FD_REF_BITS		24
+#define FD_REF_MAX		((int)MAX_FROM_BITS(FD_REF_BITS))
+
 #include <net/if.h>
 #include <limits.h>
 #include <stdint.h>
@@ -302,7 +305,6 @@ static inline bool mod_between(unsigned x, unsigned i, unsigned j, unsigned m)
 #define FPRINTF(f, ...)	(void)fprintf(f, __VA_ARGS__)
 
 void raw_random(void *buf, size_t buflen);
-void epoll_del(int epollfd, int fd);
 
 /*
  * Starting from glibc 2.40.9000 and commit 25a5eb4010df ("string: strerror,

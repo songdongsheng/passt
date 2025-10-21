@@ -19,7 +19,6 @@
  * created in a separate network namespace).
  */
 
-#include <sys/epoll.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/resource.h>
@@ -54,6 +53,7 @@
 #include "migrate.h"
 #include "repair.h"
 #include "netlink.h"
+#include "epoll_ctl.h"
 
 #define NUM_EPOLL_EVENTS	8
 
