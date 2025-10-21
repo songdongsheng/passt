@@ -153,7 +153,7 @@ unexpected:
 static void icmp_ping_close(const struct ctx *c,
 			    const struct icmp_ping_flow *pingf)
 {
-	epoll_del(c->epollfd, pingf->sock);
+	epoll_del(flow_epollfd(&pingf->f), pingf->sock);
 	close(pingf->sock);
 	flow_hash_remove(c, FLOW_SIDX(pingf, INISIDE));
 }
@@ -210,11 +210,13 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 	if (pingf->sock > FD_REF_MAX)
 		goto cancel;
 
+	flow_epollid_set(&pingf->f, EPOLLFD_ID_DEFAULT);
+
 	ref.type = EPOLL_TYPE_PING;
 	ref.flowside = FLOW_SIDX(flow, TGTSIDE);
 	ref.fd = pingf->sock;
 
-	if (epoll_add(c->epollfd, EPOLLIN, ref) < 0) {
+	if (epoll_add(flow_epollfd(&pingf->f), EPOLLIN, ref) < 0) {
 		close(pingf->sock);
 		goto cancel;
 	}
