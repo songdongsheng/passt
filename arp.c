@@ -69,6 +69,7 @@ static bool ignore_arp(const struct ctx *c,
  */
 int arp(const struct ctx *c, struct iov_tail *data)
 {
+	union inany_addr tgt;
 	struct {
 		struct ethhdr eh;
 		struct arphdr ah;
@@ -102,8 +103,11 @@ int arp(const struct ctx *c, struct iov_tail *data)
 	resp.ah.ar_hln = ah->ar_hln;
 	resp.ah.ar_pln = ah->ar_pln;
 
-	/* ARP message */
-	memcpy(resp.am.sha,		c->our_tap_mac,	sizeof(resp.am.sha));
+	/* MAC address to return in ARP message */
+	inany_from_af(&tgt, AF_INET, am->tip);
+	fwd_neigh_mac_get(c, &tgt, resp.am.sha);
+
+	/* Rest of ARP message */
 	memcpy(resp.am.sip,		am->tip,	sizeof(resp.am.sip));
 	memcpy(resp.am.tha,		am->sha,	sizeof(resp.am.tha));
 	memcpy(resp.am.tip,		am->sip,	sizeof(resp.am.tip));

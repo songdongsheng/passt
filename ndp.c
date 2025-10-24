@@ -196,6 +196,7 @@ static void ndp_send(const struct ctx *c, const struct in6_addr *dst,
 static void ndp_na(const struct ctx *c, const struct in6_addr *dst,
 	    const struct in6_addr *addr)
 {
+	union inany_addr tgt;
 	struct ndp_na na = {
 		.ih = {
 			.icmp6_type		= NA,
@@ -213,7 +214,8 @@ static void ndp_na(const struct ctx *c, const struct in6_addr *dst,
 		}
 	};
 
-	memcpy(na.target_l2_addr.mac, c->our_tap_mac, ETH_ALEN);
+	inany_from_af(&tgt, AF_INET6, addr);
+	fwd_neigh_mac_get(c, &tgt, na.target_l2_addr.mac);
 
 	ndp_send(c, dst, &na, sizeof(na));
 }
