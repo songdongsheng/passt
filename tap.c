@@ -171,17 +171,19 @@ const struct in6_addr *tap_ip6_daddr(const struct ctx *c,
  * tap_push_l2h() - Build an L2 header for an inbound packet
  * @c:		Execution context
  * @buf:	Buffer address at which to generate header
+ * @src_mac:	MAC address to be used as source for message
  * @proto:	Ethernet protocol number for L3
  *
  * Return: pointer at which to write the packet's payload
  */
-void *tap_push_l2h(const struct ctx *c, void *buf, uint16_t proto)
+void *tap_push_l2h(const struct ctx *c, void *buf,
+		   const void *src_mac, uint16_t proto)
 {
 	struct ethhdr *eh = (struct ethhdr *)buf;
 
-	/* TODO: ARP table lookup */
+	/* TODO: ARP lookup on tap side */
 	memcpy(eh->h_dest, c->guest_mac, ETH_ALEN);
-	memcpy(eh->h_source, c->our_tap_mac, ETH_ALEN);
+	memcpy(eh->h_source, src_mac, ETH_ALEN);
 	eh->h_proto = ntohs(proto);
 	return eh + 1;
 }
@@ -261,7 +263,7 @@ void tap_udp4_send(const struct ctx *c, struct in_addr src, in_port_t sport,
 {
 	size_t l4len = dlen + sizeof(struct udphdr);
 	char buf[USHRT_MAX];
-	struct iphdr *ip4h = tap_push_l2h(c, buf, ETH_P_IP);
+	struct iphdr *ip4h = tap_push_l2h(c, buf, c->our_tap_mac, ETH_P_IP);
 	struct udphdr *uh = tap_push_ip4h(ip4h, src, dst, l4len, IPPROTO_UDP);
 	char *data = tap_push_uh4(uh, src, sport, dst, dport, in, dlen);
 
@@ -281,7 +283,7 @@ void tap_icmp4_send(const struct ctx *c, struct in_addr src, struct in_addr dst,
 		    const void *in, size_t l4len)
 {
 	char buf[USHRT_MAX];
-	struct iphdr *ip4h = tap_push_l2h(c, buf, ETH_P_IP);
+	struct iphdr *ip4h = tap_push_l2h(c, buf, c->our_tap_mac, ETH_P_IP);
 	struct icmphdr *icmp4h = tap_push_ip4h(ip4h, src, dst,
 					       l4len, IPPROTO_ICMP);
 
@@ -367,7 +369,7 @@ void tap_udp6_send(const struct ctx *c,
 {
 	size_t l4len = dlen + sizeof(struct udphdr);
 	char buf[USHRT_MAX];
-	struct ipv6hdr *ip6h = tap_push_l2h(c, buf, ETH_P_IPV6);
+	struct ipv6hdr *ip6h = tap_push_l2h(c, buf, c->our_tap_mac, ETH_P_IPV6);
 	struct udphdr *uh = tap_push_ip6h(ip6h, src, dst,
 					  l4len, IPPROTO_UDP, flow);
 	char *data = tap_push_uh6(uh, src, sport, dst, dport, in, dlen);
@@ -389,7 +391,7 @@ void tap_icmp6_send(const struct ctx *c,
 		    const void *in, size_t l4len)
 {
 	char buf[USHRT_MAX];
-	struct ipv6hdr *ip6h = tap_push_l2h(c, buf, ETH_P_IPV6);
+	struct ipv6hdr *ip6h = tap_push_l2h(c, buf, c->our_tap_mac, ETH_P_IPV6);
 	struct icmp6hdr *icmp6h = tap_push_ip6h(ip6h, src, dst, l4len,
 						IPPROTO_ICMPV6, 0);
 

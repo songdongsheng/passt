@@ -2004,7 +2004,8 @@ static void tcp_rst_no_conn(const struct ctx *c, int af,
 		return;
 
 	if (af == AF_INET) {
-		struct iphdr *ip4h = tap_push_l2h(c, buf, ETH_P_IP);
+		struct iphdr *ip4h = tap_push_l2h(c, buf, c->our_tap_mac,
+						  ETH_P_IP);
 		const struct in_addr *rst_src = daddr;
 		const struct in_addr *rst_dst = saddr;
 
@@ -2014,7 +2015,8 @@ static void tcp_rst_no_conn(const struct ctx *c, int af,
 					      *rst_src, *rst_dst);
 
 	} else {
-		struct ipv6hdr *ip6h = tap_push_l2h(c, buf, ETH_P_IPV6);
+		struct ipv6hdr *ip6h = tap_push_l2h(c, buf, c->our_tap_mac,
+						    ETH_P_IPV6);
 		const struct in6_addr *rst_src = daddr;
 		const struct in6_addr *rst_dst = saddr;
 

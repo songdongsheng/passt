@@ -70,7 +70,8 @@ static inline void tap_hdr_update(struct tap_hdr *thdr, size_t l2len)
 }
 
 unsigned long tap_l2_max_len(const struct ctx *c);
-void *tap_push_l2h(const struct ctx *c, void *buf, uint16_t proto);
+void *tap_push_l2h(const struct ctx *c, void *buf,
+		   const void *src_mac, uint16_t proto);
 void *tap_push_ip4h(struct iphdr *ip4h, struct in_addr src,
 		     struct in_addr dst, size_t l4len, uint8_t proto);
 void *tap_push_uh4(struct udphdr *uh, struct in_addr src, in_port_t sport,
