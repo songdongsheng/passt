@@ -159,11 +159,10 @@ static void timer_init(struct ctx *c, const struct timespec *now)
 /**
  * proto_update_l2_buf() - Update scatter-gather L2 buffers in protocol handlers
  * @eth_d:	Ethernet destination address, NULL if unchanged
- * @eth_s:	Ethernet source address, NULL if unchanged
  */
-void proto_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s)
+void proto_update_l2_buf(const unsigned char *eth_d)
 {
-	tcp_update_l2_buf(eth_d, eth_s);
+	tcp_update_l2_buf(eth_d);
 	udp_update_l2_buf(eth_d);
 }
 
@@ -314,7 +313,7 @@ int main(int argc, char **argv)
 	if ((!c.no_udp && udp_init(&c)) || (!c.no_tcp && tcp_init(&c)))
 		_exit(EXIT_FAILURE);
 
-	proto_update_l2_buf(c.guest_mac, c.our_tap_mac);
+	proto_update_l2_buf(c.guest_mac);
 
 	if (c.ifi4 && !c.no_dhcp)
 		dhcp_init();

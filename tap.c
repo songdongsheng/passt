@@ -1104,7 +1104,7 @@ void tap_add_packet(struct ctx *c, struct iov_tail *data,
 		memcpy(c->guest_mac, eh->h_source, ETH_ALEN);
 		debug("New guest MAC address observed: %s",
 		      eth_ntop(c->guest_mac, bufmac, sizeof(bufmac)));
-		proto_update_l2_buf(c->guest_mac, NULL);
+		proto_update_l2_buf(c->guest_mac);
 	}
 
 	switch (ntohs(eh->h_proto)) {
