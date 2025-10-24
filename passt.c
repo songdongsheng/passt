@@ -53,6 +53,7 @@
 #include "vu_common.h"
 #include "migrate.h"
 #include "repair.h"
+#include "netlink.h"
 
 #define NUM_EPOLL_EVENTS	8
 
@@ -79,6 +80,7 @@ char *epoll_type_str[] = {
 	[EPOLL_TYPE_VHOST_KICK]		= "vhost-user kick socket",
 	[EPOLL_TYPE_REPAIR_LISTEN]	= "TCP_REPAIR helper listening socket",
 	[EPOLL_TYPE_REPAIR]		= "TCP_REPAIR helper socket",
+	[EPOLL_TYPE_NL_NEIGH]		= "netlink neighbour notifier socket",
 };
 static_assert(ARRAY_SIZE(epoll_type_str) == EPOLL_NUM_TYPES,
 	      "epoll_type_str[] doesn't match enum epoll_type");
@@ -322,6 +324,8 @@ int main(int argc, char **argv)
 
 	pcap_init(&c);
 
+	nl_neigh_notify_init(&c);
+
 	if (!c.foreground) {
 		if ((devnull_fd = open("/dev/null", O_RDWR | O_CLOEXEC)) < 0)
 			die_perror("Failed to open /dev/null");
@@ -413,6 +417,9 @@ loop:
 			break;
 		case EPOLL_TYPE_REPAIR:
 			repair_handler(&c, eventmask);
+			break;
+		case EPOLL_TYPE_NL_NEIGH:
+			nl_neigh_notify_handler(&c);
 			break;
 		default:
 			/* Can't happen */
