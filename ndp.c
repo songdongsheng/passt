@@ -221,6 +221,16 @@ static void ndp_na(const struct ctx *c, const struct in6_addr *dst,
 }
 
 /**
+ * ndp_unsolicited_na() - Send unsolicited NA
+ * @c:         Execution context
+ * @addr:      IPv6 address to advertise
+ */
+void ndp_unsolicited_na(const struct ctx *c, const struct in6_addr *addr)
+{
+	ndp_na(c, &in6addr_ll_all_nodes, addr);
+}
+
+/**
  * ndp_ra() - Send an NDP Router Advertisement (RA) message
  * @c:		Execution context
  * @dst:	IPv6 address to send the RA to

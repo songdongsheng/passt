@@ -27,6 +27,8 @@
 #include "lineread.h"
 #include "flow_table.h"
 #include "netlink.h"
+#include "arp.h"
+#include "ndp.h"
 
 /* Ephemeral port range: values from RFC 6335 */
 static in_port_t fwd_ephemeral_min = (1 << 15) + (1 << 14);
@@ -140,6 +142,14 @@ void fwd_neigh_table_update(const struct ctx *c, const union inany_addr *addr,
 	memcpy(&e->addr, addr, sizeof(*addr));
 	memcpy(e->mac, mac, ETH_ALEN);
 	e->permanent = permanent;
+
+	if (!memcmp(mac, c->our_tap_mac, ETH_ALEN))
+		return;
+
+	if (inany_v4(addr))
+		arp_announce(c, inany_v4(addr), e->mac);
+	else
+		ndp_unsolicited_na(c, &addr->a6);
 }
 
 /**

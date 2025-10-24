@@ -150,3 +150,54 @@ void arp_send_init_req(const struct ctx *c)
 	debug("Sending initial ARP request for guest MAC address");
 	tap_send_single(c, &req, sizeof(req));
 }
+
+/**
+ * arp_announce() - Send an ARP announcement for an IPv4 host
+ * @c:		Execution context
+ * @ip:	IPv4 address we announce as owned by @mac
+ * @mac:	MAC address to advertise for @ip
+ */
+void arp_announce(const struct ctx *c, struct in_addr *ip,
+		  const unsigned char *mac)
+{
+	char ip_str[INET_ADDRSTRLEN];
+	char mac_str[ETH_ADDRSTRLEN];
+	struct {
+		struct ethhdr eh;
+		struct arphdr ah;
+		struct arpmsg am;
+	} __attribute__((__packed__)) msg;
+
+	/* Ethernet header */
+	msg.eh.h_proto = htons(ETH_P_ARP);
+	memcpy(msg.eh.h_dest, MAC_BROADCAST, sizeof(msg.eh.h_dest));
+	memcpy(msg.eh.h_source, mac, sizeof(msg.eh.h_source));
+
+	/* ARP header */
+	msg.ah.ar_op = htons(ARPOP_REQUEST);
+	msg.ah.ar_hrd = htons(ARPHRD_ETHER);
+	msg.ah.ar_pro = htons(ETH_P_IP);
+	msg.ah.ar_hln = ETH_ALEN;
+	msg.ah.ar_pln = 4;
+
+	/* RFC5227, section 2.1.1, about Probe messages: "The client MUST fill
+	 * in the 'sender hardware address' field of the ARP Request with the
+	 * hardware address of the interface through which it is sending the
+	 * packet. [...] The 'target hardware address' field is ignored and
+	 * SHOULD be set to all zeroes."
+	 *
+	 * RFC5227, section 2.3: "An ARP Announcement is identical to the ARP
+	 * Probe described above, except that now the sender and target IP
+	 * addresses are both set to the host's newly selected IPv4 address."
+	 */
+	memcpy(msg.am.sha, mac, sizeof(msg.am.sha));
+	memcpy(msg.am.sip, ip, sizeof(msg.am.sip));
+	memcpy(msg.am.tha, MAC_ZERO, sizeof(msg.am.tha));
+	memcpy(msg.am.tip, ip, sizeof(msg.am.tip));
+
+	inet_ntop(AF_INET, ip, ip_str, sizeof(ip_str));
+	eth_ntop(mac, mac_str, sizeof(mac_str));
+	debug("ARP announcement for %s / %s", ip_str, mac_str);
+
+	tap_send_single(c, &msg, sizeof(msg));
+}
