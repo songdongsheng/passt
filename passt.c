@@ -324,6 +324,7 @@ int main(int argc, char **argv)
 
 	pcap_init(&c);
 
+	fwd_neigh_table_init(&c);
 	nl_neigh_notify_init(&c);
 
 	if (!c.foreground) {

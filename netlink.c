@@ -1123,9 +1123,9 @@ static void nl_neigh_msg_read(const struct ctx *c, struct nlmsghdr *nh)
 	char ip_str[INET6_ADDRSTRLEN];
 	char mac_str[ETH_ADDRSTRLEN];
 	const uint8_t *lladdr = NULL;
+	union inany_addr addr, daddr;
 	const void *dst = NULL;
 	size_t lladdr_len = 0;
-	union inany_addr addr;
 	size_t dstlen = 0;
 
 	if (nh->nlmsg_type == NLMSG_DONE)
@@ -1172,16 +1172,23 @@ static void nl_neigh_msg_read(const struct ctx *c, struct nlmsghdr *nh)
 		warn("netlink: wrong address length in AF_INET6 notification");
 		return;
 	}
+
+	/* We only handle guest-side visible addresses */
 	inany_from_af(&addr, ndm->ndm_family, dst);
-	inany_ntop(&addr, ip_str, sizeof(ip_str));
+	if (!nat_inbound(c, &addr, &daddr))
+		return;
+
+	inany_ntop(&daddr, ip_str, sizeof(ip_str));
 
 	if (nh->nlmsg_type == RTM_DELNEIGH) {
 		trace("neighbour notifier delete: %s", ip_str);
+		fwd_neigh_table_free(c, &daddr);
 		return;
 	}
 	if (!(ndm->ndm_state & NUD_VALID)) {
 		trace("neighbour notifier: %s unreachable, state: 0x%04x",
 		      ip_str, ndm->ndm_state);
+		fwd_neigh_table_free(c, &daddr);
 		return;
 	}
 	if (!lladdr) {
@@ -1193,6 +1200,7 @@ static void nl_neigh_msg_read(const struct ctx *c, struct nlmsghdr *nh)
 
 	eth_ntop(lladdr, mac_str, sizeof(mac_str));
 	trace("neighbour notifier update: %s / %s", ip_str, mac_str);
+	fwd_neigh_table_update(c, &daddr, lladdr, false);
 }
 
 /**
