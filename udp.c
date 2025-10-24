@@ -400,6 +400,8 @@ static void udp_send_tap_icmp4(const struct ctx *c,
 	struct in_addr eaddr = toside->eaddr.v4mapped.a4;
 	in_port_t eport = toside->eport;
 	in_port_t oport = toside->oport;
+	union inany_addr saddr_any;
+	uint8_t tap_omac[ETH_ALEN];
 	struct {
 		struct icmphdr icmp4h;
 		struct iphdr ip4h;
@@ -421,7 +423,10 @@ static void udp_send_tap_icmp4(const struct ctx *c,
 	tap_push_uh4(&msg.uh, eaddr, eport, oaddr, oport, in, dlen);
 	memcpy(&msg.data, in, dlen);
 
-	tap_icmp4_send(c, saddr, eaddr, &msg, msglen);
+	/* Try to obtain the MAC address of the generating node */
+	saddr_any = inany_from_v4(saddr);
+	fwd_neigh_mac_get(c, &saddr_any, tap_omac);
+	tap_icmp4_send(c, saddr, eaddr, &msg, tap_omac, msglen);
 }
 
 
@@ -445,6 +450,7 @@ static void udp_send_tap_icmp6(const struct ctx *c,
 	const struct in6_addr *eaddr = &toside->eaddr.a6;
 	in_port_t eport = toside->eport;
 	in_port_t oport = toside->oport;
+	uint8_t tap_omac[ETH_ALEN];
 	struct {
 		struct icmp6_hdr icmp6h;
 		struct ipv6hdr ip6h;
@@ -466,7 +472,9 @@ static void udp_send_tap_icmp6(const struct ctx *c,
 	tap_push_uh6(&msg.uh, eaddr, eport, oaddr, oport, in, dlen);
 	memcpy(&msg.data, in, dlen);
 
-	tap_icmp6_send(c, saddr, eaddr, &msg, msglen);
+	/* Try to obtain the MAC address of the generating node */
+	fwd_neigh_mac_get(c, (union inany_addr *) saddr, tap_omac);
+	tap_icmp6_send(c, saddr, eaddr, &msg, tap_omac, msglen);
 }
 
 /**

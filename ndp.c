@@ -184,7 +184,7 @@ static void ndp_send(const struct ctx *c, const struct in6_addr *dst,
 {
 	const struct in6_addr *src = &c->ip6.our_tap_ll;
 
-	tap_icmp6_send(c, src, dst, buf, l4len);
+	tap_icmp6_send(c, src, dst, buf, c->our_tap_mac, l4len);
 }
 
 /**

@@ -277,13 +277,14 @@ void tap_udp4_send(const struct ctx *c, struct in_addr src, in_port_t sport,
  * @src:	IPv4 source address
  * @dst:	IPv4 destination address
  * @in:		ICMP packet, including ICMP header
+ * @src_mac:	MAC address to be used as source for message
  * @l4len:	ICMP packet length, including ICMP header
  */
 void tap_icmp4_send(const struct ctx *c, struct in_addr src, struct in_addr dst,
-		    const void *in, size_t l4len)
+		    const void *in, const void *src_mac, size_t l4len)
 {
 	char buf[USHRT_MAX];
-	struct iphdr *ip4h = tap_push_l2h(c, buf, c->our_tap_mac, ETH_P_IP);
+	struct iphdr *ip4h = tap_push_l2h(c, buf, src_mac, ETH_P_IP);
 	struct icmphdr *icmp4h = tap_push_ip4h(ip4h, src, dst,
 					       l4len, IPPROTO_ICMP);
 
@@ -384,14 +385,15 @@ void tap_udp6_send(const struct ctx *c,
  * @src:	IPv6 source address
  * @dst:	IPv6 destination address
  * @in:		ICMP packet, including ICMP header
+ * @src_mac:	MAC address to be used as source for message
  * @l4len:	ICMP packet length, including ICMP header
  */
 void tap_icmp6_send(const struct ctx *c,
 		    const struct in6_addr *src, const struct in6_addr *dst,
-		    const void *in, size_t l4len)
+		    const void *in, const void *src_mac, size_t l4len)
 {
 	char buf[USHRT_MAX];
-	struct ipv6hdr *ip6h = tap_push_l2h(c, buf, c->our_tap_mac, ETH_P_IPV6);
+	struct ipv6hdr *ip6h = tap_push_l2h(c, buf, src_mac, ETH_P_IPV6);
 	struct icmp6hdr *icmp6h = tap_push_ip6h(ip6h, src, dst, l4len,
 						IPPROTO_ICMPV6, 0);
 
