@@ -164,7 +164,7 @@ static void timer_init(struct ctx *c, const struct timespec *now)
 void proto_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s)
 {
 	tcp_update_l2_buf(eth_d, eth_s);
-	udp_update_l2_buf(eth_d, eth_s);
+	udp_update_l2_buf(eth_d);
 }
 
 /**
