@@ -2884,22 +2884,18 @@ static int tcp_port_rebind_outbound(void *arg)
 }
 
 /**
- * tcp_scan_ports() - Update forwarding maps based on scan of listening ports
+ * tcp_port_rebind_all() - Rebind ports to match forward maps (in host & ns)
  * @c:		Execution context
  */
-void tcp_scan_ports(struct ctx *c)
+void tcp_port_rebind_all(struct ctx *c)
 {
 	ASSERT(c->mode == MODE_PASTA && !c->no_tcp);
 
-	if (c->tcp.fwd_out.mode == FWD_AUTO) {
-		fwd_scan_ports_tcp(&c->tcp.fwd_out, &c->tcp.fwd_in);
+	if (c->tcp.fwd_out.mode == FWD_AUTO)
 		NS_CALL(tcp_port_rebind_outbound, c);
-	}
 
-	if (c->tcp.fwd_in.mode == FWD_AUTO) {
-		fwd_scan_ports_tcp(&c->tcp.fwd_in, &c->tcp.fwd_out);
+	if (c->tcp.fwd_in.mode == FWD_AUTO)
 		tcp_port_rebind(c, false);
-	}
 }
 
 /**

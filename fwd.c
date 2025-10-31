@@ -365,7 +365,8 @@ static void procfs_scan_listen(int fd, unsigned int lstate,
  * @fwd:	Forwarding information to update
  * @rev:	Forwarding information for the reverse direction
  */
-void fwd_scan_ports_tcp(struct fwd_ports *fwd, const struct fwd_ports *rev)
+static void fwd_scan_ports_tcp(struct fwd_ports *fwd,
+			       const struct fwd_ports *rev)
 {
 	memset(fwd->map, 0, PORT_BITMAP_SIZE);
 	procfs_scan_listen(fwd->scan4, TCP_LISTEN, fwd->map, rev->map);
@@ -379,9 +380,10 @@ void fwd_scan_ports_tcp(struct fwd_ports *fwd, const struct fwd_ports *rev)
  * @tcp_fwd:	Corresponding TCP forwarding information
  * @tcp_rev:	TCP forwarding information for the reverse direction
  */
-void fwd_scan_ports_udp(struct fwd_ports *fwd, const struct fwd_ports *rev,
-			const struct fwd_ports *tcp_fwd,
-			const struct fwd_ports *tcp_rev)
+static void fwd_scan_ports_udp(struct fwd_ports *fwd,
+			       const struct fwd_ports *rev,
+			       const struct fwd_ports *tcp_fwd,
+			       const struct fwd_ports *tcp_rev)
 {
 	uint8_t exclude[PORT_BITMAP_SIZE];
 
@@ -460,10 +462,23 @@ void fwd_scan_ports_timer(struct ctx *c, const struct timespec *now)
 
 	scan_ports_run = *now;
 
+	if (c->tcp.fwd_out.mode == FWD_AUTO)
+		fwd_scan_ports_tcp(&c->tcp.fwd_out, &c->tcp.fwd_in);
+	if (c->tcp.fwd_in.mode == FWD_AUTO)
+		fwd_scan_ports_tcp(&c->tcp.fwd_in, &c->tcp.fwd_out);
+	if (c->udp.fwd_out.mode == FWD_AUTO) {
+		fwd_scan_ports_udp(&c->udp.fwd_out, &c->udp.fwd_in,
+				   &c->tcp.fwd_out, &c->tcp.fwd_in);
+	}
+	if (c->udp.fwd_in.mode == FWD_AUTO) {
+		fwd_scan_ports_udp(&c->udp.fwd_in, &c->udp.fwd_out,
+				   &c->tcp.fwd_in, &c->tcp.fwd_out);
+	}
+
 	if (!c->no_tcp)
-		tcp_scan_ports(c);
+		tcp_port_rebind_all(c);
 	if (!c->no_udp)
-		udp_scan_ports(c);
+		udp_port_rebind_all(c);
 }
 
 /**
