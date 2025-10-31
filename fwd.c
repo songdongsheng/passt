@@ -322,13 +322,11 @@ bool fwd_port_is_ephemeral(in_port_t port)
  * @fd:		fd for relevant /proc/net file
  * @lstate:	Code for listening state to scan for
  * @map:	Bitmap where numbers of ports in listening state will be set
- * @exclude:	Bitmap of ports to exclude from setting (and clear)
  *
  * #syscalls:pasta lseek
  * #syscalls:pasta ppc64le:_llseek ppc64:_llseek arm:_llseek
  */
-static void procfs_scan_listen(int fd, unsigned int lstate,
-			       uint8_t *map, const uint8_t *exclude)
+static void procfs_scan_listen(int fd, unsigned int lstate, uint8_t *map)
 {
 	struct lineread lr;
 	unsigned long port;
@@ -353,10 +351,7 @@ static void procfs_scan_listen(int fd, unsigned int lstate,
 		if (state != lstate)
 			continue;
 
-		if (bitmap_isset(exclude, port))
-			bitmap_clear(map, port);
-		else
-			bitmap_set(map, port);
+		bitmap_set(map, port);
 	}
 }
 
@@ -369,8 +364,9 @@ static void fwd_scan_ports_tcp(struct fwd_ports *fwd,
 			       const struct fwd_ports *rev)
 {
 	memset(fwd->map, 0, PORT_BITMAP_SIZE);
-	procfs_scan_listen(fwd->scan4, TCP_LISTEN, fwd->map, rev->map);
-	procfs_scan_listen(fwd->scan6, TCP_LISTEN, fwd->map, rev->map);
+	procfs_scan_listen(fwd->scan4, TCP_LISTEN, fwd->map);
+	procfs_scan_listen(fwd->scan6, TCP_LISTEN, fwd->map);
+	bitmap_and_not(fwd->map, PORT_BITMAP_SIZE, fwd->map, rev->map);
 }
 
 /**
@@ -385,26 +381,25 @@ static void fwd_scan_ports_udp(struct fwd_ports *fwd,
 			       const struct fwd_ports *tcp_fwd,
 			       const struct fwd_ports *tcp_rev)
 {
-	uint8_t exclude[PORT_BITMAP_SIZE];
-
-	bitmap_or(exclude, PORT_BITMAP_SIZE, rev->map, tcp_rev->map);
-
 	memset(fwd->map, 0, PORT_BITMAP_SIZE);
-	procfs_scan_listen(fwd->scan4, UDP_LISTEN, fwd->map, exclude);
-	procfs_scan_listen(fwd->scan6, UDP_LISTEN, fwd->map, exclude);
+	procfs_scan_listen(fwd->scan4, UDP_LISTEN, fwd->map);
+	procfs_scan_listen(fwd->scan6, UDP_LISTEN, fwd->map);
 
 	/* Also forward UDP ports with the same numbers as bound TCP ports.
 	 * This is useful for a handful of protocols (e.g. iperf3) where a TCP
 	 * control port is used to set up transfers on a corresponding UDP
 	 * port.
-	 *
-	 * This means we need to skip numbers of TCP ports bound on the other
+	 */
+	procfs_scan_listen(tcp_fwd->scan4, TCP_LISTEN, fwd->map);
+	procfs_scan_listen(tcp_fwd->scan6, TCP_LISTEN, fwd->map);
+
+	/* This means we need to skip numbers of TCP ports bound on the other
 	 * side, too. Otherwise, we would detect corresponding UDP ports as
 	 * bound and try to forward them from the opposite side, but it's
 	 * already us handling them.
 	 */
-	procfs_scan_listen(tcp_fwd->scan4, TCP_LISTEN, fwd->map, exclude);
-	procfs_scan_listen(tcp_fwd->scan6, TCP_LISTEN, fwd->map, exclude);
+	bitmap_and_not(fwd->map, PORT_BITMAP_SIZE, fwd->map, rev->map);
+	bitmap_and_not(fwd->map, PORT_BITMAP_SIZE, fwd->map, tcp_rev->map);
 }
 
 /**
