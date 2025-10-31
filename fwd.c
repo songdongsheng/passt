@@ -363,6 +363,9 @@ static void procfs_scan_listen(int fd, unsigned int lstate, uint8_t *map)
 static void fwd_scan_ports_tcp(struct fwd_ports *fwd,
 			       const struct fwd_ports *rev)
 {
+	if (fwd->mode != FWD_AUTO)
+		return;
+
 	memset(fwd->map, 0, PORT_BITMAP_SIZE);
 	procfs_scan_listen(fwd->scan4, TCP_LISTEN, fwd->map);
 	procfs_scan_listen(fwd->scan6, TCP_LISTEN, fwd->map);
@@ -381,6 +384,9 @@ static void fwd_scan_ports_udp(struct fwd_ports *fwd,
 			       const struct fwd_ports *tcp_fwd,
 			       const struct fwd_ports *tcp_rev)
 {
+	if (fwd->mode != FWD_AUTO)
+		return;
+
 	memset(fwd->map, 0, PORT_BITMAP_SIZE);
 	procfs_scan_listen(fwd->scan4, UDP_LISTEN, fwd->map);
 	procfs_scan_listen(fwd->scan6, UDP_LISTEN, fwd->map);
@@ -408,18 +414,12 @@ static void fwd_scan_ports_udp(struct fwd_ports *fwd,
  */
 static void fwd_scan_ports(struct ctx *c)
 {
-	if (c->tcp.fwd_out.mode == FWD_AUTO)
-		fwd_scan_ports_tcp(&c->tcp.fwd_out, &c->tcp.fwd_in);
-	if (c->tcp.fwd_in.mode == FWD_AUTO)
-		fwd_scan_ports_tcp(&c->tcp.fwd_in, &c->tcp.fwd_out);
-	if (c->udp.fwd_out.mode == FWD_AUTO) {
-		fwd_scan_ports_udp(&c->udp.fwd_out, &c->udp.fwd_in,
-				   &c->tcp.fwd_out, &c->tcp.fwd_in);
-	}
-	if (c->udp.fwd_in.mode == FWD_AUTO) {
-		fwd_scan_ports_udp(&c->udp.fwd_in, &c->udp.fwd_out,
-				   &c->tcp.fwd_in, &c->tcp.fwd_out);
-	}
+	fwd_scan_ports_tcp(&c->tcp.fwd_out, &c->tcp.fwd_in);
+	fwd_scan_ports_tcp(&c->tcp.fwd_in, &c->tcp.fwd_out);
+	fwd_scan_ports_udp(&c->udp.fwd_out, &c->udp.fwd_in,
+			   &c->tcp.fwd_out, &c->tcp.fwd_in);
+	fwd_scan_ports_udp(&c->udp.fwd_in, &c->udp.fwd_out,
+			   &c->tcp.fwd_in, &c->tcp.fwd_out);
 }
 
 /**
