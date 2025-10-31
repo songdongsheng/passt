@@ -1204,8 +1204,6 @@ static void udp_port_rebind(struct ctx *c, bool outbound)
 	int (*socks)[NUM_PORTS] = outbound ? udp_splice_ns : udp_splice_init;
 	const uint8_t *fmap
 		= outbound ? c->udp.fwd_out.map : c->udp.fwd_in.map;
-	const uint8_t *rmap
-		= outbound ? c->udp.fwd_in.map : c->udp.fwd_out.map;
 	unsigned port;
 
 	for (port = 0; port < NUM_PORTS; port++) {
@@ -1222,10 +1220,6 @@ static void udp_port_rebind(struct ctx *c, bool outbound)
 
 			continue;
 		}
-
-		/* Don't loop back our own ports */
-		if (bitmap_isset(rmap, port))
-			continue;
 
 		if ((c->ifi4 && socks[V4][port] == -1) ||
 		    (c->ifi6 && socks[V6][port] == -1))

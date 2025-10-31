@@ -2832,7 +2832,6 @@ int tcp_init(struct ctx *c)
 static void tcp_port_rebind(struct ctx *c, bool outbound)
 {
 	const uint8_t *fmap = outbound ? c->tcp.fwd_out.map : c->tcp.fwd_in.map;
-	const uint8_t *rmap = outbound ? c->tcp.fwd_in.map : c->tcp.fwd_out.map;
 	int (*socks)[IP_VERSIONS] = outbound ? tcp_sock_ns : tcp_sock_init_ext;
 	unsigned port;
 
@@ -2850,10 +2849,6 @@ static void tcp_port_rebind(struct ctx *c, bool outbound)
 
 			continue;
 		}
-
-		/* Don't loop back our own ports */
-		if (bitmap_isset(rmap, port))
-			continue;
 
 		if ((c->ifi4 && socks[port][V4] == -1) ||
 		    (c->ifi6 && socks[port][V6] == -1)) {
