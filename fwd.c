@@ -442,6 +442,30 @@ void fwd_scan_ports_init(struct ctx *c)
 	}
 }
 
+/* Last time we scanned for open ports */
+static struct timespec scan_ports_run;
+
+/**
+ * fwd_scan_ports_timer() - Rescan open port information when necessary
+ * @c:		Execution context
+ * @now:	Current (monotonic) time
+ */
+void fwd_scan_ports_timer(struct ctx *c, const struct timespec *now)
+{
+	if (c->mode != MODE_PASTA)
+		return;
+
+	if (timespec_diff_ms(now, &scan_ports_run) < FWD_PORT_SCAN_INTERVAL)
+		return;
+
+	scan_ports_run = *now;
+
+	if (!c->no_tcp)
+		tcp_scan_ports(c);
+	if (!c->no_udp)
+		udp_scan_ports(c);
+}
+
 /**
  * is_dns_flow() - Determine if flow appears to be a DNS request
  * @proto:	Protocol (IP L4 protocol number)

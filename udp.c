@@ -1252,28 +1252,23 @@ static int udp_port_rebind_outbound(void *arg)
 }
 
 /**
- * udp_timer() - Scan activity bitmaps for ports with associated timed events
+ * udp_scan_ports() - Update forwarding maps based on scan of listening ports
  * @c:		Execution context
- * @now:	Current timestamp
  */
-void udp_timer(struct ctx *c, const struct timespec *now)
+void udp_scan_ports(struct ctx *c)
 {
-	(void)now;
+	ASSERT(c->mode == MODE_PASTA && !c->no_udp);
 
-	ASSERT(!c->no_udp);
+	if (c->udp.fwd_out.mode == FWD_AUTO) {
+		fwd_scan_ports_udp(&c->udp.fwd_out, &c->udp.fwd_in,
+				   &c->tcp.fwd_out, &c->tcp.fwd_in);
+		NS_CALL(udp_port_rebind_outbound, c);
+	}
 
-	if (c->mode == MODE_PASTA) {
-		if (c->udp.fwd_out.mode == FWD_AUTO) {
-			fwd_scan_ports_udp(&c->udp.fwd_out, &c->udp.fwd_in,
-					   &c->tcp.fwd_out, &c->tcp.fwd_in);
-			NS_CALL(udp_port_rebind_outbound, c);
-		}
-
-		if (c->udp.fwd_in.mode == FWD_AUTO) {
-			fwd_scan_ports_udp(&c->udp.fwd_in, &c->udp.fwd_out,
-					   &c->tcp.fwd_in, &c->tcp.fwd_out);
-			udp_port_rebind(c, false);
-		}
+	if (c->udp.fwd_in.mode == FWD_AUTO) {
+		fwd_scan_ports_udp(&c->udp.fwd_in, &c->udp.fwd_out,
+				   &c->tcp.fwd_in, &c->tcp.fwd_out);
+		udp_port_rebind(c, false);
 	}
 }
 

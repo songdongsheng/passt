@@ -2884,25 +2884,32 @@ static int tcp_port_rebind_outbound(void *arg)
 }
 
 /**
+ * tcp_scan_ports() - Update forwarding maps based on scan of listening ports
+ * @c:		Execution context
+ */
+void tcp_scan_ports(struct ctx *c)
+{
+	ASSERT(c->mode == MODE_PASTA && !c->no_tcp);
+
+	if (c->tcp.fwd_out.mode == FWD_AUTO) {
+		fwd_scan_ports_tcp(&c->tcp.fwd_out, &c->tcp.fwd_in);
+		NS_CALL(tcp_port_rebind_outbound, c);
+	}
+
+	if (c->tcp.fwd_in.mode == FWD_AUTO) {
+		fwd_scan_ports_tcp(&c->tcp.fwd_in, &c->tcp.fwd_out);
+		tcp_port_rebind(c, false);
+	}
+}
+
+/**
  * tcp_timer() - Periodic tasks: port detection, closed connections, pool refill
  * @c:		Execution context
  * @now:	Current timestamp
  */
-void tcp_timer(struct ctx *c, const struct timespec *now)
+void tcp_timer(const struct ctx *c, const struct timespec *now)
 {
 	(void)now;
-
-	if (c->mode == MODE_PASTA) {
-		if (c->tcp.fwd_out.mode == FWD_AUTO) {
-			fwd_scan_ports_tcp(&c->tcp.fwd_out, &c->tcp.fwd_in);
-			NS_CALL(tcp_port_rebind_outbound, c);
-		}
-
-		if (c->tcp.fwd_in.mode == FWD_AUTO) {
-			fwd_scan_ports_tcp(&c->tcp.fwd_in, &c->tcp.fwd_out);
-			tcp_port_rebind(c, false);
-		}
-	}
 
 	tcp_sock_refill_init(c);
 	if (c->mode == MODE_PASTA)
