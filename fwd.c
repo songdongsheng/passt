@@ -403,6 +403,26 @@ static void fwd_scan_ports_udp(struct fwd_ports *fwd,
 }
 
 /**
+ * fwd_scan_ports() - Scan automatic port forwarding information
+ * @c:		Execution context
+ */
+static void fwd_scan_ports(struct ctx *c)
+{
+	if (c->tcp.fwd_out.mode == FWD_AUTO)
+		fwd_scan_ports_tcp(&c->tcp.fwd_out, &c->tcp.fwd_in);
+	if (c->tcp.fwd_in.mode == FWD_AUTO)
+		fwd_scan_ports_tcp(&c->tcp.fwd_in, &c->tcp.fwd_out);
+	if (c->udp.fwd_out.mode == FWD_AUTO) {
+		fwd_scan_ports_udp(&c->udp.fwd_out, &c->udp.fwd_in,
+				   &c->tcp.fwd_out, &c->tcp.fwd_in);
+	}
+	if (c->udp.fwd_in.mode == FWD_AUTO) {
+		fwd_scan_ports_udp(&c->udp.fwd_in, &c->udp.fwd_out,
+				   &c->tcp.fwd_in, &c->tcp.fwd_out);
+	}
+}
+
+/**
  * fwd_scan_ports_init() - Initial setup for automatic port forwarding
  * @c:		Execution context
  */
@@ -418,25 +438,20 @@ void fwd_scan_ports_init(struct ctx *c)
 	if (c->tcp.fwd_in.mode == FWD_AUTO) {
 		c->tcp.fwd_in.scan4 = open_in_ns(c, "/proc/net/tcp", flags);
 		c->tcp.fwd_in.scan6 = open_in_ns(c, "/proc/net/tcp6", flags);
-		fwd_scan_ports_tcp(&c->tcp.fwd_in, &c->tcp.fwd_out);
 	}
 	if (c->udp.fwd_in.mode == FWD_AUTO) {
 		c->udp.fwd_in.scan4 = open_in_ns(c, "/proc/net/udp", flags);
 		c->udp.fwd_in.scan6 = open_in_ns(c, "/proc/net/udp6", flags);
-		fwd_scan_ports_udp(&c->udp.fwd_in, &c->udp.fwd_out,
-				   &c->tcp.fwd_in, &c->tcp.fwd_out);
 	}
 	if (c->tcp.fwd_out.mode == FWD_AUTO) {
 		c->tcp.fwd_out.scan4 = open("/proc/net/tcp", flags);
 		c->tcp.fwd_out.scan6 = open("/proc/net/tcp6", flags);
-		fwd_scan_ports_tcp(&c->tcp.fwd_out, &c->tcp.fwd_in);
 	}
 	if (c->udp.fwd_out.mode == FWD_AUTO) {
 		c->udp.fwd_out.scan4 = open("/proc/net/udp", flags);
 		c->udp.fwd_out.scan6 = open("/proc/net/udp6", flags);
-		fwd_scan_ports_udp(&c->udp.fwd_out, &c->udp.fwd_in,
-				   &c->tcp.fwd_out, &c->tcp.fwd_in);
 	}
+	fwd_scan_ports(c);
 }
 
 /* Last time we scanned for open ports */
@@ -457,18 +472,7 @@ void fwd_scan_ports_timer(struct ctx *c, const struct timespec *now)
 
 	scan_ports_run = *now;
 
-	if (c->tcp.fwd_out.mode == FWD_AUTO)
-		fwd_scan_ports_tcp(&c->tcp.fwd_out, &c->tcp.fwd_in);
-	if (c->tcp.fwd_in.mode == FWD_AUTO)
-		fwd_scan_ports_tcp(&c->tcp.fwd_in, &c->tcp.fwd_out);
-	if (c->udp.fwd_out.mode == FWD_AUTO) {
-		fwd_scan_ports_udp(&c->udp.fwd_out, &c->udp.fwd_in,
-				   &c->tcp.fwd_out, &c->tcp.fwd_in);
-	}
-	if (c->udp.fwd_in.mode == FWD_AUTO) {
-		fwd_scan_ports_udp(&c->udp.fwd_in, &c->udp.fwd_out,
-				   &c->tcp.fwd_in, &c->tcp.fwd_out);
-	}
+	fwd_scan_ports(c);
 
 	if (!c->no_tcp)
 		tcp_port_rebind_all(c);
