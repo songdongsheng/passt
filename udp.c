@@ -164,11 +164,11 @@ udp_meta[UDP_MAX_FRAMES];
 
 /**
  * enum udp_iov_idx - Indices for the buffers making up a single UDP frame
- * @UDP_IOV_TAP         tap specific header
- * @UDP_IOV_ETH         Ethernet header
- * @UDP_IOV_IP          IP (v4/v6) header
- * @UDP_IOV_PAYLOAD     IP payload (UDP header + data)
- * @UDP_NUM_IOVS        the number of entries in the iovec array
+ * @UDP_IOV_TAP		tap specific header
+ * @UDP_IOV_ETH		Ethernet header
+ * @UDP_IOV_IP		IP (v4/v6) header
+ * @UDP_IOV_PAYLOAD	IP payload (UDP header + data)
+ * @UDP_NUM_IOVS	the number of entries in the iovec array
  */
 enum udp_iov_idx {
 	UDP_IOV_TAP,
