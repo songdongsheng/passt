@@ -57,7 +57,7 @@
 #define CONN_V4(conn)		(!!inany_v4(&TAPFLOW(conn)->oaddr))
 #define CONN_V6(conn)		(!CONN_V4(conn))
 
-/*
+/**
  * enum tcp_iov_parts - I/O vector parts for one TCP frame
  * @TCP_IOV_TAP		tap backend specific header
  * @TCP_IOV_ETH		Ethernet header
