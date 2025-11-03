@@ -1019,7 +1019,7 @@ void tcp_fill_headers(const struct ctx *c, struct tcp_tap_conn *conn,
 	else
 		tcp_update_csum(psum, th, payload);
 
-	tap_hdr_update(taph, l3len + sizeof(struct ethhdr));
+	tap_hdr_update(taph, MAX(l3len + sizeof(struct ethhdr), ETH_ZLEN));
 }
 
 /**

@@ -63,6 +63,7 @@
  * @TCP_IOV_ETH		Ethernet header
  * @TCP_IOV_IP		IP (v4/v6) header
  * @TCP_IOV_PAYLOAD	IP payload (TCP header + data)
+ * @TCP_IOV_ETH_PAD	Ethernet (802.3) padding to 60 bytes
  * @TCP_NUM_IOVS 	the number of entries in the iovec array
  */
 enum tcp_iov_parts {
@@ -70,6 +71,7 @@ enum tcp_iov_parts {
 	TCP_IOV_ETH	= 1,
 	TCP_IOV_IP	= 2,
 	TCP_IOV_PAYLOAD	= 3,
+	TCP_IOV_ETH_PAD	= 4,
 	TCP_NUM_IOVS
 };
 

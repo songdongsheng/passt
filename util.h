@@ -17,6 +17,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <sys/syscall.h>
+#include <net/ethernet.h>
 
 #include "log.h"
 
@@ -151,6 +152,8 @@ void abort_with_msg(const char *fmt, ...)
 
 #define ntohll(x)		(be64toh((x)))
 #define htonll(x)		(htobe64((x)))
+
+extern uint8_t eth_pad[ETH_ZLEN];
 
 /**
  * ntohl_unaligned() - Read 32-bit BE value from a possibly unaligned address

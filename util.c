@@ -39,6 +39,9 @@
 #include <sys/random.h>
 #endif
 
+/* Zero-filled buffer to pad 802.3 frames, up to 60 (ETH_ZLEN) bytes */
+uint8_t eth_pad[ETH_ZLEN] = { 0 };
+
 /**
  * sock_l4_() - Create and bind socket to socket address
  * @c:		Execution context
