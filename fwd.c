@@ -410,10 +410,8 @@ static void fwd_scan_ports(struct ctx *c)
 
 	memcpy(excl_tcp_out, c->tcp.fwd_in.map, sizeof(excl_tcp_out));
 	memcpy(excl_tcp_in, c->tcp.fwd_out.map, sizeof(excl_tcp_in));
-	bitmap_or(excl_udp_out, PORT_BITMAP_SIZE,
-		  c->udp.fwd_in.map, c->tcp.fwd_in.map);
-	bitmap_or(excl_udp_in, PORT_BITMAP_SIZE,
-		  c->udp.fwd_out.map, c->tcp.fwd_out.map);
+	memcpy(excl_udp_out, c->udp.fwd_in.map, sizeof(excl_udp_out));
+	memcpy(excl_udp_in, c->udp.fwd_out.map, sizeof(excl_udp_in));
 
 	fwd_scan_ports_tcp(&c->tcp.fwd_out, excl_tcp_out);
 	fwd_scan_ports_tcp(&c->tcp.fwd_in, excl_tcp_in);

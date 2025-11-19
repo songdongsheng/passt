@@ -338,6 +338,7 @@ bool bitmap_isset(const uint8_t *map, unsigned bit)
  * @a:		First operand
  * @b:		Second operand
  */
+/* cppcheck-suppress unusedFunction */
 void bitmap_or(uint8_t *dst, size_t size, const uint8_t *a, const uint8_t *b)
 {
 	unsigned long *dw = (unsigned long *)dst;
