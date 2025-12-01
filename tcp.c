@@ -1026,6 +1026,8 @@ void tcp_fill_headers(const struct ctx *c, struct tcp_tap_conn *conn,
  * @tinfo:	tcp_info from kernel, can be NULL if not pre-fetched
  *
  * Return: 1 if sequence or window were updated, 0 otherwise
+ *
+ * #syscalls ioctl
  */
 int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 			  bool force_seq, struct tcp_info_linux *tinfo)
@@ -1108,9 +1110,21 @@ int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 	if ((conn->flags & LOCAL) || tcp_rtt_dst_low(conn)) {
 		new_wnd_to_tap = tinfo->tcpi_snd_wnd;
 	} else {
+		uint32_t sendq;
+		int limit;
+
+		if (ioctl(s, SIOCOUTQ, &sendq)) {
+			debug_perror("SIOCOUTQ on socket %i, assuming 0", s);
+			sendq = 0;
+		}
 		tcp_get_sndbuf(conn);
-		new_wnd_to_tap = MIN((int)tinfo->tcpi_snd_wnd,
-				     SNDBUF_GET(conn));
+
+		if ((int)sendq > SNDBUF_GET(conn)) /* Due to memory pressure? */
+			limit = 0;
+		else
+			limit = SNDBUF_GET(conn) - (int)sendq;
+
+		new_wnd_to_tap = MIN((int)tinfo->tcpi_snd_wnd, limit);
 	}
 
 	new_wnd_to_tap = MIN(new_wnd_to_tap, MAX_WINDOW);
