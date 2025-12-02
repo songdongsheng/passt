@@ -172,7 +172,6 @@ struct flowside_sock_args {
 	enum epoll_type type;
 	const struct sockaddr *sa;
 	socklen_t sl;
-	const char *path;
 };
 
 /** flowside_sock_splice() - Create and bind socket for PIF_SPLICE based on flowside
