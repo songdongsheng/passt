@@ -126,9 +126,10 @@ int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 			char str[SOCKADDR_STRLEN];
 
 			ret = -errno;
-			warn("Can't bind %s socket for %s to %s, closing",
-			     EPOLL_TYPE_STR(proto),
-			     sockaddr_ntop(sa, str, sizeof(str)), ifname);
+			warn("SO_BINDTODEVICE %s failed for %s on %s: %s",
+			     ifname, EPOLL_TYPE_STR(type),
+			     sockaddr_ntop(sa, str, sizeof(str)),
+			     strerror_(-ret));
 			close(fd);
 			return ret;
 		}
