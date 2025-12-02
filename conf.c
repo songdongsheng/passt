@@ -235,6 +235,12 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		if (c->mode != MODE_PASTA)
 			die("'auto' port forwarding is only allowed for pasta");
 
+		if ((optname == 'T' || optname == 'U') && c->no_bindtodevice) {
+			warn(
+"'-%c auto' enabled without unprivileged SO_BINDTODEVICE", optname);
+			warn(
+"Forwarding from addresses other than 127.0.0.1 will not work");
+		}
 		fwd->mode = FWD_AUTO;
 		return;
 	}

@@ -2653,6 +2653,11 @@ static void tcp_ns_sock_init(const struct ctx *c, in_port_t port)
 {
 	ASSERT(!c->no_tcp);
 
+	if (!c->no_bindtodevice) {
+		tcp_sock_init(c, PIF_SPLICE, NULL, "lo", port);
+		return;
+	}
+
 	if (c->ifi4)
 		tcp_sock_init_one(c, PIF_SPLICE, &inany_loopback4, NULL, port);
 	if (c->ifi6)

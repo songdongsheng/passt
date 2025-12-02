@@ -1183,6 +1183,26 @@ static void udp_splice_iov_init(void)
 }
 
 /**
+ * udp_ns_sock_init() - Init socket to listen for spliced outbound connections
+ * @c:		Execution context
+ * @port:	Port, host order
+ */
+static void udp_ns_sock_init(const struct ctx *c, in_port_t port)
+{
+	ASSERT(!c->no_udp);
+
+	if (!c->no_bindtodevice) {
+		udp_sock_init(c, PIF_SPLICE, NULL, "lo", port);
+		return;
+	}
+
+	if (c->ifi4)
+		udp_sock_init(c, PIF_SPLICE, &inany_loopback4, NULL, port);
+	if (c->ifi6)
+		udp_sock_init(c, PIF_SPLICE, &inany_loopback6, NULL, port);
+}
+
+/**
  * udp_port_rebind() - Rebind ports to match forward maps
  * @c:		Execution context
  * @outbound:	True to remap outbound forwards, otherwise inbound
@@ -1213,14 +1233,10 @@ static void udp_port_rebind(struct ctx *c, bool outbound)
 
 		if ((c->ifi4 && socks[V4][port] == -1) ||
 		    (c->ifi6 && socks[V6][port] == -1)) {
-			if (outbound) {
-				udp_sock_init(c, PIF_SPLICE,
-					      &inany_loopback4, NULL, port);
-				udp_sock_init(c, PIF_SPLICE,
-					      &inany_loopback6, NULL, port);
-			} else {
+			if (outbound)
+				udp_ns_sock_init(c, port);
+			else
 				udp_sock_init(c, PIF_HOST, NULL, NULL, port);
-			}
 		}
 	}
 }

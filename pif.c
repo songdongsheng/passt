@@ -81,12 +81,6 @@ int pif_sock_l4(const struct ctx *c, enum epoll_type type, uint8_t pif,
 
 	ASSERT(pif_is_socket(pif));
 
-	if (pif == PIF_SPLICE) {
-		/* Sanity checks */
-		ASSERT(!ifname);
-		ASSERT(addr && inany_is_loopback(addr));
-	}
-
 	if (!addr) {
 		ref.fd = sock_l4_dualstack(c, type, port, ifname);
 	} else {
