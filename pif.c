@@ -30,12 +30,11 @@ static_assert(ARRAY_SIZE(pif_type_str) == PIF_NUM_TYPES,
 /** pif_sockaddr() - Construct a socket address suitable for an interface
  * @c:		Execution context
  * @sa:		Pointer to sockaddr to fill in
- * @sl:		Updated to relevant length of initialised @sa
  * @pif:	Interface to create the socket address
  * @addr:	IPv[46] address
  * @port:	Port (host byte order)
  */
-void pif_sockaddr(const struct ctx *c, union sockaddr_inany *sa, socklen_t *sl,
+void pif_sockaddr(const struct ctx *c, union sockaddr_inany *sa,
 		  uint8_t pif, const union inany_addr *addr, in_port_t port)
 {
 	const struct in_addr *v4 = inany_v4(addr);
@@ -47,7 +46,6 @@ void pif_sockaddr(const struct ctx *c, union sockaddr_inany *sa, socklen_t *sl,
 		sa->sa4.sin_addr = *v4;
 		sa->sa4.sin_port = htons(port);
 		memset(&sa->sa4.sin_zero, 0, sizeof(sa->sa4.sin_zero));
-		*sl = sizeof(sa->sa4);
 	} else {
 		sa->sa_family = AF_INET6;
 		sa->sa6.sin6_addr = addr->a6;
@@ -57,7 +55,6 @@ void pif_sockaddr(const struct ctx *c, union sockaddr_inany *sa, socklen_t *sl,
 		else
 			sa->sa6.sin6_scope_id = 0;
 		sa->sa6.sin6_flowinfo = 0;
-		*sl = sizeof(sa->sa6);
 	}
 }
 
@@ -85,7 +82,6 @@ int pif_sock_l4(const struct ctx *c, enum epoll_type type, uint8_t pif,
 		.sa6.sin6_port = htons(port),
 	};
 	union epoll_ref ref;
-	socklen_t sl;
 	int ret;
 
 	ASSERT(pif_is_socket(pif));
@@ -97,12 +93,11 @@ int pif_sock_l4(const struct ctx *c, enum epoll_type type, uint8_t pif,
 	}
 
 	if (!addr) {
-		ref.fd = sock_l4_sa(c, type, &sa, sizeof(sa.sa6),
-				    ifname, false);
+		ref.fd = sock_l4_sa(c, type, &sa, ifname, false);
 	} else {
-		pif_sockaddr(c, &sa, &sl, pif, addr, port);
-		ref.fd = sock_l4_sa(c, type, &sa, sl,
-				    ifname, sa.sa_family == AF_INET6);
+		pif_sockaddr(c, &sa, pif, addr, port);
+		ref.fd = sock_l4_sa(c, type, &sa, ifname,
+				    sa.sa_family == AF_INET6);
 	}
 
 	if (ref.fd < 0)

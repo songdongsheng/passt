@@ -44,17 +44,15 @@
  * @c:		Execution context
  * @type:	epoll type
  * @sa:		Socket address to bind to
- * @sl:		Length of @sa
  * @ifname:	Interface for binding, NULL for any
  * @v6only:	Set IPV6_V6ONLY socket option
  *
  * Return: newly created socket, negative error code on failure
  */
 int sock_l4_sa(const struct ctx *c, enum epoll_type type,
-	       const void *sa, socklen_t sl,
-	       const char *ifname, bool v6only)
+	       const union sockaddr_inany *sa, const char *ifname, bool v6only)
 {
-	sa_family_t af = ((const struct sockaddr *)sa)->sa_family;
+	sa_family_t af = sa->sa_family;
 	bool freebind = false;
 	int fd, y = 1, ret;
 	uint8_t proto;
@@ -147,7 +145,7 @@ int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 		}
 	}
 
-	if (bind(fd, sa, sl) < 0) {
+	if (bind(fd, &sa->sa, socklen_inany(sa)) < 0) {
 		/* We'll fail to bind to low ports if we don't have enough
 		 * capabilities, and we'll fail to bind on already bound ports,
 		 * this is fine. This might also fail for ICMP because of a

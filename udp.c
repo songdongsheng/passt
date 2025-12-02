@@ -780,7 +780,6 @@ static void udp_sock_to_sock(const struct ctx *c, int from_s, int n,
 	const struct udp_flow *uflow = udp_at_sidx(tosidx);
 	uint8_t topif = pif_at_sidx(tosidx);
 	int to_s = uflow->s[tosidx.sidei];
-	socklen_t sl;
 	int i;
 
 	if ((n = udp_sock_recv(c, from_s, udp_mh_recv, n)) <= 0)
@@ -791,7 +790,7 @@ static void udp_sock_to_sock(const struct ctx *c, int from_s, int n,
 			= udp_mh_recv[i].msg_len;
 	}
 
-	pif_sockaddr(c, &udp_splice_to, &sl, topif,
+	pif_sockaddr(c, &udp_splice_to, topif,
 		     &toside->eaddr, toside->eport);
 
 	sendmmsg(to_s, udp_mh_splice, n, MSG_NOSIGNAL);
@@ -999,7 +998,6 @@ int udp_tap_handler(const struct ctx *c, uint8_t pif,
 	flow_sidx_t tosidx;
 	in_port_t src, dst;
 	uint8_t topif;
-	socklen_t sl;
 
 	ASSERT(!c->no_udp);
 
@@ -1041,7 +1039,7 @@ int udp_tap_handler(const struct ctx *c, uint8_t pif,
 	s = uflow->s[tosidx.sidei];
 	ASSERT(s >= 0);
 
-	pif_sockaddr(c, &to_sa, &sl, topif, &toside->eaddr, toside->eport);
+	pif_sockaddr(c, &to_sa, topif, &toside->eaddr, toside->eport);
 
 	for (i = 0, j = 0; i < (int)p->count - idx && j < UIO_MAXIOV; i++) {
 		const struct udphdr *uh_send;
@@ -1054,7 +1052,7 @@ int udp_tap_handler(const struct ctx *c, uint8_t pif,
 			return p->count - idx;
 
 		mm[i].msg_hdr.msg_name = &to_sa;
-		mm[i].msg_hdr.msg_namelen = sl;
+		mm[i].msg_hdr.msg_namelen = socklen_inany(&to_sa);
 
 		if (data.cnt) {
 			int cnt;
