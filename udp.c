@@ -1130,7 +1130,7 @@ int udp_sock_init(const struct ctx *c, uint8_t pif,
 	else
 		socks = udp_splice_ns;
 
-	if (!addr && c->ifi4 && c->ifi6 && pif == PIF_HOST) {
+	if (!addr && c->ifi4 && c->ifi6) {
 		int s;
 
 		/* Attempt to get a dual stack socket */
@@ -1145,9 +1145,6 @@ int udp_sock_init(const struct ctx *c, uint8_t pif,
 	if ((!addr || inany_v4(addr)) && c->ifi4) {
 		const union inany_addr *a = addr ? addr : &inany_any4;
 
-		if (pif == PIF_SPLICE)
-			a = &inany_loopback4;
-
 		r4 = pif_sock_l4(c, EPOLL_TYPE_UDP_LISTEN, pif, a, ifname,
 				 port, uref.u32);
 
@@ -1156,9 +1153,6 @@ int udp_sock_init(const struct ctx *c, uint8_t pif,
 
 	if ((!addr || !inany_v4(addr)) && c->ifi6) {
 		const union inany_addr *a = addr ? addr : &inany_any6;
-
-		if (pif == PIF_SPLICE)
-			a = &inany_loopback6;
 
 		r6 = pif_sock_l4(c, EPOLL_TYPE_UDP_LISTEN, pif, a, ifname,
 				 port, uref.u32);
@@ -1222,9 +1216,16 @@ static void udp_port_rebind(struct ctx *c, bool outbound)
 		}
 
 		if ((c->ifi4 && socks[V4][port] == -1) ||
-		    (c->ifi6 && socks[V6][port] == -1))
-			udp_sock_init(c, outbound ? PIF_SPLICE : PIF_HOST,
-				      NULL, NULL, port);
+		    (c->ifi6 && socks[V6][port] == -1)) {
+			if (outbound) {
+				udp_sock_init(c, PIF_SPLICE,
+					      &inany_loopback4, NULL, port);
+				udp_sock_init(c, PIF_SPLICE,
+					      &inany_loopback6, NULL, port);
+			} else {
+				udp_sock_init(c, PIF_HOST, NULL, NULL, port);
+			}
+		}
 	}
 }
 
