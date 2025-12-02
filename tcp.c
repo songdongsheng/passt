@@ -179,9 +179,11 @@
  *
  * Timeouts are implemented by means of timerfd timers, set based on flags:
  *
- * - SYN_TIMEOUT: if no ACK is received from tap/guest during handshake (flag
- *   ACK_FROM_TAP_DUE without ESTABLISHED event) within this time, reset the
- *   connection
+ * - SYN_TIMEOUT_INIT: if no SYN,ACK is received from tap/guest during
+ *   handshake (flag ACK_FROM_TAP_DUE without ESTABLISHED event) within
+ *   this time, resend SYN. It's the starting timeout for the first SYN
+ *   retry. Retry TCP_MAX_RETRIES or (syn_retries + syn_linear_timeouts)
+ *   times, then reset the connection
  *
  * - ACK_TIMEOUT: if no ACK segment was received from tap/guest, after sending
  *   data (flag ACK_FROM_TAP_DUE with ESTABLISHED event), re-send data from the
@@ -340,7 +342,7 @@ enum {
 #define WINDOW_DEFAULT			14600		/* RFC 6928 */
 
 #define ACK_INTERVAL			10		/* ms */
-#define SYN_TIMEOUT			10		/* s */
+#define SYN_TIMEOUT_INIT		1		/* s, RFC 6928 */
 #define ACK_TIMEOUT			2
 #define FIN_TIMEOUT			60
 #define ACT_TIMEOUT			7200
@@ -364,6 +366,13 @@ uint8_t tcp_migrate_snd_queue		[TCP_MIGRATE_SND_QUEUE_MAX];
 uint8_t tcp_migrate_rcv_queue		[TCP_MIGRATE_RCV_QUEUE_MAX];
 
 #define TCP_MIGRATE_RESTORE_CHUNK_MIN	1024 /* Try smaller when above this */
+
+#define SYN_RETRIES		"/proc/sys/net/ipv4/tcp_syn_retries"
+#define SYN_LINEAR_TIMEOUTS	"/proc/sys/net/ipv4/tcp_syn_linear_timeouts"
+
+#define SYN_RETRIES_DEFAULT		6
+#define SYN_LINEAR_TIMEOUTS_DEFAULT	4
+#define MAX_SYNCNT			127 /* derived from kernel's limit */
 
 /* "Extended" data (not stored in the flow table) for TCP flow migration */
 static struct tcp_tap_transfer_ext migrate_ext[FLOW_MAX];
@@ -543,11 +552,12 @@ static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 
 /**
  * tcp_timer_ctl() - Set timerfd based on flags/events, create timerfd if needed
+ * @c:		Execution context
  * @conn:	Connection pointer
  *
  * #syscalls timerfd_create timerfd_settime
  */
-static void tcp_timer_ctl(struct tcp_tap_conn *conn)
+static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 {
 	struct itimerspec it = { { 0 }, { 0 } };
 
@@ -584,10 +594,13 @@ static void tcp_timer_ctl(struct tcp_tap_conn *conn)
 	if (conn->flags & ACK_TO_TAP_DUE) {
 		it.it_value.tv_nsec = (long)ACK_INTERVAL * 1000 * 1000;
 	} else if (conn->flags & ACK_FROM_TAP_DUE) {
-		if (!(conn->events & ESTABLISHED))
-			it.it_value.tv_sec = SYN_TIMEOUT;
-		else
+		if (!(conn->events & ESTABLISHED)) {
+			int exp;
+			exp = (int)conn->retries - c->tcp.syn_linear_timeouts;
+			it.it_value.tv_sec = SYN_TIMEOUT_INIT << MAX(exp, 0);
+		} else {
 			it.it_value.tv_sec = ACK_TIMEOUT;
+		}
 	} else if (CONN_HAS(conn, SOCK_FIN_SENT | TAP_FIN_ACKED)) {
 		it.it_value.tv_sec = FIN_TIMEOUT;
 	} else {
@@ -631,7 +644,7 @@ void conn_flag_do(const struct ctx *c, struct tcp_tap_conn *conn,
 			 * flags and factor this into the logic below.
 			 */
 			if (flag == ACK_FROM_TAP_DUE)
-				tcp_timer_ctl(conn);
+				tcp_timer_ctl(c, conn);
 
 			return;
 		}
@@ -647,7 +660,7 @@ void conn_flag_do(const struct ctx *c, struct tcp_tap_conn *conn,
 	if (flag == ACK_FROM_TAP_DUE || flag == ACK_TO_TAP_DUE		  ||
 	    (flag == ~ACK_FROM_TAP_DUE && (conn->flags & ACK_TO_TAP_DUE)) ||
 	    (flag == ~ACK_TO_TAP_DUE   && (conn->flags & ACK_FROM_TAP_DUE)))
-		tcp_timer_ctl(conn);
+		tcp_timer_ctl(c, conn);
 }
 
 /**
@@ -703,7 +716,7 @@ void conn_event_do(const struct ctx *c, struct tcp_tap_conn *conn,
 	}
 
 	if (CONN_HAS(conn, SOCK_FIN_SENT | TAP_FIN_ACKED))
-		tcp_timer_ctl(conn);
+		tcp_timer_ctl(c, conn);
 }
 
 /**
@@ -1771,7 +1784,7 @@ static int tcp_data_from_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 				   seq, conn->seq_from_tap);
 
 			tcp_send_flag(c, conn, ACK);
-			tcp_timer_ctl(conn);
+			tcp_timer_ctl(c, conn);
 
 			if (p->count == 1) {
 				tcp_tap_window_update(c, conn,
@@ -2422,11 +2435,21 @@ void tcp_timer_handler(const struct ctx *c, union epoll_ref ref)
 
 	if (conn->flags & ACK_TO_TAP_DUE) {
 		tcp_send_flag(c, conn, ACK_IF_NEEDED);
-		tcp_timer_ctl(conn);
+		tcp_timer_ctl(c, conn);
 	} else if (conn->flags & ACK_FROM_TAP_DUE) {
 		if (!(conn->events & ESTABLISHED)) {
-			flow_dbg(conn, "handshake timeout");
-			tcp_rst(c, conn);
+			int max;
+			max = c->tcp.syn_retries + c->tcp.syn_linear_timeouts;
+			max = MIN(TCP_MAX_RETRIES, max);
+			if (conn->retries >= max) {
+				flow_dbg(conn, "handshake timeout");
+				tcp_rst(c, conn);
+			} else {
+				flow_trace(conn, "SYN timeout, retry");
+				tcp_send_flag(c, conn, SYN);
+				conn->retries++;
+				tcp_timer_ctl(c, conn);
+			}
 		} else if (CONN_HAS(conn, SOCK_FIN_SENT | TAP_FIN_ACKED)) {
 			flow_dbg(conn, "FIN timeout");
 			tcp_rst(c, conn);
@@ -2444,7 +2467,7 @@ void tcp_timer_handler(const struct ctx *c, union epoll_ref ref)
 				return;
 
 			tcp_data_from_sock(c, conn);
-			tcp_timer_ctl(conn);
+			tcp_timer_ctl(c, conn);
 		}
 	} else {
 		struct itimerspec new = { { 0 }, { ACT_TIMEOUT, 0 } };
@@ -2783,6 +2806,26 @@ static socklen_t tcp_probe_tcp_info(void)
 }
 
 /**
+ * tcp_get_rto_params() - Get host kernel RTO parameters
+ * @c:		Execution context
+ */
+static void tcp_get_rto_params(struct ctx *c)
+{
+	intmax_t v;
+
+	v = read_file_integer(SYN_RETRIES, SYN_RETRIES_DEFAULT);
+	c->tcp.syn_retries = MIN(v, MAX_SYNCNT);
+
+	v = read_file_integer(SYN_LINEAR_TIMEOUTS, SYN_LINEAR_TIMEOUTS_DEFAULT);
+	c->tcp.syn_linear_timeouts = MIN(v, MAX_SYNCNT);
+
+	debug("Using TCP RTO parameters, syn_retries: %"PRIu8
+	      ", syn_linear_timeouts: %"PRIu8,
+	      c->tcp.syn_retries,
+	      c->tcp.syn_linear_timeouts);
+}
+
+/**
  * tcp_init() - Get initial sequence, hash secret, initialise per-socket data
  * @c:		Execution context
  *
@@ -2791,6 +2834,8 @@ static socklen_t tcp_probe_tcp_info(void)
 int tcp_init(struct ctx *c)
 {
 	ASSERT(!c->no_tcp);
+
+	tcp_get_rto_params(c);
 
 	tcp_sock_iov_init(c);
 
