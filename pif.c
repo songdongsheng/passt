@@ -82,7 +82,7 @@ int pif_sock_l4(const struct ctx *c, enum epoll_type type, uint8_t pif,
 	ASSERT(pif_is_socket(pif));
 
 	if (!addr) {
-		ref.fd = sock_l4_dualstack(c, type, port, ifname);
+		ref.fd = sock_l4_dualstack_any(c, type, port, ifname);
 	} else {
 		union sockaddr_inany sa;
 

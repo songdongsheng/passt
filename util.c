@@ -198,7 +198,7 @@ int sock_l4(const struct ctx *c, enum epoll_type type,
 }
 
 /**
- * sock_l4_dualstack() - Create a dual stack socket bound with wildcard address
+ * sock_l4_dualstack_any() - Create dualstack socket bound to :: and 0.0.0.0
  * @c:		Execution context
  * @type:	epoll type
  * @port	Port to bind to (:: and 0.0.0.0)
@@ -208,8 +208,8 @@ int sock_l4(const struct ctx *c, enum epoll_type type,
  *
  * A dual stack socket is effectively bound to both :: and 0.0.0.0.
  */
-int sock_l4_dualstack(const struct ctx *c, enum epoll_type type,
-		      in_port_t port, const char *ifname)
+int sock_l4_dualstack_any(const struct ctx *c, enum epoll_type type,
+			  in_port_t port, const char *ifname)
 {
 	union sockaddr_inany sa = {
 		.sa6.sin6_family = AF_INET6,
