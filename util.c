@@ -233,12 +233,13 @@ int sock_unix(char *sock_path)
 }
 
 /**
- * sock_probe_mem() - Check if setting high SO_SNDBUF and SO_RCVBUF is allowed
+ * sock_probe_features() - Probe for socket features we might use
  * @c:		Execution context
  */
-void sock_probe_mem(struct ctx *c)
+void sock_probe_features(struct ctx *c)
 {
 	int v = INT_MAX / 2, s;
+	const char lo[] = "lo";
 	socklen_t sl;
 
 	s = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
@@ -247,6 +248,7 @@ void sock_probe_mem(struct ctx *c)
 		return;
 	}
 
+	/* Check if setting high SO_SNDBUF and SO_RCVBUF is allowed */
 	sl = sizeof(v);
 	if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, &v, sizeof(v))	||
 	    getsockopt(s, SOL_SOCKET, SO_SNDBUF, &v, &sl) ||
@@ -258,6 +260,19 @@ void sock_probe_mem(struct ctx *c)
 	    getsockopt(s, SOL_SOCKET, SO_RCVBUF, &v, &sl) ||
 	    (size_t)v < RCVBUF_BIG)
 		c->low_rmem = 1;
+
+	/* Check if SO_BINDTODEVICE is available
+	 *
+	 * Supported since kernel version 5.7, commit c427bfec18f2 ("net: core:
+	 * enable SO_BINDTODEVICE for non-root users").  Some distro kernels may
+	 * have backports, of course.  Record whether we can use it so that we
+	 * can give more useful diagnostics.
+	 */
+	if (setsockopt(s, SOL_SOCKET, SO_BINDTODEVICE, lo, sizeof(lo) - 1)) {
+		if (errno != EPERM)
+			warn_perror("Unexpected error probing SO_BINDTODEVICE");
+		c->no_bindtodevice = 1;
+	}
 
 	close(s);
 }
