@@ -45,13 +45,13 @@
  * @type:	epoll type
  * @sa:		Socket address to bind to
  * @ifname:	Interface for binding, NULL for any
- * @v6only:	Set IPV6_V6ONLY socket option
+ * @v6only:	If >= 0, set IPV6_V6ONLY socket option to this value
  *
  * Return: newly created socket, negative error code on failure
  */
 static int sock_l4_(const struct ctx *c, enum epoll_type type,
 		    const union sockaddr_inany *sa, const char *ifname,
-		    bool v6only)
+		    int v6only)
 {
 	sa_family_t af = sa->sa_family;
 	bool freebind = false;
@@ -95,9 +95,13 @@ static int sock_l4_(const struct ctx *c, enum epoll_type type,
 		return -EBADF;
 	}
 
-	if (v6only)
-		if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &y, sizeof(y)))
-			debug("Failed to set IPV6_V6ONLY on socket %i", fd);
+	if (v6only >= 0) {
+		if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY,
+			       &v6only, sizeof(v6only))) {
+			debug("Failed to set IPV6_V6ONLY to %d on socket %i",
+			      v6only, fd);
+		}
+	}
 
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &y, sizeof(y)))
 		debug("Failed to set SO_REUSEADDR on socket %i", fd);
@@ -181,7 +185,16 @@ static int sock_l4_(const struct ctx *c, enum epoll_type type,
 int sock_l4(const struct ctx *c, enum epoll_type type,
 	    const union sockaddr_inany *sa, const char *ifname)
 {
-	return sock_l4_(c, type, sa, ifname, sa->sa_family == AF_INET6);
+	int v6only = -1;
+
+	/* The option doesn't exist for IPv4 sockets, and we don't care about it
+	 * for IPv6 sockets with a non-wildcard address.
+	 */
+	if (sa->sa_family == AF_INET6 &&
+	    IN6_IS_ADDR_UNSPECIFIED(&sa->sa6.sin6_addr))
+		v6only = 1;
+
+	return sock_l4_(c, type, sa, ifname, v6only);
 }
 
 /**
@@ -204,6 +217,10 @@ int sock_l4_dualstack(const struct ctx *c, enum epoll_type type,
 		.sa6.sin6_port = htons(port),
 	};
 
+	/* Dual stack sockets require IPV6_V6ONLY == 0.  Usually that's the
+	 * default, but sysctl net.ipv6.bindv6only can change that, so set the
+	 * sockopt explicitly.
+	 */
 	return sock_l4_(c, type, &sa, ifname, 0);
 }
 
