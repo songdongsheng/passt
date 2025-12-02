@@ -1102,14 +1102,14 @@ int udp_tap_handler(const struct ctx *c, uint8_t pif,
 }
 
 /**
- * udp_sock_init() - Initialise listening sockets for a given port
+ * udp_sock_init() - Initialise listening socket for a given port
  * @c:		Execution context
  * @pif:	Interface to open the socket for (PIF_HOST or PIF_SPLICE)
  * @addr:	Pointer to address for binding, NULL if not configured
  * @ifname:	Name of interface to bind to, NULL if not configured
  * @port:	Port, host order
  *
- * Return: 0 on (partial) success, negative error code on (complete) failure
+ * Return: 0 on success, negative error code on failure
  */
 int udp_sock_init(const struct ctx *c, uint8_t pif,
 		  const union inany_addr *addr, const char *ifname,
@@ -1119,8 +1119,8 @@ int udp_sock_init(const struct ctx *c, uint8_t pif,
 		.pif = pif,
 		.port = port,
 	};
-	int r4 = FD_REF_MAX + 1, r6 = FD_REF_MAX + 1;
 	int (*socks)[NUM_PORTS];
+	int s;
 
 	ASSERT(!c->no_udp);
 	ASSERT(pif_is_socket(pif));
@@ -1130,40 +1130,36 @@ int udp_sock_init(const struct ctx *c, uint8_t pif,
 	else
 		socks = udp_splice_ns;
 
-	if (!addr && c->ifi4 && c->ifi6) {
-		int s;
-
-		/* Attempt to get a dual stack socket */
-		s = pif_sock_l4(c, EPOLL_TYPE_UDP_LISTEN, PIF_HOST,
-				NULL, ifname, port, uref.u32);
-		socks[V4][port] = s < 0 ? -1 : s;
-		socks[V6][port] = s < 0 ? -1 : s;
-		if (IN_INTERVAL(0, FD_REF_MAX, s))
+	if (!c->ifi4) {
+		if (!addr)
+			/* Restrict to v6 only */
+			addr = &inany_any6;
+		else if (inany_v4(addr))
+			/* Nothing to do */
+			return 0;
+	}
+	if (!c->ifi6) {
+		if (!addr)
+			/* Restrict to v4 only */
+			addr = &inany_any4;
+		else if (!inany_v4(addr))
+			/* Nothing to do */
 			return 0;
 	}
 
-	if ((!addr || inany_v4(addr)) && c->ifi4) {
-		const union inany_addr *a = addr ? addr : &inany_any4;
-
-		r4 = pif_sock_l4(c, EPOLL_TYPE_UDP_LISTEN, pif, a, ifname,
-				 port, uref.u32);
-
-		socks[V4][port] = r4 < 0 ? -1 : r4;
+	s = pif_sock_l4(c, EPOLL_TYPE_UDP_LISTEN, pif,
+			addr, ifname, port, uref.u32);
+	if (s > FD_REF_MAX) {
+		close(s);
+		s = -EIO;
 	}
 
-	if ((!addr || !inany_v4(addr)) && c->ifi6) {
-		const union inany_addr *a = addr ? addr : &inany_any6;
+	if (!addr || inany_v4(addr))
+		socks[V4][port] = s < 0 ? -1 : s;
+	if (!addr || !inany_v4(addr))
+		socks[V6][port] = s < 0 ? -1 : s;
 
-		r6 = pif_sock_l4(c, EPOLL_TYPE_UDP_LISTEN, pif, a, ifname,
-				 port, uref.u32);
-
-		socks[V6][port] = r6 < 0 ? -1 : r6;
-	}
-
-	if (IN_INTERVAL(0, FD_REF_MAX, r4) || IN_INTERVAL(0, FD_REF_MAX, r6))
-		return 0;
-
-	return r4 < 0 ? r4 : r6;
+	return s < 0 ? s : 0;
 }
 
 /**

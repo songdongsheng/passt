@@ -2601,42 +2601,49 @@ static int tcp_sock_init_one(const struct ctx *c, uint8_t pif,
 }
 
 /**
- * tcp_sock_init() - Create listening sockets for a given host ("inbound") port
+ * tcp_sock_init() - Create listening socket for a given host ("inbound") port
  * @c:		Execution context
  * @pif:	Interface to open the socket for (PIF_HOST or PIF_SPLICE)
  * @addr:	Pointer to address for binding, NULL if not configured
  * @ifname:	Name of interface to bind to, NULL if not configured
  * @port:	Port, host order
  *
- * Return: 0 on (partial) success, negative error code on (complete) failure
+ * Return: 0 on success, negative error code on failure
  */
 int tcp_sock_init(const struct ctx *c, uint8_t pif,
 		  const union inany_addr *addr, const char *ifname,
 		  in_port_t port)
 {
-	int r4 = FD_REF_MAX + 1, r6 = FD_REF_MAX + 1;
+	int s;
 
 	ASSERT(!c->no_tcp);
 
-	if (!addr && c->ifi4 && c->ifi6)
-		/* Attempt to get a dual stack socket */
-		if (tcp_sock_init_one(c, pif, NULL, ifname, port) >= 0)
+	if (!c->ifi4) {
+		if (!addr)
+			/* Restrict to v6 only */
+			addr = &inany_any6;
+		else if (inany_v4(addr))
+			/* Nothing to do */
 			return 0;
+	}
+	if (!c->ifi6) {
+		if (!addr)
+			/* Restrict to v4 only */
+			addr = &inany_any4;
+		else if (!inany_v4(addr))
+			/* Nothing to do */
+			return 0;
+	}
 
-	/* Otherwise create a socket per IP version */
-	if ((!addr || inany_v4(addr)) && c->ifi4)
-		r4 = tcp_sock_init_one(c, pif,
-				       addr ? addr : &inany_any4, ifname, port);
+	s = tcp_sock_init_one(c, pif, addr, ifname, port);
+	if (s < 0)
+		return s;
+	if (s > FD_REF_MAX)
+		return -EIO;
 
-	if ((!addr || !inany_v4(addr)) && c->ifi6)
-		r6 = tcp_sock_init_one(c, pif,
-				       addr ? addr : &inany_any6, ifname, port);
-
-	if (IN_INTERVAL(0, FD_REF_MAX, r4) || IN_INTERVAL(0, FD_REF_MAX, r6))
-		return 0;
-
-	return r4 < 0 ? r4 : r6;
+	return 0;
 }
+
 /**
  * tcp_ns_sock_init() - Init socket to listen for spliced outbound connections
  * @c:		Execution context
