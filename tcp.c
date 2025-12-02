@@ -186,7 +186,7 @@
  * - ACK_TIMEOUT: if no ACK segment was received from tap/guest, after sending
  *   data (flag ACK_FROM_TAP_DUE with ESTABLISHED event), re-send data from the
  *   socket and reset sequence to what was acknowledged. If this persists for
- *   more than TCP_MAX_RETRANS times in a row, reset the connection
+ *   more than TCP_MAX_RETRIES times in a row, reset the connection
  *
  * - FIN_TIMEOUT: if a FIN segment was sent to tap/guest (flag ACK_FROM_TAP_DUE
  *   with TAP_FIN_SENT event), and no ACK is received within this time, reset
@@ -1141,7 +1141,7 @@ static void tcp_update_seqack_from_tap(const struct ctx *c,
 		if (SEQ_LT(seq, conn->seq_to_tap))
 			conn_flag(c, conn, ACK_FROM_TAP_DUE);
 
-		conn->retrans = 0;
+		conn->retries = 0;
 		conn->seq_ack_from_tap = seq;
 	}
 }
@@ -2430,7 +2430,7 @@ void tcp_timer_handler(const struct ctx *c, union epoll_ref ref)
 		} else if (CONN_HAS(conn, SOCK_FIN_SENT | TAP_FIN_ACKED)) {
 			flow_dbg(conn, "FIN timeout");
 			tcp_rst(c, conn);
-		} else if (conn->retrans == TCP_MAX_RETRANS) {
+		} else if (conn->retries == TCP_MAX_RETRIES) {
 			flow_dbg(conn, "retransmissions count exceeded");
 			tcp_rst(c, conn);
 		} else {
@@ -2439,7 +2439,7 @@ void tcp_timer_handler(const struct ctx *c, union epoll_ref ref)
 			if (!conn->wnd_from_tap)
 				conn->wnd_from_tap = 1; /* Zero-window probe */
 
-			conn->retrans++;
+			conn->retries++;
 			if (tcp_rewind_seq(c, conn))
 				return;
 
@@ -3401,7 +3401,7 @@ static int tcp_flow_repair_opt(const struct tcp_tap_conn *conn,
 int tcp_flow_migrate_source(int fd, struct tcp_tap_conn *conn)
 {
 	struct tcp_tap_transfer t = {
-		.retrans		= conn->retrans,
+		.retries		= conn->retries,
 		.ws_from_tap		= conn->ws_from_tap,
 		.ws_to_tap		= conn->ws_to_tap,
 		.events			= conn->events,
@@ -3681,7 +3681,7 @@ int tcp_flow_migrate_target(struct ctx *c, int fd)
 	memcpy(&flow->f.side, &t.side, sizeof(flow->f.side));
 	conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp);
 
-	conn->retrans			= t.retrans;
+	conn->retries			= t.retries;
 	conn->ws_from_tap		= t.ws_from_tap;
 	conn->ws_to_tap			= t.ws_to_tap;
 	conn->events			= t.events;
