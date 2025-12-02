@@ -2556,29 +2556,42 @@ void tcp_sock_handler(const struct ctx *c, union epoll_ref ref,
 /**
  * tcp_sock_init_one() - Initialise listening socket for address and port
  * @c:		Execution context
+ * @pif:	Interface to open the socket for (PIF_HOST or PIF_SPLICE)
  * @addr:	Pointer to address for binding, NULL for dual stack any
  * @ifname:	Name of interface to bind to, NULL if not configured
  * @port:	Port, host order
  *
  * Return: fd for the new listening socket, negative error code on failure
+ *
+ * If pif == PIF_SPLICE, the caller must have already entered the guest ns.
  */
-static int tcp_sock_init_one(const struct ctx *c, const union inany_addr *addr,
-			     const char *ifname, in_port_t port)
+static int tcp_sock_init_one(const struct ctx *c, uint8_t pif,
+			     const union inany_addr *addr, const char *ifname,
+			     in_port_t port)
 {
 	union tcp_listen_epoll_ref tref = {
 		.port = port,
-		.pif = PIF_HOST,
+		.pif = pif,
 	};
+	const struct fwd_ports *fwd;
 	int s;
 
-	s = pif_sock_l4(c, EPOLL_TYPE_TCP_LISTEN, PIF_HOST, addr,
-				ifname, port, tref.u32);
+	if (pif == PIF_HOST)
+		fwd = &c->tcp.fwd_in;
+	else
+		fwd = &c->tcp.fwd_out;
 
-	if (c->tcp.fwd_in.mode == FWD_AUTO) {
+	s = pif_sock_l4(c, EPOLL_TYPE_TCP_LISTEN, pif, addr, ifname,
+			port, tref.u32);
+
+	if (fwd->mode == FWD_AUTO) {
+		int (*socks)[IP_VERSIONS] = pif == PIF_SPLICE ?
+			tcp_sock_ns : tcp_sock_init_ext;
+
 		if (!addr || inany_v4(addr))
-			tcp_sock_init_ext[port][V4] = s < 0 ? -1 : s;
+			socks[port][V4] = s < 0 ? -1 : s;
 		if (!addr || !inany_v4(addr))
-			tcp_sock_init_ext[port][V6] = s < 0 ? -1 : s;
+			socks[port][V6] = s < 0 ? -1 : s;
 	}
 
 	if (s < 0)
@@ -2590,14 +2603,16 @@ static int tcp_sock_init_one(const struct ctx *c, const union inany_addr *addr,
 /**
  * tcp_sock_init() - Create listening sockets for a given host ("inbound") port
  * @c:		Execution context
+ * @pif:	Interface to open the socket for (PIF_HOST or PIF_SPLICE)
  * @addr:	Pointer to address for binding, NULL if not configured
  * @ifname:	Name of interface to bind to, NULL if not configured
  * @port:	Port, host order
  *
  * Return: 0 on (partial) success, negative error code on (complete) failure
  */
-int tcp_sock_init(const struct ctx *c, const union inany_addr *addr,
-		  const char *ifname, in_port_t port)
+int tcp_sock_init(const struct ctx *c, uint8_t pif,
+		  const union inany_addr *addr, const char *ifname,
+		  in_port_t port)
 {
 	int r4 = FD_REF_MAX + 1, r6 = FD_REF_MAX + 1;
 
@@ -2605,72 +2620,23 @@ int tcp_sock_init(const struct ctx *c, const union inany_addr *addr,
 
 	if (!addr && c->ifi4 && c->ifi6)
 		/* Attempt to get a dual stack socket */
-		if (tcp_sock_init_one(c, NULL, ifname, port) >= 0)
+		if (tcp_sock_init_one(c, pif, NULL, ifname, port) >= 0)
 			return 0;
 
 	/* Otherwise create a socket per IP version */
 	if ((!addr || inany_v4(addr)) && c->ifi4)
-		r4 = tcp_sock_init_one(c, addr ? addr : &inany_any4,
-				       ifname, port);
+		r4 = tcp_sock_init_one(c, pif,
+				       addr ? addr : &inany_any4, ifname, port);
 
 	if ((!addr || !inany_v4(addr)) && c->ifi6)
-		r6 = tcp_sock_init_one(c, addr ? addr : &inany_any6,
-				       ifname, port);
+		r6 = tcp_sock_init_one(c, pif,
+				       addr ? addr : &inany_any6, ifname, port);
 
 	if (IN_INTERVAL(0, FD_REF_MAX, r4) || IN_INTERVAL(0, FD_REF_MAX, r6))
 		return 0;
 
 	return r4 < 0 ? r4 : r6;
 }
-
-/**
- * tcp_ns_sock_init4() - Init socket to listen for outbound IPv4 connections
- * @c:		Execution context
- * @port:	Port, host order
- */
-static void tcp_ns_sock_init4(const struct ctx *c, in_port_t port)
-{
-	union tcp_listen_epoll_ref tref = {
-		.port = port,
-		.pif = PIF_SPLICE,
-	};
-	int s;
-
-	ASSERT(c->mode == MODE_PASTA);
-
-	s = pif_sock_l4(c, EPOLL_TYPE_TCP_LISTEN, PIF_SPLICE, &inany_loopback4,
-			NULL, port, tref.u32);
-	if (s < 0)
-		s = -1;
-
-	if (c->tcp.fwd_out.mode == FWD_AUTO)
-		tcp_sock_ns[port][V4] = s;
-}
-
-/**
- * tcp_ns_sock_init6() - Init socket to listen for outbound IPv6 connections
- * @c:		Execution context
- * @port:	Port, host order
- */
-static void tcp_ns_sock_init6(const struct ctx *c, in_port_t port)
-{
-	union tcp_listen_epoll_ref tref = {
-		.port = port,
-		.pif = PIF_SPLICE,
-	};
-	int s;
-
-	ASSERT(c->mode == MODE_PASTA);
-
-	s = pif_sock_l4(c, EPOLL_TYPE_TCP_LISTEN, PIF_SPLICE, &inany_loopback6,
-			NULL, port, tref.u32);
-	if (s < 0)
-		s = -1;
-
-	if (c->tcp.fwd_out.mode == FWD_AUTO)
-		tcp_sock_ns[port][V6] = s;
-}
-
 /**
  * tcp_ns_sock_init() - Init socket to listen for spliced outbound connections
  * @c:		Execution context
@@ -2681,9 +2647,9 @@ static void tcp_ns_sock_init(const struct ctx *c, in_port_t port)
 	ASSERT(!c->no_tcp);
 
 	if (c->ifi4)
-		tcp_ns_sock_init4(c, port);
+		tcp_sock_init_one(c, PIF_SPLICE, &inany_loopback4, NULL, port);
 	if (c->ifi6)
-		tcp_ns_sock_init6(c, port);
+		tcp_sock_init_one(c, PIF_SPLICE, &inany_loopback6, NULL, port);
 }
 
 /**
@@ -2908,7 +2874,7 @@ static void tcp_port_rebind(struct ctx *c, bool outbound)
 			if (outbound)
 				tcp_ns_sock_init(c, port);
 			else
-				tcp_sock_init(c, NULL, NULL, port);
+				tcp_sock_init(c, PIF_HOST, NULL, NULL, port);
 		}
 	}
 }
