@@ -76,11 +76,6 @@ int pif_sock_l4(const struct ctx *c, enum epoll_type type, uint8_t pif,
 		const union inany_addr *addr, const char *ifname,
 		in_port_t port, uint32_t data)
 {
-	union sockaddr_inany sa = {
-		.sa6.sin6_family = AF_INET6,
-		.sa6.sin6_addr = in6addr_any,
-		.sa6.sin6_port = htons(port),
-	};
 	union epoll_ref ref;
 	int ret;
 
@@ -93,11 +88,12 @@ int pif_sock_l4(const struct ctx *c, enum epoll_type type, uint8_t pif,
 	}
 
 	if (!addr) {
-		ref.fd = sock_l4_sa(c, type, &sa, ifname, false);
+		ref.fd = sock_l4_dualstack(c, type, port, ifname);
 	} else {
+		union sockaddr_inany sa;
+
 		pif_sockaddr(c, &sa, pif, addr, port);
-		ref.fd = sock_l4_sa(c, type, &sa, ifname,
-				    sa.sa_family == AF_INET6);
+		ref.fd = sock_l4(c, type, &sa, ifname);
 	}
 
 	if (ref.fd < 0)

@@ -183,8 +183,7 @@ static int flowside_sock_splice(void *arg)
 
 	ns_enter(a->c);
 
-	a->fd = sock_l4_sa(a->c, a->type, a->sa, NULL,
-			   a->sa->sa_family == AF_INET6);
+	a->fd = sock_l4(a->c, a->type, a->sa, NULL);
 	a->err = errno;
 
 	return 0;
@@ -219,8 +218,7 @@ int flowside_sock_l4(const struct ctx *c, enum epoll_type type, uint8_t pif,
 		else if (sa.sa_family == AF_INET6)
 			ifname = c->ip6.ifname_out;
 
-		return sock_l4_sa(c, type, &sa, ifname,
-				  sa.sa_family == AF_INET6);
+		return sock_l4(c, type, &sa, ifname);
 
 	case PIF_SPLICE: {
 		struct flowside_sock_args args = {

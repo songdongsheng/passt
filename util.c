@@ -40,7 +40,7 @@
 #endif
 
 /**
- * sock_l4_sa() - Create and bind socket to socket address, add to epoll list
+ * sock_l4_() - Create and bind socket to socket address
  * @c:		Execution context
  * @type:	epoll type
  * @sa:		Socket address to bind to
@@ -49,8 +49,9 @@
  *
  * Return: newly created socket, negative error code on failure
  */
-int sock_l4_sa(const struct ctx *c, enum epoll_type type,
-	       const union sockaddr_inany *sa, const char *ifname, bool v6only)
+static int sock_l4_(const struct ctx *c, enum epoll_type type,
+		    const union sockaddr_inany *sa, const char *ifname,
+		    bool v6only)
 {
 	sa_family_t af = sa->sa_family;
 	bool freebind = false;
@@ -166,6 +167,44 @@ int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 	}
 
 	return fd;
+}
+
+/**
+ * sock_l4() - Create and bind socket to given address
+ * @c:		Execution context
+ * @type:	epoll type
+ * @sa:		Socket address to bind to
+ * @ifname:	Interface for binding, NULL for any
+ *
+ * Return: newly created socket, negative error code on failure
+ */
+int sock_l4(const struct ctx *c, enum epoll_type type,
+	    const union sockaddr_inany *sa, const char *ifname)
+{
+	return sock_l4_(c, type, sa, ifname, sa->sa_family == AF_INET6);
+}
+
+/**
+ * sock_l4_dualstack() - Create a dual stack socket bound with wildcard address
+ * @c:		Execution context
+ * @type:	epoll type
+ * @port	Port to bind to (:: and 0.0.0.0)
+ * @ifname:	Interface for binding, NULL for any
+ *
+ * Return: newly created socket, negative error code on failure
+ *
+ * A dual stack socket is effectively bound to both :: and 0.0.0.0.
+ */
+int sock_l4_dualstack(const struct ctx *c, enum epoll_type type,
+		      in_port_t port, const char *ifname)
+{
+	union sockaddr_inany sa = {
+		.sa6.sin6_family = AF_INET6,
+		.sa6.sin6_addr = in6addr_any,
+		.sa6.sin6_port = htons(port),
+	};
+
+	return sock_l4_(c, type, &sa, ifname, 0);
 }
 
 /**
