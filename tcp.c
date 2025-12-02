@@ -2369,11 +2369,9 @@ void tcp_listen_handler(const struct ctx *c, union epoll_ref ref,
 	ini = flow_initiate_sa(flow, ref.tcp_listen.pif, &sa,
 			       NULL, ref.tcp_listen.port);
 
-	if (c->mode == MODE_VU) { /* Rebind to same address after migration */
-		if (getsockname(s, &sa.sa, &sl) ||
-		    inany_from_sockaddr(&ini->oaddr, &ini->oport, &sa) < 0)
-			err_perror("Can't get local address for socket %i", s);
-	}
+	if (getsockname(s, &sa.sa, &sl) ||
+	    inany_from_sockaddr(&ini->oaddr, &ini->oport, &sa) < 0)
+		err_perror("Can't get local address for socket %i", s);
 
 	if (!inany_is_unicast(&ini->eaddr) || ini->eport == 0) {
 		char sastr[SOCKADDR_STRLEN];
