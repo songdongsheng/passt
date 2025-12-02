@@ -60,6 +60,7 @@ union tcp_listen_epoll_ref {
  * @fwd_out:		Port forwarding configuration for outbound packets
  * @timer_run:		Timestamp of most recent timer run
  * @pipe_size:		Size of pipes for spliced connections
+ * @rto_max:		Maximum retry timeout (in s)
  * @syn_retries:	SYN retries using exponential backoff timeout
  * @syn_linear_timeouts: SYN retries before using exponential backoff timeout
  */
@@ -68,6 +69,7 @@ struct tcp_ctx {
 	struct fwd_ports fwd_out;
 	struct timespec timer_run;
 	size_t pipe_size;
+	int rto_max;
 	uint8_t syn_retries;
 	uint8_t syn_linear_timeouts;
 };
