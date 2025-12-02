@@ -156,6 +156,12 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 		    optname, optarg);
 	}
 
+	if (ifname && c->no_bindtodevice) {
+		die(
+"Device binding for '-%c %s' unsupported (requires kernel 5.7+)",
+		    optname, optarg);
+	}
+
 	for (i = first; i <= last; i++) {
 		if (bitmap_isset(exclude, i))
 			continue;
