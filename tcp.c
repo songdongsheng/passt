@@ -179,16 +179,13 @@
  *
  * Timeouts are implemented by means of timerfd timers, set based on flags:
  *
- * - SYN_TIMEOUT_INIT: if no SYN,ACK is received from tap/guest during
- *   handshake (flag ACK_FROM_TAP_DUE without ESTABLISHED event) within
- *   this time, resend SYN. It's the starting timeout for the first SYN
- *   retry. Retry TCP_MAX_RETRIES or (syn_retries + syn_linear_timeouts)
- *   times, then reset the connection
- *
- * - ACK_TIMEOUT: if no ACK segment was received from tap/guest, after sending
- *   data (flag ACK_FROM_TAP_DUE with ESTABLISHED event), re-send data from the
- *   socket and reset sequence to what was acknowledged. If this persists for
- *   more than TCP_MAX_RETRIES times in a row, reset the connection
+ * - RTO_INIT: if no ACK segment was received from tap/guest, either during
+ *   handshake (flag ACK_FROM_TAP_DUE without ESTABLISHED event) or after
+ *   sending data (flag ACK_FROM_TAP_DUE with ESTABLISHED event), re-send data
+ *   from the socket and reset sequence to what was acknowledged. This is the
+ *   timeout for the first retry, in seconds. Retry TCP_MAX_RETRIES times for
+ *   established connections, or (syn_retries + syn_linear_timeouts) times
+ *   during the handshake, then reset the connection
  *
  * - FIN_TIMEOUT: if a FIN segment was sent to tap/guest (flag ACK_FROM_TAP_DUE
  *   with TAP_FIN_SENT event), and no ACK is received within this time, reset
@@ -342,8 +339,7 @@ enum {
 #define WINDOW_DEFAULT			14600		/* RFC 6928 */
 
 #define ACK_INTERVAL			10		/* ms */
-#define SYN_TIMEOUT_INIT		1		/* s, RFC 6928 */
-#define ACK_TIMEOUT			2
+#define RTO_INIT			1		/* s, RFC 6298 */
 #define FIN_TIMEOUT			60
 #define ACT_TIMEOUT			7200
 
@@ -594,13 +590,10 @@ static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 	if (conn->flags & ACK_TO_TAP_DUE) {
 		it.it_value.tv_nsec = (long)ACK_INTERVAL * 1000 * 1000;
 	} else if (conn->flags & ACK_FROM_TAP_DUE) {
-		if (!(conn->events & ESTABLISHED)) {
-			int exp;
-			exp = (int)conn->retries - c->tcp.syn_linear_timeouts;
-			it.it_value.tv_sec = SYN_TIMEOUT_INIT << MAX(exp, 0);
-		} else {
-			it.it_value.tv_sec = ACK_TIMEOUT;
-		}
+		int exp = conn->retries;
+		if (!(conn->events & ESTABLISHED))
+			exp -= c->tcp.syn_linear_timeouts;
+		it.it_value.tv_sec = RTO_INIT << MAX(exp, 0);
 	} else if (CONN_HAS(conn, SOCK_FIN_SENT | TAP_FIN_ACKED)) {
 		it.it_value.tv_sec = FIN_TIMEOUT;
 	} else {
