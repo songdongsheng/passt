@@ -202,9 +202,13 @@
  * - ACT_TIMEOUT, in the presence of any event: if no activity is detected on
  *   either side, the connection is reset
  *
- * - ACK_INTERVAL elapsed after data segment received from tap without having
+ * - RTT / 2 elapsed after data segment received from tap without having
  *   sent an ACK segment, or zero-sized window advertised to tap/guest (flag
- *   ACK_TO_TAP_DUE): forcibly check if an ACK segment can be sent
+ *   ACK_TO_TAP_DUE): forcibly check if an ACK segment can be sent.
+ *
+ *   RTT, here, is an approximation of the RTT value reported by the kernel via
+ *   TCP_INFO, with a representable range from RTT_STORE_MIN (100 us) to
+ *   RTT_STORE_MAX (3276.8 ms). The timeout value is clamped accordingly.
  *
  *
  * Summary of data flows (with ESTABLISHED event)
@@ -341,7 +345,6 @@ enum {
 #define MSS_DEFAULT			536
 #define WINDOW_DEFAULT			14600		/* RFC 6928 */
 
-#define ACK_INTERVAL			10		/* ms */
 #define RTO_INIT			1		/* s, RFC 6298 */
 #define RTO_INIT_AFTER_SYN_RETRIES	3		/* s, RFC 6298 */
 #define FIN_TIMEOUT			60
@@ -593,7 +596,9 @@ static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 	}
 
 	if (conn->flags & ACK_TO_TAP_DUE) {
-		it.it_value.tv_nsec = (long)ACK_INTERVAL * 1000 * 1000;
+		it.it_value.tv_sec = RTT_GET(conn) / 2 / ((long)1000 * 1000);
+		it.it_value.tv_nsec = RTT_GET(conn) / 2 % ((long)1000 * 1000) *
+				      1000;
 	} else if (conn->flags & ACK_FROM_TAP_DUE) {
 		int exp = conn->retries, timeout = RTO_INIT;
 		if (!(conn->events & ESTABLISHED))
@@ -608,9 +613,17 @@ static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 		it.it_value.tv_sec = ACT_TIMEOUT;
 	}
 
-	flow_dbg(conn, "timer expires in %llu.%03llus",
-		 (unsigned long long)it.it_value.tv_sec,
-		 (unsigned long long)it.it_value.tv_nsec / 1000 / 1000);
+	if (conn->flags & ACK_TO_TAP_DUE) {
+		flow_trace(conn, "timer expires in %llu.%03llums",
+			   (unsigned long)it.it_value.tv_sec * 1000 +
+			   (unsigned long long)it.it_value.tv_nsec %
+					       ((long)1000 * 1000),
+			   (unsigned long long)it.it_value.tv_nsec / 1000);
+	} else {
+		flow_dbg(conn, "timer expires in %llu.%03llus",
+			 (unsigned long long)it.it_value.tv_sec,
+			 (unsigned long long)it.it_value.tv_nsec / 1000 / 1000);
+	}
 
 	if (timerfd_settime(conn->timer, 0, &it, NULL))
 		flow_perror(conn, "failed to set timer");
@@ -1144,6 +1157,10 @@ int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 		conn_flag(c, conn, ACK_TO_TAP_DUE);
 
 out:
+	/* Opportunistically store RTT approximation on valid TCP_INFO data */
+	if (tinfo)
+		RTT_SET(conn, tinfo->tcpi_rtt);
+
 	return new_wnd_to_tap       != prev_wnd_to_tap ||
 	       conn->seq_ack_to_tap != prev_ack_to_tap;
 }

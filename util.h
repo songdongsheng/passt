@@ -233,6 +233,7 @@ int output_file_open(const char *path, int flags);
 void pidfile_write(int fd, pid_t pid);
 int __daemon(int pidfile_fd, int devnull_fd);
 int fls(unsigned long x);
+int ilog2(unsigned long x);
 int write_file(const char *path, const char *buf);
 intmax_t read_file_integer(const char *path, intmax_t fallback);
 int write_all_buf(int fd, const void *buf, size_t len);

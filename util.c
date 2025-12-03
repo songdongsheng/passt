@@ -614,6 +614,9 @@ int __daemon(int pidfile_fd, int devnull_fd)
  * fls() - Find last (most significant) bit set in word
  * @x:		Word
  *
+ * Note: unlike ffs() and other implementations of fls(), notably the one from
+ * the Linux kernel, the starting position is 0 and not 1, that is, fls(1) = 0.
+ *
  * Return: position of most significant bit set, starting from 0, -1 if none
  */
 int fls(unsigned long x)
@@ -627,6 +630,17 @@ int fls(unsigned long x)
 		y++;
 
 	return y;
+}
+
+/**
+ * ilog2() - Integral part (floor) of binary logarithm (logarithm to the base 2)
+ * @x:		Argument
+ *
+ * Return: integral part of binary logarithm of @x, -1 if undefined (if @x is 0)
+ */
+int ilog2(unsigned long x)
+{
+	return fls(x);
 }
 
 /**
