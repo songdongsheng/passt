@@ -1282,7 +1282,8 @@ int tcp_prepare_flags(const struct ctx *c, struct tcp_tap_conn *conn,
 	th->fin = !!(flags & FIN);
 
 	if (th->ack) {
-		if (SEQ_GE(conn->seq_ack_to_tap, conn->seq_from_tap))
+		if (SEQ_GE(conn->seq_ack_to_tap, conn->seq_from_tap) &&
+		    conn->wnd_to_tap)
 			conn_flag(c, conn, ~ACK_TO_TAP_DUE);
 		else
 			conn_flag(c, conn, ACK_TO_TAP_DUE);
