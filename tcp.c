@@ -2020,7 +2020,7 @@ eintr:
 			goto eintr;
 
 		if (errno == EAGAIN || errno == EWOULDBLOCK) {
-			tcp_send_flag(c, conn, ACK_IF_NEEDED);
+			tcp_send_flag(c, conn, ACK | DUP_ACK);
 			return p->count - idx;
 
 		}
