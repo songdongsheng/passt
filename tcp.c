@@ -353,6 +353,9 @@ enum {
 #define LOW_RTT_TABLE_SIZE		8
 #define LOW_RTT_THRESHOLD		10 /* us */
 
+/* Ratio of buffer to bandwidth * delay product implying interactive traffic */
+#define SNDBUF_TO_BW_DELAY_INTERACTIVE	/* > */ 20 /* (i.e. < 5% of buffer) */
+
 #define ACK_IF_NEEDED	0		/* See tcp_send_flag() */
 
 #define CONN_IS_CLOSING(conn)						\
@@ -426,11 +429,13 @@ socklen_t tcp_info_size;
 	  sizeof(((struct tcp_info_linux *)NULL)->tcpi_##f_)) <= tcp_info_size)
 
 /* Kernel reports sending window in TCP_INFO (kernel commit 8f7baad7f035) */
-#define snd_wnd_cap	tcp_info_cap(snd_wnd)
+#define snd_wnd_cap		tcp_info_cap(snd_wnd)
 /* Kernel reports bytes acked in TCP_INFO (kernel commit 0df48c26d84) */
-#define bytes_acked_cap	tcp_info_cap(bytes_acked)
+#define bytes_acked_cap		tcp_info_cap(bytes_acked)
 /* Kernel reports minimum RTT in TCP_INFO (kernel commit cd9b266095f4) */
-#define min_rtt_cap	tcp_info_cap(min_rtt)
+#define min_rtt_cap		tcp_info_cap(min_rtt)
+/* Kernel reports delivery rate in TCP_INFO (kernel commit eb8329e0a04d) */
+#define delivery_rate_cap	tcp_info_cap(delivery_rate)
 
 /* sendmsg() to socket */
 static struct iovec	tcp_iov			[UIO_MAXIOV];
@@ -1051,6 +1056,7 @@ int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 	socklen_t sl = sizeof(*tinfo);
 	struct tcp_info_linux tinfo_new;
 	uint32_t new_wnd_to_tap = prev_wnd_to_tap;
+	bool ack_everything = true;
 	int s = conn->sock;
 
 	/* At this point we could ack all the data we've accepted for forwarding
@@ -1060,7 +1066,8 @@ int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 	 * control behaviour.
 	 *
 	 * For it to be possible and worth it we need:
-	 *  - The TCP_INFO Linux extension which gives us the peer acked bytes
+	 *  - The TCP_INFO Linux extensions which give us the peer acked bytes
+	 *    and the delivery rate (outbound bandwidth at receiver)
 	 *  - Not to be told not to (force_seq)
 	 *  - Not half-closed in the peer->guest direction
 	 *      With no data coming from the peer, we might not get events which
@@ -1070,19 +1077,36 @@ int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 	 *      Data goes from socket to socket, with nothing meaningfully "in
 	 *      flight".
 	 *  - Not a pseudo-local connection (e.g. to a VM on the same host)
-	 *  - Large enough send buffer
-	 *      In these cases, there's not enough in flight to bother.
+	 *      If it is, there's not enough in flight to bother.
+	 *  - Sending buffer significantly larger than bandwidth * delay product
+	 *      Meaning we're not bandwidth-bound and this is likely to be
+	 *      interactive traffic where we want to preserve transparent
+	 *      connection behaviour and latency.
+	 *
+	 *      Otherwise, we probably want to maximise throughput, which needs
+	 *      sending buffer auto-tuning, triggered in turn by filling up the
+	 *      outbound socket queue.
 	 */
-	if (bytes_acked_cap && !force_seq &&
+	if (bytes_acked_cap && delivery_rate_cap && !force_seq &&
 	    !CONN_IS_CLOSING(conn) &&
-	    !(conn->flags & LOCAL) && !tcp_rtt_dst_low(conn) &&
-	    (unsigned)SNDBUF_GET(conn) >= SNDBUF_SMALL) {
+	    !(conn->flags & LOCAL) && !tcp_rtt_dst_low(conn)) {
 		if (!tinfo) {
 			tinfo = &tinfo_new;
 			if (getsockopt(s, SOL_TCP, TCP_INFO, tinfo, &sl))
 				return 0;
 		}
 
+		if ((unsigned)SNDBUF_GET(conn) > (long long)tinfo->tcpi_rtt *
+						 tinfo->tcpi_delivery_rate /
+						 1000 / 1000 *
+						 SNDBUF_TO_BW_DELAY_INTERACTIVE)
+			ack_everything = false;
+	}
+
+	if (ack_everything) {
+		/* Fall back to acknowledging everything we got */
+		conn->seq_ack_to_tap = conn->seq_from_tap;
+	} else {
 		/* This trips a cppcheck bug in some versions, including
 		 * cppcheck 2.18.3.
 		 * https://sourceforge.net/p/cppcheck/discussion/general/thread/fecde59085/
@@ -1090,9 +1114,6 @@ int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 		/* cppcheck-suppress [uninitvar,unmatchedSuppression] */
 		conn->seq_ack_to_tap = tinfo->tcpi_bytes_acked +
 		                       conn->seq_init_from_tap;
-	} else {
-		/* Fall back to acknowledging everything we got */
-		conn->seq_ack_to_tap = conn->seq_from_tap;
 	}
 
 	/* It's occasionally possible for us to go from using the fallback above
