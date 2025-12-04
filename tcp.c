@@ -353,6 +353,13 @@ enum {
 #define LOW_RTT_TABLE_SIZE		8
 #define LOW_RTT_THRESHOLD		10 /* us */
 
+/* Parameters to temporarily exceed sending buffer to force TCP auto-tuning */
+#define SNDBUF_BOOST_BYTES_RTT_LO	2500 /* B * s: no boost until here */
+/* ...examples:  5 MB sent * 500 ns RTT, 250 kB * 10 ms,  8 kB * 300 ms */
+#define SNDBUF_BOOST_FACTOR		150 /* % */
+#define SNDBUF_BOOST_BYTES_RTT_HI	6000 /* apply full boost factor */
+/*		12 MB sent * 500 ns RTT, 600 kB * 10 ms, 20 kB * 300 ms */
+
 /* Ratio of buffer to bandwidth * delay product implying interactive traffic */
 #define SNDBUF_TO_BW_DELAY_INTERACTIVE	/* > */ 20 /* (i.e. < 5% of buffer) */
 
@@ -1037,6 +1044,35 @@ void tcp_fill_headers(const struct ctx *c, struct tcp_tap_conn *conn,
 }
 
 /**
+ * tcp_sndbuf_boost() - Calculate limit of sending buffer to force auto-tuning
+ * @conn:	Connection pointer
+ * @tinfo:	tcp_info from kernel, must be pre-fetched
+ *
+ * Return: increased sending buffer to use as a limit for advertised window
+ */
+static unsigned long tcp_sndbuf_boost(const struct tcp_tap_conn *conn,
+				      const struct tcp_info_linux *tinfo)
+{
+	unsigned long bytes_rtt_product;
+
+	if (!bytes_acked_cap)
+		return SNDBUF_GET(conn);
+
+	/* This is *not* a bandwidth-delay product, but it's somewhat related:
+	 * as we send more data (usually at the beginning of a connection), we
+	 * try to make the sending buffer progressively grow, with the RTT as a
+	 * factor (longer delay, bigger buffer needed).
+	 */
+	bytes_rtt_product = (long long)tinfo->tcpi_bytes_acked *
+			    tinfo->tcpi_rtt / 1000 / 1000;
+
+	return clamped_scale(SNDBUF_GET(conn), bytes_rtt_product,
+			     SNDBUF_BOOST_BYTES_RTT_LO,
+			     SNDBUF_BOOST_BYTES_RTT_HI,
+			     SNDBUF_BOOST_FACTOR);
+}
+
+/**
  * tcp_update_seqack_wnd() - Update ACK sequence and window to guest/tap
  * @c:		Execution context
  * @conn:	Connection pointer
@@ -1155,6 +1191,8 @@ int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 
 		if ((int)sendq > SNDBUF_GET(conn)) /* Due to memory pressure? */
 			limit = 0;
+		else if ((int)tinfo->tcpi_snd_wnd > SNDBUF_GET(conn))
+			limit = tcp_sndbuf_boost(conn, tinfo) - (int)sendq;
 		else
 			limit = SNDBUF_GET(conn) - (int)sendq;
 
