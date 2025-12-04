@@ -556,8 +556,7 @@ static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
  * tcp_timer_ctl() - Set timerfd based on flags/events, create timerfd if needed
  * @c:		Execution context
  * @conn:	Connection pointer
- *
- * #syscalls timerfd_create timerfd_settime
+ * #syscalls timerfd_create timerfd_settime|timerfd_settime32
  */
 static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 {
@@ -2412,7 +2411,9 @@ cancel:
  * @c:		Execution context
  * @ref:	epoll reference of timer (not connection)
  *
- * #syscalls timerfd_gettime arm:timerfd_gettime64 i686:timerfd_gettime64
+ * #syscalls timerfd_gettime|timerfd_gettime64
+ * #syscalls arm:timerfd_gettime64 i686:timerfd_gettime64
+ * #syscalls arm:timerfd_settime64 i686:timerfd_settime64
  */
 void tcp_timer_handler(const struct ctx *c, union epoll_ref ref)
 {
