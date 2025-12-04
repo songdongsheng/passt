@@ -2027,13 +2027,10 @@ eintr:
 		return -1;
 	}
 
-	if (n < (int)(seq_from_tap - conn->seq_from_tap)) {
+	if (n < (int)(seq_from_tap - conn->seq_from_tap))
 		partial_send = 1;
-		conn->seq_from_tap += n;
-		tcp_send_flag(c, conn, ACK_IF_NEEDED);
-	} else {
-		conn->seq_from_tap += n;
-	}
+
+	conn->seq_from_tap += n;
 
 out:
 	if (keep != -1 || partial_send) {
