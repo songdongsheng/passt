@@ -1158,6 +1158,23 @@ int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 		else
 			limit = SNDBUF_GET(conn) - (int)sendq;
 
+		/* If the sender uses mechanisms to prevent Silly Window
+		 * Syndrome (SWS, described in RFC 813 Section 3) it's critical
+		 * that, should the window ever become less than the MSS, we
+		 * advertise a new value once it increases again to be above it.
+		 *
+		 * The mechanism to avoid SWS in the kernel is, implicitly,
+		 * implemented by Nagle's algorithm (which was proposed after
+		 * RFC 813).
+		 *
+		 * To this end, for simplicity, approximate a window value below
+		 * the MSS to zero, as we already have mechanisms in place to
+		 * force updates after the window becomes zero. This matches the
+		 * suggestion from RFC 813, Section 4.
+		 */
+		if (limit < MSS_GET(conn))
+			limit = 0;
+
 		new_wnd_to_tap = MIN((int)tinfo->tcpi_snd_wnd, limit);
 	}
 
