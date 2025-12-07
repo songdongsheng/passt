@@ -1223,3 +1223,41 @@ void fsync_pcap_and_log(void)
 	if (log_file != -1)
 		(void)fsync(log_file);
 }
+
+/**
+ * clamped_scale() - Scale @x from 100% to f% depending on @y's value
+ * @x:		Value to scale
+ * @y:		Value determining scaling
+ * @lo:		Lower bound for @y (start of y-axis slope)
+ * @hi:		Upper bound for @y (end of y-axis slope)
+ * @f:		Scaling factor, percent (might be less or more than 100)
+ *
+ * Return: @x scaled by @f * linear interpolation of @y between @lo and @hi
+ *
+ * In pictures:
+ *
+ *                f % -> ,----   * If @y < lo (for example, @y is y0), return @x
+ *                      /|   |
+ *                     / |   |   * If @lo < @y < @hi (for example, @y is y1),
+ *                    /  |   |     return @x scaled by a factor linearly
+ * (100 + f) / 2 % ->/   |   |     interpolated between 100% and f% depending on
+ *                  /|   |   |     @y's position between @lo (100%) and @hi (f%)
+ *                 / |   |   |
+ *                /  |   |   |   * If @y > @hi (for example, @y is y2), return
+ * 100 % -> -----'   |   |   |     @x * @f / 100
+ *           |   |   |   |   |
+ *          y0  lo  y1  hi  y2   Example: @f = 150, @lo = 10, @hi = 20, @y = 15,
+ *                                        @x = 1000
+ *                                        -> interpolated factor is 125%
+ *                                        -> return 1250
+ */
+long clamped_scale(long x, long y, long lo, long hi, long f)
+{
+	if (y < lo)
+		return x;
+
+	if (y > hi)
+		return x * f / 100;
+
+	return x - (x * (y - lo) / (hi - lo)) * (100 - f) / 100;
+}

@@ -788,11 +788,7 @@ static void tcp_get_sndbuf(struct tcp_tap_conn *conn)
 		return;
 	}
 
-	v = sndbuf;
-	if (v >= SNDBUF_BIG)
-		v /= 2;
-	else if (v > SNDBUF_SMALL)
-		v -= v * (v - SNDBUF_SMALL) / (SNDBUF_BIG - SNDBUF_SMALL) / 2;
+	v = clamped_scale(sndbuf, sndbuf, SNDBUF_SMALL, SNDBUF_BIG, 50);
 
 	SNDBUF_SET(conn, MIN(INT_MAX, v));
 }

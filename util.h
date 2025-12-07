@@ -242,6 +242,7 @@ int read_remainder(int fd, const struct iovec *iov, size_t cnt, size_t skip);
 void close_open_files(int argc, char **argv);
 bool snprintf_check(char *str, size_t size, const char *format, ...);
 void fsync_pcap_and_log(void);
+long clamped_scale(long x, long y, long lo, long hi, long f);
 
 /**
  * af_name() - Return name of an address family
