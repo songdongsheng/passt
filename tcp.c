@@ -773,7 +773,7 @@ static void tcp_rtt_dst_check(const struct tcp_tap_conn *conn,
 }
 
 /**
- * tcp_get_sndbuf() - Get, scale SO_SNDBUF between thresholds (1 to 0.5 usage)
+ * tcp_get_sndbuf() - Get, scale SO_SNDBUF between thresholds (1 to 0.75 usage)
  * @conn:	Connection pointer
  */
 static void tcp_get_sndbuf(struct tcp_tap_conn *conn)
@@ -788,7 +788,7 @@ static void tcp_get_sndbuf(struct tcp_tap_conn *conn)
 		return;
 	}
 
-	v = clamped_scale(sndbuf, sndbuf, SNDBUF_SMALL, SNDBUF_BIG, 50);
+	v = clamped_scale(sndbuf, sndbuf, SNDBUF_SMALL, SNDBUF_BIG, 75);
 
 	SNDBUF_SET(conn, MIN(INT_MAX, v));
 }
