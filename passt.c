@@ -177,8 +177,7 @@ static void exit_handler(int signal)
 {
 	(void)signal;
 
-	fsync_pcap_and_log();
-	_exit(EXIT_SUCCESS);
+	passt_exit(EXIT_SUCCESS);
 }
 
 /**
@@ -399,7 +398,7 @@ int main(int argc, char **argv)
 	flow_init();
 
 	if ((!c.no_udp && udp_init(&c)) || (!c.no_tcp && tcp_init(&c)))
-		_exit(EXIT_FAILURE);
+		passt_exit(EXIT_FAILURE);
 
 	proto_update_l2_buf(c.guest_mac);
 
