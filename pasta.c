@@ -40,6 +40,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <net/ethernet.h>
+#include <sys/prctl.h>
 #include <sys/syscall.h>
 #include <linux/magic.h>
 
@@ -189,6 +190,10 @@ static int pasta_spawn_cmd(void *arg)
 	size_t conf_hostname_len;
 	sigset_t set;
 
+	/* If the parent dies with an error, so should we */
+	if (prctl(PR_SET_PDEATHSIG, SIGKILL))
+		die_perror("Couldn't set PR_SET_PDEATHSIG");
+
 	/* We run in a detached PID and mount namespace: mount /proc over */
 	if (mount("", "/proc", "proc", 0, NULL))
 		warn_perror("Couldn't mount /proc");
@@ -214,6 +219,12 @@ static int pasta_spawn_cmd(void *arg)
 	sigemptyset(&set);
 	sigaddset(&set, SIGUSR1);
 	sigwaitinfo(&set, NULL);
+
+	/* Once exec()ed this process is more valuable, and easier to see and
+	 * clean up.  Let us outlive our parent now.
+	 */
+	if (prctl(PR_SET_PDEATHSIG, 0))
+		die_perror("Couldn't clear PR_SET_PDEATHSIG");
 
 	execvp(a->exe, a->argv);
 

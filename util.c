@@ -35,6 +35,7 @@
 #include "log.h"
 #include "pcap.h"
 #include "epoll_ctl.h"
+#include "pasta.h"
 #ifdef HAS_GETRANDOM
 #include <sys/random.h>
 #endif
