@@ -2950,7 +2950,7 @@ int tcp_init(struct ctx *c)
 	tcp_info_size = tcp_probe_tcp_info();
 
 #define dbg_tcpi(f_)	debug("TCP_INFO tcpi_%s field%s supported",	\
-			      STRINGIFY(f_), tcp_info_cap(f_) ? " " : " not ")
+			      STRINGIFY(f_), tcp_info_cap(f_) ? "" : " not")
 	dbg_tcpi(snd_wnd);
 	dbg_tcpi(bytes_acked);
 	dbg_tcpi(min_rtt);
