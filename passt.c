@@ -396,6 +396,7 @@ int main(int argc, char **argv)
 		die_perror("Failed to get CLOCK_MONOTONIC time");
 
 	flow_init();
+	fwd_scan_ports_init(&c);
 
 	if ((!c.no_udp && udp_init(&c)) || (!c.no_tcp && tcp_init(&c)))
 		passt_exit(EXIT_FAILURE);

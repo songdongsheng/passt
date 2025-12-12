@@ -2144,8 +2144,6 @@ void conf(struct ctx *c, int argc, char **argv)
 	if (!c->udp.fwd_out.mode)
 		c->udp.fwd_out.mode = fwd_default;
 
-	fwd_scan_ports_init(c);
-
 	if (!c->quiet)
 		conf_print(c);
 }
