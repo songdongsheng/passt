@@ -554,7 +554,7 @@ static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 
 	if (conn->timer != -1) {
 		union epoll_ref ref_t = { .type = EPOLL_TYPE_TCP_TIMER,
-					  .fd = conn->sock,
+					  .fd = conn->timer,
 					  .flow = FLOW_IDX(conn) };
 		struct epoll_event ev_t = { .data.u64 = ref_t.u64,
 					    .events = EPOLLIN | EPOLLET };
@@ -582,7 +582,6 @@ static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 
 	if (conn->timer == -1) {
 		union epoll_ref ref = { .type = EPOLL_TYPE_TCP_TIMER,
-					.fd = conn->sock,
 					.flow = FLOW_IDX(conn) };
 		struct epoll_event ev = { .data.u64 = ref.u64,
 					  .events = EPOLLIN | EPOLLET };
@@ -598,6 +597,7 @@ static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 			return;
 		}
 		conn->timer = fd;
+		ref.fd = conn->timer;
 
 		if (epoll_ctl(epollfd, EPOLL_CTL_ADD, conn->timer, &ev)) {
 			flow_dbg_perror(conn, "failed to add timer");
