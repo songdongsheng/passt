@@ -660,25 +660,21 @@ uint8_t fwd_nat_from_splice(const struct ctx *c, uint8_t proto,
 		return PIF_NONE;
 	}
 
-	tgt->eaddr = ini->oaddr;
-
-	/* Preserve the specific loopback address used, but let the kernel pick
-	 * a source port on the target side
-	 */
+	/* Preserve the src & dest (loopback) addresses */
 	tgt->oaddr = ini->eaddr;
-	tgt->oport = 0;
-
-	tgt->eport = ini->oport;
-	if (proto == IPPROTO_TCP)
-		tgt->eport += c->tcp.fwd_out.delta[tgt->eport];
-	else if (proto == IPPROTO_UDP)
-		tgt->eport += c->udp.fwd_out.delta[tgt->eport];
+	tgt->eaddr = ini->oaddr;
 
 	/* Let the kernel pick a host side source port */
 	tgt->oport = 0;
 	if (proto == IPPROTO_UDP)
 		/* But for UDP preserve the source port */
 		tgt->oport = ini->eport;
+
+	tgt->eport = ini->oport;
+	if (proto == IPPROTO_TCP)
+		tgt->eport += c->tcp.fwd_out.delta[tgt->eport];
+	else if (proto == IPPROTO_UDP)
+		tgt->eport += c->udp.fwd_out.delta[tgt->eport];
 
 	return PIF_HOST;
 }
