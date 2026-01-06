@@ -650,7 +650,7 @@ uint8_t fwd_nat_from_splice(const struct ctx *c, uint8_t proto,
 			    const struct flowside *ini, struct flowside *tgt)
 {
 	if (!inany_is_loopback(&ini->eaddr) ||
-	    (!inany_is_loopback(&ini->oaddr) && !inany_is_unspecified(&ini->oaddr))) {
+	    !inany_is_loopback(&ini->oaddr)) {
 		char estr[INANY_ADDRSTRLEN], fstr[INANY_ADDRSTRLEN];
 
 		debug("Non loopback address on %s: [%s]:%hu -> [%s]:%hu",
@@ -660,12 +660,7 @@ uint8_t fwd_nat_from_splice(const struct ctx *c, uint8_t proto,
 		return PIF_NONE;
 	}
 
-	if (!inany_is_unspecified(&ini->oaddr))
-		tgt->eaddr = ini->oaddr;
-	else if (inany_v4(&ini->oaddr))
-		tgt->eaddr = inany_loopback4;
-	else
-		tgt->eaddr = inany_loopback6;
+	tgt->eaddr = ini->oaddr;
 
 	/* Preserve the specific loopback address used, but let the kernel pick
 	 * a source port on the target side
