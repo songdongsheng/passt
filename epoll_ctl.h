@@ -21,8 +21,7 @@
  * @fd:		File descriptor number (implies < 2^24 total descriptors)
  * @flow:	Index of the flow this fd is linked to
  * @flowside:	Index and side of a flow this fd is linked to
- * @tcp_listen:	TCP-specific reference part for listening sockets
- * @udp:	UDP-specific reference part
+ * @listen:	Information for listening sockets
  * @data:	Data handled by protocol handlers
  * @nsdir_fd:	netns dirfd for fallback timer checking if namespace is gone
  * @queue:	vhost-user queue index for this fd
@@ -35,8 +34,7 @@ union epoll_ref {
 		union {
 			uint32_t flow;
 			flow_sidx_t flowside;
-			union tcp_listen_epoll_ref tcp_listen;
-			union udp_listen_epoll_ref udp;
+			union fwd_listen_ref listen;
 			uint32_t data;
 			int nsdir_fd;
 			int queue;
