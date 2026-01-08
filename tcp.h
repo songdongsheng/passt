@@ -31,16 +31,6 @@ void tcp_update_l2_buf(const unsigned char *eth_d);
 extern bool peek_offset_cap;
 
 /**
- * union tcp_epoll_ref - epoll reference portion for TCP connections
- * @index:		Index of connection in table
- * @u32:		Opaque u32 value of reference
- */
-union tcp_epoll_ref {
-	uint32_t index:20;
-	uint32_t u32;
-};
-
-/**
  * union tcp_listen_epoll_ref - epoll reference portion for TCP listening
  * @port:	Bound port number of the socket
  * @pif:	pif in which the socket is listening
