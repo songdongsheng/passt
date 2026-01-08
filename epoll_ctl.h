@@ -20,6 +20,7 @@
  * @type:	Type of fd (tells us what to do with events)
  * @fd:		File descriptor number (implies < 2^24 total descriptors)
  * @flow:	Index of the flow this fd is linked to
+ * @flowside:	Index and side of a flow this fd is linked to
  * @tcp_listen:	TCP-specific reference part for listening sockets
  * @udp:	UDP-specific reference part
  * @data:	Data handled by protocol handlers
