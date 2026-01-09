@@ -550,18 +550,6 @@ static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 
 	flow_epollid_set(&conn->f, EPOLLFD_ID_DEFAULT);
 
-	if (conn->timer != -1) {
-		union epoll_ref ref_t = { .type = EPOLL_TYPE_TCP_TIMER,
-					  .fd = conn->timer,
-					  .flow = FLOW_IDX(conn) };
-		struct epoll_event ev_t = { .data.u64 = ref_t.u64,
-					    .events = EPOLLIN | EPOLLET };
-
-		if (epoll_ctl(flow_epollfd(&conn->f), EPOLL_CTL_MOD,
-			      conn->timer, &ev_t))
-			return -errno;
-	}
-
 	return 0;
 }
 
