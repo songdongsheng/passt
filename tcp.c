@@ -567,30 +567,32 @@ static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 		return;
 
 	if (conn->timer == -1) {
-		union epoll_ref ref = { .type = EPOLL_TYPE_TCP_TIMER,
-					.flow = FLOW_IDX(conn) };
-		struct epoll_event ev = { .data.u64 = ref.u64,
-					  .events = EPOLLIN | EPOLLET };
-		int epollfd = flow_epollfd(&conn->f);
+		union epoll_ref ref;
 		int fd;
 
 		fd = timerfd_create(CLOCK_MONOTONIC, 0);
-		if (fd == -1 || fd > FD_REF_MAX) {
+		if (fd == -1) {
 			flow_dbg_perror(conn, "failed to get timer");
-			if (fd > -1)
-				close(fd);
-			conn->timer = -1;
 			return;
 		}
-		conn->timer = fd;
-		ref.fd = conn->timer;
+		if (fd > FD_REF_MAX) {
+			flow_dbg(conn, "timer fd overflow (%d > %d)",
+				 fd, FD_REF_MAX);
+			close(fd);
+			return;
+		}
 
-		if (epoll_ctl(epollfd, EPOLL_CTL_ADD, conn->timer, &ev)) {
-			flow_dbg_perror(conn, "failed to add timer");
-			close(conn->timer);
-			conn->timer = -1;
+		ref.type = EPOLL_TYPE_TCP_TIMER;
+		ref.flow = FLOW_IDX(conn);
+		ref.fd = fd;
+		if (epoll_add(flow_epollfd(&conn->f), EPOLLIN | EPOLLET,
+			      ref) < 0) {
+			flow_dbg(conn, "failed to add timer");
+			close(fd);
 			return;
 		}
+
+		conn->timer = fd;
 	}
 
 	if (conn->flags & ACK_TO_TAP_DUE) {
