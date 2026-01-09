@@ -521,34 +521,44 @@ static uint32_t tcp_conn_epoll_events(uint8_t events, uint8_t conn_flags)
 
 /**
  * tcp_epoll_ctl() - Add/modify/delete epoll state from connection events
- * @c:		Execution context
  * @conn:	Connection pointer
  *
  * Return: 0 on success, negative error code on failure (not on deletion)
  */
-static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
+static int tcp_epoll_ctl(struct tcp_tap_conn *conn)
 {
-	int m = flow_in_epoll(&conn->f) ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
-	union epoll_ref ref = { .type = EPOLL_TYPE_TCP, .fd = conn->sock,
-		                .flowside = FLOW_SIDX(conn, !TAPSIDE(conn)), };
-	struct epoll_event ev = { .data.u64 = ref.u64 };
-	int epollfd = flow_in_epoll(&conn->f) ? flow_epollfd(&conn->f)
-					      : c->epollfd;
+	uint32_t events;
+	int m;
 
 	if (conn->events == CLOSED) {
-		if (flow_in_epoll(&conn->f))
+		if (flow_in_epoll(&conn->f)) {
+			int epollfd = flow_epollfd(&conn->f);
+
 			epoll_del(epollfd, conn->sock);
-		if (conn->timer != -1)
-			epoll_del(epollfd, conn->timer);
+			if (conn->timer != -1)
+				epoll_del(epollfd, conn->timer);
+		}
+
 		return 0;
 	}
 
-	ev.events = tcp_conn_epoll_events(conn->events, conn->flags);
+	events = tcp_conn_epoll_events(conn->events, conn->flags);
 
-	if (epoll_ctl(epollfd, m, conn->sock, &ev))
-		return -errno;
+	if (flow_in_epoll(&conn->f)) {
+		m = EPOLL_CTL_MOD;
+	} else {
+		flow_epollid_set(&conn->f, EPOLLFD_ID_DEFAULT);
+		m = EPOLL_CTL_ADD;
+	}
 
-	flow_epollid_set(&conn->f, EPOLLFD_ID_DEFAULT);
+	if (flow_epoll_set(&conn->f, m, events, conn->sock,
+			   !TAPSIDE(conn)) < 0) {
+		int ret = -errno;
+
+		if (m == EPOLL_CTL_ADD)
+			flow_epollid_clear(&conn->f);
+		return ret;
+	}
 
 	return 0;
 }
@@ -669,7 +679,7 @@ void conn_flag_do(const struct ctx *c, struct tcp_tap_conn *conn,
 	}
 
 	if (flag == STALLED || flag == ~STALLED)
-		tcp_epoll_ctl(c, conn);
+		tcp_epoll_ctl(conn);
 
 	if (flag == ACK_FROM_TAP_DUE || flag == ACK_TO_TAP_DUE		  ||
 	    (flag == ~ACK_FROM_TAP_DUE && (conn->flags & ACK_TO_TAP_DUE)) ||
@@ -726,7 +736,7 @@ void conn_event_do(const struct ctx *c, struct tcp_tap_conn *conn,
 	} else {
 		if (event == CLOSED)
 			flow_hash_remove(c, TAP_SIDX(conn));
-		tcp_epoll_ctl(c, conn);
+		tcp_epoll_ctl(conn);
 	}
 
 	if (CONN_HAS(conn, SOCK_FIN_SENT | TAP_FIN_ACKED))
@@ -1743,7 +1753,7 @@ static void tcp_conn_from_tap(const struct ctx *c, sa_family_t af,
 		conn_event(c, conn, TAP_SYN_ACK_SENT);
 	}
 
-	tcp_epoll_ctl(c, conn);
+	tcp_epoll_ctl(conn);
 
 	if (c->mode == MODE_VU) { /* To rebind to same oport after migration */
 		socklen_t sl = sizeof(sa);
@@ -3985,7 +3995,7 @@ int tcp_flow_migrate_target_ext(struct ctx *c, struct tcp_tap_conn *conn, int fd
 	tcp_send_flag(c, conn, ACK);
 	tcp_data_from_sock(c, conn);
 
-	if ((rc = tcp_epoll_ctl(c, conn))) {
+	if ((rc = tcp_epoll_ctl(conn))) {
 		flow_dbg(conn,
 			 "Failed to subscribe to epoll for migrated socket: %s",
 			 strerror_(-rc));

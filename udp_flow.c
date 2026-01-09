@@ -74,7 +74,6 @@ static int udp_flow_sock(const struct ctx *c,
 {
 	const struct flowside *side = &uflow->f.side[sidei];
 	uint8_t pif = uflow->f.pif[sidei];
-	union epoll_ref ref;
 	int rc;
 	int s;
 
@@ -84,14 +83,10 @@ static int udp_flow_sock(const struct ctx *c,
 		return s;
 	}
 
-	ref.type = EPOLL_TYPE_UDP;
-	ref.flowside = FLOW_SIDX(uflow, sidei);
-	ref.fd = s;
-
 	flow_epollid_set(&uflow->f, EPOLLFD_ID_DEFAULT);
-
-	rc = epoll_add(flow_epollfd(&uflow->f), EPOLLIN, ref);
-	if (rc < 0) {
+	if (flow_epoll_set(&uflow->f, EPOLL_CTL_ADD, EPOLLIN, s, sidei) < 0) {
+		rc = -errno;
+		flow_epollid_clear(&uflow->f);
 		close(s);
 		return rc;
 	}
