@@ -1180,6 +1180,7 @@ int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 	if ((conn->flags & LOCAL) || tcp_rtt_dst_low(conn)) {
 		new_wnd_to_tap = tinfo->tcpi_snd_wnd;
 	} else {
+		unsigned rtt_ms_ceiling = DIV_ROUND_UP(tinfo->tcpi_rtt, 1000);
 		uint32_t sendq;
 		int limit;
 
@@ -1223,7 +1224,7 @@ int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 		 *   with pending data in the outbound queue
 		 */
 		if (limit < MSS_GET(conn) && sendq &&
-		    tinfo->tcpi_last_data_sent < tinfo->tcpi_rtt / 1000 * 10)
+		    tinfo->tcpi_last_data_sent < rtt_ms_ceiling * 10)
 			limit = 0;
 
 		new_wnd_to_tap = MIN((int)tinfo->tcpi_snd_wnd, limit);
