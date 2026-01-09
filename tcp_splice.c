@@ -114,29 +114,23 @@ static struct tcp_splice_conn *conn_at_sidx(flow_sidx_t sidx)
  * @events:	Connection event flags
  * @ev:		Events to fill in, 0 is accepted socket, 1 is connecting socket
  */
-static void tcp_splice_conn_epoll_events(uint16_t events,
-					 struct epoll_event ev[])
+static uint32_t tcp_splice_conn_epoll_events(uint16_t events, unsigned sidei)
 {
-	unsigned sidei;
-
-	flow_foreach_sidei(sidei)
-		ev[sidei].events = 0;
+	uint32_t e = 0;
 
 	if (events & SPLICE_ESTABLISHED) {
-		flow_foreach_sidei(sidei) {
-			if (!(events & FIN_SENT(!sidei)))
-				ev[sidei].events = EPOLLIN | EPOLLRDHUP;
-		}
-	} else if (events & SPLICE_CONNECT) {
-		ev[1].events = EPOLLOUT;
+		if (!(events & FIN_SENT(!sidei)))
+			e = EPOLLIN | EPOLLRDHUP;
+	} else if (sidei == 1 && events & SPLICE_CONNECT) {
+		e = EPOLLOUT;
 	}
 
-	flow_foreach_sidei(sidei) {
-		if (events & OUT_WAIT(sidei)) {
-			ev[sidei].events |= EPOLLOUT;
-			ev[!sidei].events &= ~EPOLLIN;
-		}
-	}
+	if (events & OUT_WAIT(sidei))
+		e |= EPOLLOUT;
+	if (events & OUT_WAIT(!sidei))
+		e &= ~EPOLLIN;
+
+	return e;
 }
 
 /**
@@ -161,7 +155,8 @@ static int tcp_splice_epoll_ctl(const struct ctx *c,
 	struct epoll_event ev[SIDES] = { { .data.u64 = ref[0].u64 },
 					 { .data.u64 = ref[1].u64 } };
 
-	tcp_splice_conn_epoll_events(conn->events, ev);
+	ev[0].events = tcp_splice_conn_epoll_events(conn->events, 0);
+	ev[1].events = tcp_splice_conn_epoll_events(conn->events, 1);
 
 
 	if (epoll_ctl(epollfd, m, conn->s[0], &ev[0]) ||
