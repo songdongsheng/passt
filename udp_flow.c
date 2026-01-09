@@ -74,10 +74,6 @@ static int udp_flow_sock(const struct ctx *c,
 {
 	const struct flowside *side = &uflow->f.side[sidei];
 	uint8_t pif = uflow->f.pif[sidei];
-	union {
-		flow_sidx_t sidx;
-		uint32_t data;
-	} fref = { .sidx = FLOW_SIDX(uflow, sidei) };
 	union epoll_ref ref;
 	int rc;
 	int s;
@@ -89,7 +85,7 @@ static int udp_flow_sock(const struct ctx *c,
 	}
 
 	ref.type = EPOLL_TYPE_UDP;
-	ref.data = fref.data;
+	ref.flowside = FLOW_SIDX(uflow, sidei);
 	ref.fd = s;
 
 	flow_epollid_set(&uflow->f, EPOLLFD_ID_DEFAULT);
