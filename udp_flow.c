@@ -105,6 +105,7 @@ static int udp_flow_sock(const struct ctx *c,
 		flow_dbg_perror(uflow, "Couldn't connect flow socket");
 		return rc;
 	}
+	uflow->s[sidei] = s;
 
 	/* It's possible, if unlikely, that we could receive some packets in
 	 * between the bind() and connect() which may or may not be for this
@@ -159,7 +160,7 @@ static flow_sidx_t udp_flow_new(const struct ctx *c, union flow *flow,
 
 	flow_foreach_sidei(sidei) {
 		if (pif_is_socket(uflow->f.pif[sidei]))
-			if ((uflow->s[sidei] = udp_flow_sock(c, uflow, sidei)) < 0)
+			if (udp_flow_sock(c, uflow, sidei) < 0)
 				goto cancel;
 	}
 
