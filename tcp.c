@@ -2679,7 +2679,7 @@ void tcp_sock_handler(const struct ctx *c, union epoll_ref ref,
  * @ifname:	Name of interface to bind to, NULL for any
  * @port:	Port, host order
  *
- * Return: 0 on success, negative error code on failure
+ * Return: socket fd on success, negative error code on failure
  */
 int tcp_listen(const struct ctx *c, uint8_t pif,
 	       const union inany_addr *addr, const char *ifname, in_port_t port)
@@ -2728,10 +2728,7 @@ int tcp_listen(const struct ctx *c, uint8_t pif,
 			socks[port][V6] = s < 0 ? -1 : s;
 	}
 
-	if (s < 0)
-		return s;
-
-	return 0;
+	return s;
 }
 
 /**

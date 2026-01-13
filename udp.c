@@ -1136,7 +1136,7 @@ int udp_tap_handler(const struct ctx *c, uint8_t pif,
  * @ifname:	Name of interface to bind to, NULL if not configured
  * @port:	Port, host order
  *
- * Return: 0 on success, negative error code on failure
+ * Return: socket fd on success, negative error code on failure
  */
 int udp_listen(const struct ctx *c, uint8_t pif,
 	       const union inany_addr *addr, const char *ifname, in_port_t port)
@@ -1180,7 +1180,7 @@ int udp_listen(const struct ctx *c, uint8_t pif,
 	if (!addr || !inany_v4(addr))
 		socks[V6][port] = s < 0 ? -1 : s;
 
-	return s < 0 ? s : 0;
+	return s;
 }
 
 /**

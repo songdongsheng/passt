@@ -149,7 +149,7 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 {
 	bool bound_one = false;
 	unsigned i;
-	int ret;
+	int fd;
 
 	if (first == 0) {
 		die("Can't forward port 0 for option '-%c %s'",
@@ -185,23 +185,23 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 		fwd->delta[i] = to - first;
 
 		if (optname == 't')
-			ret = tcp_listen(c, PIF_HOST, addr, ifname, i);
+			fd = tcp_listen(c, PIF_HOST, addr, ifname, i);
 		else if (optname == 'u')
-			ret = udp_listen(c, PIF_HOST, addr, ifname, i);
+			fd = udp_listen(c, PIF_HOST, addr, ifname, i);
 		else
 			/* No way to check in advance for -T and -U */
-			ret = 0;
+			fd = 0;
 
-		if (ret == -ENFILE || ret == -EMFILE) {
+		if (fd == -ENFILE || fd == -EMFILE) {
 			die("Can't open enough sockets for port specifier: %s",
 			    optarg);
 		}
 
-		if (!ret) {
+		if (fd >= 0) {
 			bound_one = true;
 		} else if (!weak) {
 			die("Failed to bind port %u (%s) for option '-%c %s'",
-			    i, strerror_(-ret), optname, optarg);
+			    i, strerror_(-fd), optname, optarg);
 		}
 	}
 
