@@ -1234,7 +1234,7 @@ dns6:
  *
  * Return: 0 on success, negative error code on failure
  */
-static int conf_runas(char *opt, unsigned int *uid, unsigned int *gid)
+static int conf_runas(const char *opt, unsigned int *uid, unsigned int *gid)
 {
 	const char *uopt, *gopt = NULL;
 	char *sep = strchr(opt, ':');
