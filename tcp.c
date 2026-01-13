@@ -2699,16 +2699,14 @@ int tcp_listen(const struct ctx *c, uint8_t pif,
 			/* Restrict to v6 only */
 			addr = &inany_any6;
 		else if (inany_v4(addr))
-			/* Nothing to do */
-			return 0;
+			return -EAFNOSUPPORT;
 	}
 	if (!c->ifi6) {
 		if (!addr)
 			/* Restrict to v4 only */
 			addr = &inany_any4;
 		else if (!inany_v4(addr))
-			/* Nothing to do */
-			return 0;
+			return -EAFNOSUPPORT;
 	}
 
 	if (pif == PIF_HOST) {
