@@ -172,11 +172,6 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 		for (i = base; i <= last; i++) {
 			if (exclude && bitmap_isset(exclude, i))
 				break;
-
-			if (bitmap_isset(fwd->map, i)) {
-				warn(
-"Altering mapping of already mapped port number: %s", optarg);
-			}
 		}
 
 		if ((optname == 'T' || optname == 'U') && c->no_bindtodevice) {

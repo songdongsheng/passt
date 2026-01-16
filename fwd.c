@@ -349,7 +349,7 @@ void fwd_rule_add(struct fwd_ports *fwd, uint8_t flags,
 	const uint8_t allowed_flags = FWD_WEAK | FWD_SCAN;
 	unsigned num = (unsigned)last - first + 1;
 	struct fwd_rule *new;
-	unsigned port;
+	unsigned i, port;
 
 	ASSERT(!(flags & ~allowed_flags));
 
@@ -357,6 +357,25 @@ void fwd_rule_add(struct fwd_ports *fwd, uint8_t flags,
 		die("Too many port forwarding ranges");
 	if ((fwd->sock_count + num) > ARRAY_SIZE(fwd->socks))
 		die("Too many listening sockets");
+
+	/* Check for any conflicting entries */
+	for (i = 0; i < fwd->count; i++) {
+		char newstr[INANY_ADDRSTRLEN], rulestr[INANY_ADDRSTRLEN];
+		struct fwd_rule *rule = &fwd->rules[i];
+
+		if (!inany_matches(addr, fwd_rule_addr(rule)))
+			/* Non-conflicting addresses */
+			continue;
+
+		if (last < rule->first || rule->last < first)
+			/* Port ranges don't overlap */
+			continue;
+
+		die("Forwarding configuration conflict: %s/%u-%u versus %s/%u-%u",
+		    inany_ntop(addr, newstr, sizeof(newstr)), first, last,
+		    inany_ntop(fwd_rule_addr(rule), rulestr, sizeof(rulestr)),
+		    rule->first, rule->last);
+	}
 
 	new = &fwd->rules[fwd->count++];
 	new->flags = flags;
