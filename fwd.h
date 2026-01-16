@@ -46,6 +46,7 @@ struct fwd_rule {
 
 #define FWD_RULE_BITS	8
 #define MAX_FWD_RULES	MAX_FROM_BITS(FWD_RULE_BITS)
+#define FWD_NO_HINT	(-1)
 
 /**
  * union fwd_listen_ref - information about a single listening socket
@@ -108,7 +109,8 @@ void fwd_rule_add(struct fwd_ports *fwd, uint8_t flags,
 		  const union inany_addr *addr, const char *ifname,
 		  in_port_t first, in_port_t last, in_port_t to);
 const struct fwd_rule *fwd_rule_search(const struct fwd_ports *fwd,
-				       const struct flowside *ini);
+				       const struct flowside *ini,
+				       int hint);
 void fwd_rules_print(const struct fwd_ports *fwd);
 
 void fwd_scan_ports_init(struct ctx *c);

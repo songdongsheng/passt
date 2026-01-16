@@ -432,13 +432,30 @@ static bool fwd_rule_match(const struct fwd_rule *rule,
  * fwd_rule_search() - Find a rule which matches a prospective flow
  * @fwd:	Forwarding table
  * @ini:	Initiating side flow information
+ * @hint:	Index of the rule in table, if known, otherwise FWD_NO_HINT
  *
  * Returns: first matching rule, or NULL if there is none
  */
 const struct fwd_rule *fwd_rule_search(const struct fwd_ports *fwd,
-				       const struct flowside *ini)
+				       const struct flowside *ini,
+				       int hint)
 {
 	unsigned i;
+
+	if (hint >= 0) {
+		char ostr[INANY_ADDRSTRLEN], rstr[INANY_ADDRSTRLEN];
+		const struct fwd_rule *rule = &fwd->rules[hint];
+
+		ASSERT((unsigned)hint < fwd->count);
+		if (fwd_rule_match(rule, ini))
+			return rule;
+
+		debug("Incorrect rule hint: %s:%hu does not match %s:%hu-%hu",
+		      inany_ntop(&ini->oaddr, ostr, sizeof(ostr)), ini->oport,
+		      inany_ntop(fwd_rule_addr(rule), rstr, sizeof(rstr)),
+		      rule->first, rule->last);
+		return NULL;
+	}
 
 	for (i = 0; i < fwd->count; i++) {
 		if (fwd_rule_match(&fwd->rules[i], ini))

@@ -838,12 +838,13 @@ static void udp_buf_sock_to_tap(const struct ctx *c, int s, int n,
  * udp_sock_fwd() - Forward datagrams from a possibly unconnected socket
  * @c:		Execution context
  * @s:		Socket to forward from
+ * @rule_hint:	Forwarding rule to use, or -1 if unknown
  * @frompif:	Interface to which @s belongs
  * @port:	Our (local) port number of @s
  * @now:	Current timestamp
  */
-void udp_sock_fwd(const struct ctx *c, int s, uint8_t frompif,
-		  in_port_t port, const struct timespec *now)
+void udp_sock_fwd(const struct ctx *c, int s, int rule_hint,
+		  uint8_t frompif, in_port_t port, const struct timespec *now)
 {
 	union sockaddr_inany src;
 	union inany_addr dst;
@@ -868,7 +869,8 @@ void udp_sock_fwd(const struct ctx *c, int s, uint8_t frompif,
 			continue;
 		}
 
-		tosidx = udp_flow_from_sock(c, frompif, &dst, port, &src, now);
+		tosidx = udp_flow_from_sock(c, frompif, &dst, port, &src,
+					    rule_hint, now);
 		topif = pif_at_sidx(tosidx);
 
 		if (pif_is_socket(topif)) {
@@ -910,8 +912,10 @@ void udp_listen_sock_handler(const struct ctx *c,
 			     union epoll_ref ref, uint32_t events,
 			     const struct timespec *now)
 {
-	if (events & (EPOLLERR | EPOLLIN))
-		udp_sock_fwd(c, ref.fd, ref.listen.pif, ref.listen.port, now);
+	if (events & (EPOLLERR | EPOLLIN)) {
+		udp_sock_fwd(c, ref.fd, ref.listen.rule,
+			     ref.listen.pif, ref.listen.port, now);
+	}
 }
 
 /**

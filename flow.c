@@ -519,12 +519,13 @@ struct flowside *flow_initiate_sa(union flow *flow, uint8_t pif,
  * flow_target() - Determine where flow should forward to, and move to TGT
  * @c:		Execution context
  * @flow:	Flow to forward
+ * @rule_hint:	Index of relevant forwarding rule, or -1 if unknown
  * @proto:	Protocol
  *
  * Return: pointer to the target flowside information
  */
 struct flowside *flow_target(const struct ctx *c, union flow *flow,
-			     uint8_t proto)
+			     int rule_hint, uint8_t proto)
 {
 	char estr[INANY_ADDRSTRLEN], ostr[INANY_ADDRSTRLEN];
 	struct flow_common *f = &flow->f;
@@ -553,7 +554,7 @@ struct flowside *flow_target(const struct ctx *c, union flow *flow,
 		else
 			goto nofwd;
 
-		if (!(rule = fwd_rule_search(fwd, ini)))
+		if (!(rule = fwd_rule_search(fwd, ini, rule_hint)))
 			goto norule;
 
 		tgtpif = fwd_nat_from_splice(rule, proto, ini, tgt);
@@ -567,7 +568,7 @@ struct flowside *flow_target(const struct ctx *c, union flow *flow,
 		else
 			goto nofwd;
 
-		if (!(rule = fwd_rule_search(fwd, ini)))
+		if (!(rule = fwd_rule_search(fwd, ini, rule_hint)))
 			goto norule;
 
 		tgtpif = fwd_nat_from_host(c, rule, proto, ini, tgt);

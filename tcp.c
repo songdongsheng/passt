@@ -1656,7 +1656,7 @@ static void tcp_conn_from_tap(const struct ctx *c, sa_family_t af,
 	ini = flow_initiate_af(flow, PIF_TAP,
 			       af, saddr, srcport, daddr, dstport);
 
-	if (!(tgt = flow_target(c, flow, IPPROTO_TCP)))
+	if (!(tgt = flow_target(c, flow, FWD_NO_HINT, IPPROTO_TCP)))
 		goto cancel;
 
 	if (flow->f.pif[TGTSIDE] != PIF_HOST) {
@@ -2495,7 +2495,7 @@ void tcp_listen_handler(const struct ctx *c, union epoll_ref ref,
 		goto cancel;
 	}
 
-	if (!flow_target(c, flow, IPPROTO_TCP))
+	if (!flow_target(c, flow, ref.listen.rule, IPPROTO_TCP))
 		goto cancel;
 
 	switch (flow->f.pif[TGTSIDE]) {
