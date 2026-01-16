@@ -416,6 +416,40 @@ void fwd_rule_add(struct fwd_ports *fwd, uint8_t flags,
 }
 
 /**
+ * fwd_rule_match() - Does a prospective flow match a given forwarding rule?
+ * @rule:	Forwarding rule
+ * @ini:	Initiating side flow information
+ *
+ * Returns: true if the rule applies to the flow, false otherwise
+ */
+static bool fwd_rule_match(const struct fwd_rule *rule,
+			   const struct flowside *ini)
+{
+	return inany_matches(&ini->oaddr, fwd_rule_addr(rule)) &&
+	       ini->oport >= rule->first && ini->oport <= rule->last;
+}
+
+/**
+ * fwd_rule_search() - Find a rule which matches a prospective flow
+ * @fwd:	Forwarding table
+ * @ini:	Initiating side flow information
+ *
+ * Returns: first matching rule, or NULL if there is none
+ */
+const struct fwd_rule *fwd_rule_search(const struct fwd_ports *fwd,
+				       const struct flowside *ini)
+{
+	unsigned i;
+
+	for (i = 0; i < fwd->count; i++) {
+		if (fwd_rule_match(&fwd->rules[i], ini))
+			return &fwd->rules[i];
+	}
+
+	return NULL;
+}
+
+/**
  * fwd_rules_print() - Print forwarding rules for debugging
  * @fwd:	Table to print
  */
