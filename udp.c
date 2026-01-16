@@ -1115,18 +1115,20 @@ int udp_tap_handler(const struct ctx *c, uint8_t pif,
  * udp_listen() - Initialise listening socket for a given port
  * @c:		Execution context
  * @pif:	Interface to open the socket for (PIF_HOST or PIF_SPLICE)
+ * @rule:	Index of relevant forwarding rule
  * @addr:	Pointer to address for binding, NULL if not configured
  * @ifname:	Name of interface to bind to, NULL if not configured
  * @port:	Port, host order
  *
  * Return: socket fd on success, negative error code on failure
  */
-int udp_listen(const struct ctx *c, uint8_t pif,
+int udp_listen(const struct ctx *c, uint8_t pif, unsigned rule,
 	       const union inany_addr *addr, const char *ifname, in_port_t port)
 {
 	union fwd_listen_ref ref = {
 		.pif = pif,
 		.port = port,
+		.rule = rule,
 	};
 	int s;
 

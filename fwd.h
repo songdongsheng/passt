@@ -51,14 +51,17 @@ struct fwd_rule {
  * union fwd_listen_ref - information about a single listening socket
  * @port:	Bound port number of the socket
  * @pif:	pif in which the socket is listening
+ * @rule:	Index of forwarding rule
  */
 union fwd_listen_ref {
 	struct {
 		in_port_t	port;
 		uint8_t		pif;
+		unsigned	rule :FWD_RULE_BITS;
 	};
 	uint32_t u32;
 };
+static_assert(sizeof(union fwd_listen_ref) == sizeof(uint32_t));
 
 enum fwd_ports_mode {
 	FWD_UNSET = 0,

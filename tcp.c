@@ -2671,18 +2671,20 @@ void tcp_sock_handler(const struct ctx *c, union epoll_ref ref,
  * tcp_listen() - Create listening socket
  * @c:		Execution context
  * @pif:	Interface to open the socket for (PIF_HOST or PIF_SPLICE)
+ * @rule:	Index of relevant forwarding rule
  * @addr:	Pointer to address for binding, NULL for any
  * @ifname:	Name of interface to bind to, NULL for any
  * @port:	Port, host order
  *
  * Return: socket fd on success, negative error code on failure
  */
-int tcp_listen(const struct ctx *c, uint8_t pif,
+int tcp_listen(const struct ctx *c, uint8_t pif, unsigned rule,
 	       const union inany_addr *addr, const char *ifname, in_port_t port)
 {
 	union fwd_listen_ref ref = {
 		.port = port,
 		.pif = pif,
+		.rule = rule,
 	};
 	int s;
 

@@ -484,6 +484,7 @@ void fwd_rules_print(const struct fwd_ports *fwd)
 
 /** fwd_sync_one() - Create or remove listening sockets for a forward entry
  * @c:		Execution context
+ * @fwd:	Forwarding table
  * @rule:	Forwarding rule
  * @pif:	Interface to create listening sockets for
  * @proto:	Protocol to listen for
@@ -491,19 +492,23 @@ void fwd_rules_print(const struct fwd_ports *fwd)
  *
  * Return: 0 on success, -1 on failure
  */
-static int fwd_sync_one(const struct ctx *c, const struct fwd_rule *rule,
+static int fwd_sync_one(const struct ctx *c,
+			const struct fwd_ports *fwd, const struct fwd_rule *rule,
 			uint8_t pif, uint8_t proto, const uint8_t *scanmap)
 {
 	const union inany_addr *addr = fwd_rule_addr(rule);
 	const char *ifname = rule->ifname;
 	bool bound_one = false;
-	unsigned port;
+	unsigned port, idx;
 
 	ASSERT(pif_is_socket(pif));
 
 	if (!*ifname)
 		ifname = NULL;
 
+	idx = rule - fwd->rules;
+	ASSERT(idx < MAX_FWD_RULES);
+	
 	for (port = rule->first; port <= rule->last; port++) {
 		int fd = rule->socks[port - rule->first];
 
@@ -524,9 +529,9 @@ static int fwd_sync_one(const struct ctx *c, const struct fwd_rule *rule,
 		}
 
 		if (proto == IPPROTO_TCP)
-			fd = tcp_listen(c, pif, addr, ifname, port);
+			fd = tcp_listen(c, pif, idx, addr, ifname, port);
 		else if (proto == IPPROTO_UDP)
-			fd = udp_listen(c, pif, addr, ifname, port);
+			fd = udp_listen(c, pif, idx, addr, ifname, port);
 		else
 			ASSERT(0);
 
@@ -594,7 +599,7 @@ static int fwd_listen_sync_(void *arg)
 		ns_enter(a->c);
 
 	for (i = 0; i < a->fwd->count; i++) {
-		a->ret = fwd_sync_one(a->c, &a->fwd->rules[i],
+		a->ret = fwd_sync_one(a->c, a->fwd, &a->fwd->rules[i],
 				      a->pif, a->proto, a->fwd->map);
 		if (a->ret < 0)
 			break;
