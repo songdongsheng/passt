@@ -22,7 +22,7 @@ const union inany_addr inany_loopback4 = INANY_INIT4(IN4ADDR_LOOPBACK_INIT);
 const union inany_addr inany_any4 = INANY_INIT4(IN4ADDR_ANY_INIT);
 
 /** inany_ntop - Convert an IPv[46] address to text format
- * @src:	IPv[46] address
+ * @src:	IPv[46] address (NULL for unspecified)
  * @dst:	output buffer, minimum INANY_ADDRSTRLEN bytes
  * @size:	size of buffer at @dst
  *
@@ -30,9 +30,12 @@ const union inany_addr inany_any4 = INANY_INIT4(IN4ADDR_ANY_INIT);
  */
 const char *inany_ntop(const union inany_addr *src, char *dst, socklen_t size)
 {
-	const struct in_addr *v4 = inany_v4(src);
+	const struct in_addr *v4;
 
-	if (v4)
+	if (!src)
+		return strncpy(dst, "*", size);
+
+	if ((v4 = inany_v4(src)))
 		return inet_ntop(AF_INET, v4, dst, size);
 
 	return inet_ntop(AF_INET6, &src->a6, dst, size);
