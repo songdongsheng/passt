@@ -23,6 +23,7 @@ bool fwd_port_is_ephemeral(in_port_t port);
  * @first:	First port number to forward
  * @last:	Last port number to forward
  * @to:		Target port for @first, port n goes to @to + (n - @first)
+ * @socks:	Array of listening sockets for this entry
  * @flags:	Flag mask
  * 	FWD_DUAL_STACK_ANY - match any IPv4 or IPv6 address (@addr should be ::)
  *	FWD_WEAK - Don't give an error if binds fail for some forwards
@@ -36,6 +37,7 @@ struct fwd_rule {
 	in_port_t first;
 	in_port_t last;
 	in_port_t to;
+	int *socks;
 #define FWD_DUAL_STACK_ANY	BIT(0)
 #define FWD_WEAK		BIT(1)
 #define FWD_SCAN		BIT(2)
@@ -68,15 +70,24 @@ enum fwd_ports_mode {
 
 #define PORT_BITMAP_SIZE	DIV_ROUND_UP(NUM_PORTS, 8)
 
+/* Maximum number of listening sockets (per pif & protocol)
+ *
+ * Rationale: This lets us listen on every port for two addresses (which we need
+ * for -T auto without SO_BINDTODEVICE), plus a comfortable number of extras.
+ */
+#define MAX_LISTEN_SOCKS	(NUM_PORTS * 3)
+
 /**
  * fwd_ports() - Describes port forwarding for one protocol and direction
- * @mode:	Overall forwarding mode (all, none, auto, specific ports)
+ * @mode:	Overall mode (all, none, auto, specific ports)
  * @scan4:	/proc/net fd to scan for IPv4 ports when in AUTO mode
  * @scan6:	/proc/net fd to scan for IPv6 ports when in AUTO mode
  * @count:	Number of forwarding rules
  * @rules:	Array of forwarding rules
  * @map:	Bitmap describing which ports are forwarded
- * @delta:	Offset between the original destination and mapped port number
+ * @delta:	Offset between the original mapped port number
+ * @sock_count:	Number of entries used in @socks
+ * @socks:	Listening sockets for forwarding
  */
 struct fwd_ports {
 	enum fwd_ports_mode mode;
@@ -86,6 +97,8 @@ struct fwd_ports {
 	struct fwd_rule rules[MAX_FWD_RULES];
 	uint8_t map[PORT_BITMAP_SIZE];
 	in_port_t delta[NUM_PORTS];
+	unsigned sock_count;
+	int socks[MAX_LISTEN_SOCKS];
 };
 
 #define FWD_PORT_SCAN_INTERVAL		1000	/* ms */

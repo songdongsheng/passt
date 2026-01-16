@@ -346,6 +346,7 @@ void fwd_rule_add(struct fwd_ports *fwd, uint8_t flags,
 {
 	/* Flags which can be set from the caller */
 	const uint8_t allowed_flags = FWD_WEAK | FWD_SCAN;
+	unsigned num = (unsigned)last - first + 1;
 	struct fwd_rule *new;
 	unsigned port;
 
@@ -353,6 +354,8 @@ void fwd_rule_add(struct fwd_ports *fwd, uint8_t flags,
 
 	if (fwd->count >= ARRAY_SIZE(fwd->rules))
 		die("Too many port forwarding ranges");
+	if ((fwd->sock_count + num) > ARRAY_SIZE(fwd->socks))
+		die("Too many listening sockets");
 
 	new = &fwd->rules[fwd->count++];
 	new->flags = flags;
@@ -379,8 +382,13 @@ void fwd_rule_add(struct fwd_ports *fwd, uint8_t flags,
 
 	new->to = to;
 
+	new->socks = &fwd->socks[fwd->sock_count];
+	fwd->sock_count += num;
+
 	for (port = new->first; port <= new->last; port++) {
-		/* Fill in the legacy data structures to match the table */
+		new->socks[port - new->first] = -1;
+
+		/* Fill in the legacy forwarding data structures to match the table */
 		if (!(new->flags & FWD_SCAN))
 			bitmap_set(fwd->map, port);
 		fwd->delta[port] = new->to - new->first;
