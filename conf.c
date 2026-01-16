@@ -157,12 +157,6 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 		    optname, optarg);
 	}
 
-	if (ifname && c->no_bindtodevice) {
-		die(
-"Device binding for '-%c %s' unsupported (requires kernel 5.7+)",
-		    optname, optarg);
-	}
-
 	if (addr) {
 		if (!c->ifi4 && inany_v4(addr)) {
 			die("IPv4 is disabled, can't use -%c %s",
@@ -209,8 +203,27 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 			}
 		}
 
-		fwd_rule_add(fwd, flags, addr, ifname, base, i - 1,
-			     base + delta);
+		if ((optname == 'T' || optname == 'U') && c->no_bindtodevice) {
+			/* FIXME: Once the fwd bitmaps are removed, move this
+			 * workaround to the caller
+			 */
+			ASSERT(!addr && ifname && !strcmp(ifname, "lo"));
+			warn(
+"SO_BINDTODEVICE unavailable, forwarding only 127.0.0.1 and ::1 for '-%c %s'",
+			     optname, optarg);
+
+			if (c->ifi4) {
+				fwd_rule_add(fwd, flags, &inany_loopback4, NULL,
+					     base, i - 1, base + delta);
+			}
+			if (c->ifi6) {
+				fwd_rule_add(fwd, flags, &inany_loopback6, NULL,
+					     base, i - 1, base + delta);
+			}
+		} else {
+			fwd_rule_add(fwd, flags, addr, ifname,
+				     base, i - 1, base + delta);
+		}
 		base = i - 1;
 	}
 
@@ -356,6 +369,15 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 			bitmap_set(exclude, i);
 		}
 	} while ((p = next_chunk(p, ',')));
+
+	if (ifname && c->no_bindtodevice) {
+		die(
+"Device binding for '-%c %s' unsupported (requires kernel 5.7+)",
+		    optname, optarg);
+	}
+	/* Outbound forwards come from guest loopback */
+	if ((optname == 'T' || optname == 'U') && !ifname)
+		ifname = "lo";
 
 	if (exclude_only) {
 		/* Exclude ephemeral ports */
