@@ -686,6 +686,28 @@ static void fwd_scan_ports_udp(struct fwd_ports *fwd,
 }
 
 /**
+ * current_listen_map() - Get bitmap of which ports we're already listening on
+ * @map:	Bitmap to populate
+ * @fwd:	Forwarding table to consider
+ */
+static void current_listen_map(uint8_t *map, const struct fwd_ports *fwd)
+{
+	unsigned i;
+
+	memset(map, 0, PORT_BITMAP_SIZE);
+
+	for (i = 0; i < fwd->count; i++) {
+		const struct fwd_rule *rule = &fwd->rules[i];
+		unsigned port;
+
+		for (port = rule->first; port <= rule->last; port++) {
+			if (rule->socks[port - rule->first] >= 0)
+				bitmap_set(map, port);
+		}
+	}
+}
+
+/**
  * fwd_scan_ports() - Scan automatic port forwarding information
  * @c:		Execution context
  */
@@ -694,10 +716,10 @@ static void fwd_scan_ports(struct ctx *c)
 	uint8_t excl_tcp_out[PORT_BITMAP_SIZE], excl_udp_out[PORT_BITMAP_SIZE];
 	uint8_t excl_tcp_in[PORT_BITMAP_SIZE], excl_udp_in[PORT_BITMAP_SIZE];
 
-	memcpy(excl_tcp_out, c->tcp.fwd_in.map, sizeof(excl_tcp_out));
-	memcpy(excl_tcp_in, c->tcp.fwd_out.map, sizeof(excl_tcp_in));
-	memcpy(excl_udp_out, c->udp.fwd_in.map, sizeof(excl_udp_out));
-	memcpy(excl_udp_in, c->udp.fwd_out.map, sizeof(excl_udp_in));
+	current_listen_map(excl_tcp_out, &c->tcp.fwd_in);
+	current_listen_map(excl_tcp_in, &c->tcp.fwd_out);
+	current_listen_map(excl_udp_out, &c->udp.fwd_in);
+	current_listen_map(excl_udp_in, &c->udp.fwd_out);
 
 	fwd_scan_ports_tcp(&c->tcp.fwd_out, excl_tcp_out);
 	fwd_scan_ports_tcp(&c->tcp.fwd_in, excl_tcp_in);
