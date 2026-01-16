@@ -13,6 +13,7 @@
  * Author: David Gibson <david@gibson.dropbear.id.au>
  */
 
+#include <assert.h>
 #include <stdint.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -22,6 +23,8 @@
 
 #include "util.h"
 #include "ip.h"
+#include "siphash.h"
+#include "inany.h"
 #include "fwd.h"
 #include "passt.h"
 #include "lineread.h"
@@ -301,6 +304,20 @@ parse_err:
 }
 
 /**
+ * fwd_rule_addr() - Return match address for a rule
+ * @rule:	Forwarding rule
+ *
+ * Return: matching address for rule, NULL if it matches all addresses
+ */
+static const union inany_addr *fwd_rule_addr(const struct fwd_rule *rule)
+{
+	if (rule->flags & FWD_DUAL_STACK_ANY)
+		return NULL;
+
+	return &rule->addr;
+}
+
+/**
  * fwd_port_is_ephemeral() - Is port number ephemeral?
  * @port:	Port number
  *
@@ -311,6 +328,92 @@ parse_err:
 bool fwd_port_is_ephemeral(in_port_t port)
 {
 	return (port >= fwd_ephemeral_min) && (port <= fwd_ephemeral_max);
+}
+
+/**
+ * fwd_rule_add() - Add a rule to a forwarding table
+ * @fwd:	Table to add to
+ * @flags:	Flags for this entry
+ * @addr:	Our address to forward (NULL for both 0.0.0.0 and ::)
+ * @ifname:	Only forward from this interface name, if non-empty
+ * @first:	First port number to forward
+ * @last:	Last port number to forward
+ * @to:		First port of target port range to map to
+ */
+void fwd_rule_add(struct fwd_ports *fwd, uint8_t flags,
+		  const union inany_addr *addr, const char *ifname,
+		  in_port_t first, in_port_t last, in_port_t to)
+{
+	/* Flags which can be set from the caller */
+	const uint8_t allowed_flags = FWD_WEAK;
+	struct fwd_rule *new;
+	unsigned port;
+
+	ASSERT(!(flags & ~allowed_flags));
+
+	if (fwd->count >= ARRAY_SIZE(fwd->rules))
+		die("Too many port forwarding ranges");
+
+	new = &fwd->rules[fwd->count++];
+	new->flags = flags;
+
+	if (addr) {
+		new->addr = *addr;
+	} else {
+		new->addr = inany_any6;
+		new->flags |= FWD_DUAL_STACK_ANY;
+	}
+
+	memset(new->ifname, 0, sizeof(new->ifname));
+	if (ifname) {
+		int ret;
+
+		ret = snprintf(new->ifname, sizeof(new->ifname), "%s", ifname);
+		if (ret <= 0 || (size_t)ret >= sizeof(new->ifname))
+			die("Invalid interface name: %s", ifname);
+	}
+
+	ASSERT(first <= last);
+	new->first = first;
+	new->last = last;
+
+	new->to = to;
+
+	for (port = new->first; port <= new->last; port++) {
+		/* Fill in the legacy data structures to match the table */
+		bitmap_set(fwd->map, port);
+		fwd->delta[port] = new->to - new->first;
+	}
+}
+
+/**
+ * fwd_rules_print() - Print forwarding rules for debugging
+ * @fwd:	Table to print
+ */
+void fwd_rules_print(const struct fwd_ports *fwd)
+{
+	unsigned i;
+
+	for (i = 0; i < fwd->count; i++) {
+		const struct fwd_rule *rule = &fwd->rules[i];
+		const char *percent = *rule->ifname ? "%" : "";
+		char addr[INANY_ADDRSTRLEN];
+		const char *weak = "";
+
+		inany_ntop(fwd_rule_addr(rule), addr, sizeof(addr));
+		if (rule->flags & FWD_WEAK)
+			weak = " (best effort)";
+
+		if (rule->first == rule->last) {
+			info("    [%s]%s%s:%hu  =>  %hu %s",
+			     addr, percent, rule->ifname,
+			     rule->first, rule->to, weak);
+		} else {
+			info("    [%s]%s%s:%hu-%hu  =>  %hu-%hu %s",
+			     addr, percent, rule->ifname, rule->first, rule->last,
+			     rule->to, rule->last - rule->first + rule->to, weak);
+		}
+	}
 }
 
 /* See enum in kernel's include/net/tcp_states.h */

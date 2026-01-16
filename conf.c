@@ -137,7 +137,7 @@ static int parse_port_range(const char *s, char **endptr,
  * @last:	Last port to forward
  * @exclude:	Bitmap of ports to exclude
  * @to:		Port to translate @first to when forwarding
- * @weak:	Ignore errors, as long as at least one port is mapped
+ * @flags:	Flags for forwarding entries
  */
 static void conf_ports_range_except(const struct ctx *c, char optname,
 				    const char *optarg, struct fwd_ports *fwd,
@@ -145,10 +145,11 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 				    const char *ifname,
 				    uint16_t first, uint16_t last,
 				    const uint8_t *exclude, uint16_t to,
-				    bool weak)
+				    uint8_t flags)
 {
+	unsigned delta = to - first;
 	bool bound_one = false;
-	unsigned i;
+	unsigned base, i;
 	int fd;
 
 	if (first == 0) {
@@ -172,37 +173,45 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 		}
 	}
 
-	for (i = first; i <= last; i++) {
-		if (bitmap_isset(exclude, i))
+	for (base = first; base <= last; base++) {
+		if (bitmap_isset(exclude, base))
 			continue;
 
-		if (bitmap_isset(fwd->map, i)) {
-			warn(
+		for (i = base; i <= last; i++) {
+			if (bitmap_isset(exclude, i))
+				break;
+
+			if (bitmap_isset(fwd->map, i)) {
+				warn(
 "Altering mapping of already mapped port number: %s", optarg);
+			}
+
+			if (optname == 't')
+				fd = tcp_listen(c, PIF_HOST, addr, ifname, i);
+			else if (optname == 'u')
+				fd = udp_listen(c, PIF_HOST, addr, ifname, i);
+			else
+				/* No way to check in advance for -T and -U */
+				fd = 0;
+
+			if (fd == -ENFILE || fd == -EMFILE) {
+				die(
+"Can't open enough sockets for port specifier: %s",
+				    optarg);
+			}
+
+			if (fd >= 0) {
+				bound_one = true;
+			} else if (!(flags & FWD_WEAK)) {
+				die(
+"Failed to bind port %u (%s) for option '-%c %s'",
+				    i, strerror_(-fd), optname, optarg);
+			}
 		}
 
-		bitmap_set(fwd->map, i);
-		fwd->delta[i] = to - first;
-
-		if (optname == 't')
-			fd = tcp_listen(c, PIF_HOST, addr, ifname, i);
-		else if (optname == 'u')
-			fd = udp_listen(c, PIF_HOST, addr, ifname, i);
-		else
-			/* No way to check in advance for -T and -U */
-			fd = 0;
-
-		if (fd == -ENFILE || fd == -EMFILE) {
-			die("Can't open enough sockets for port specifier: %s",
-			    optarg);
-		}
-
-		if (fd >= 0) {
-			bound_one = true;
-		} else if (!weak) {
-			die("Failed to bind port %u (%s) for option '-%c %s'",
-			    i, strerror_(-fd), optname, optarg);
-		}
+		fwd_rule_add(fwd, flags, addr, ifname, base, i - 1,
+			     base + delta);
+		base = i - 1;
 	}
 
 	if (!bound_one)
@@ -272,7 +281,7 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		conf_ports_range_except(c, optname, optarg, fwd,
 					NULL, NULL,
 					1, NUM_PORTS - 1, exclude,
-					1, true);
+					1, FWD_WEAK);
 		return;
 	}
 
@@ -357,7 +366,7 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		conf_ports_range_except(c, optname, optarg, fwd,
 					addr, ifname,
 					1, NUM_PORTS - 1, exclude,
-					1, true);
+					1, FWD_WEAK);
 		return;
 	}
 
@@ -390,7 +399,7 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 					addr, ifname,
 					orig_range.first, orig_range.last,
 					exclude,
-					mapped_range.first, false);
+					mapped_range.first, 0);
 	} while ((p = next_chunk(p, ',')));
 
 	return;
@@ -1223,6 +1232,17 @@ dns6:
 				info("DNS search list:");
 			info("    %s", c->dns_search[i].n);
 		}
+	}
+
+	info("Inbound TCP forwarding:");
+	fwd_rules_print(&c->tcp.fwd_in);
+	info("Inbound UDP forwarding:");
+	fwd_rules_print(&c->udp.fwd_in);
+	if (c->mode == MODE_PASTA) {
+		info("Outbound TCP forwarding:");
+		fwd_rules_print(&c->tcp.fwd_out);
+		info("Outbound UDP forwarding:");
+		fwd_rules_print(&c->udp.fwd_out);
 	}
 }
 

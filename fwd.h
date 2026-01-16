@@ -17,6 +17,33 @@ void fwd_probe_ephemeral(void);
 bool fwd_port_is_ephemeral(in_port_t port);
 
 /**
+ * struct fwd_rule - Forwarding rule governing a range of ports
+ * @addr:	Address to forward from
+ * @ifname:	Interface to forward from
+ * @first:	First port number to forward
+ * @last:	Last port number to forward
+ * @to:		Target port for @first, port n goes to @to + (n - @first)
+ * @flags:	Flag mask
+ * 	FWD_DUAL_STACK_ANY - match any IPv4 or IPv6 address (@addr should be ::)
+ *	FWD_WEAK - Don't give an error if binds fail for some forwards
+ *
+ * FIXME: @addr and @ifname currently ignored for outbound tables
+ */
+struct fwd_rule {
+	union inany_addr addr;
+	char ifname[IFNAMSIZ];
+	in_port_t first;
+	in_port_t last;
+	in_port_t to;
+#define FWD_DUAL_STACK_ANY	BIT(0)
+#define FWD_WEAK		BIT(1)
+	uint8_t flags;
+};
+
+#define FWD_RULE_BITS	8
+#define MAX_FWD_RULES	MAX_FROM_BITS(FWD_RULE_BITS)
+
+/**
  * union fwd_listen_ref - information about a single listening socket
  * @port:	Bound port number of the socket
  * @pif:	pif in which the socket is listening
@@ -44,6 +71,8 @@ enum fwd_ports_mode {
  * @mode:	Overall forwarding mode (all, none, auto, specific ports)
  * @scan4:	/proc/net fd to scan for IPv4 ports when in AUTO mode
  * @scan6:	/proc/net fd to scan for IPv6 ports when in AUTO mode
+ * @count:	Number of forwarding rules
+ * @rules:	Array of forwarding rules
  * @map:	Bitmap describing which ports are forwarded
  * @delta:	Offset between the original destination and mapped port number
  */
@@ -51,14 +80,21 @@ struct fwd_ports {
 	enum fwd_ports_mode mode;
 	int scan4;
 	int scan6;
+	unsigned count;
+	struct fwd_rule rules[MAX_FWD_RULES];
 	uint8_t map[PORT_BITMAP_SIZE];
 	in_port_t delta[NUM_PORTS];
 };
 
 #define FWD_PORT_SCAN_INTERVAL		1000	/* ms */
 
+void fwd_rule_add(struct fwd_ports *fwd, uint8_t flags,
+		  const union inany_addr *addr, const char *ifname,
+		  in_port_t first, in_port_t last, in_port_t to);
+void fwd_rules_print(const struct fwd_ports *fwd);
+
 void fwd_scan_ports_init(struct ctx *c);
-void fwd_scan_ports_timer(struct ctx *c, const struct timespec *now);
+void fwd_scan_ports_timer(struct ctx * c, const struct timespec *now);
 
 bool nat_inbound(const struct ctx *c, const union inany_addr *addr,
 		 union inany_addr *translated);
