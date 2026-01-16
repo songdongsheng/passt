@@ -124,10 +124,6 @@
 			- sizeof(struct udphdr)	\
 			- sizeof(struct ipv6hdr))
 
-/* "Spliced" sockets indexed by bound port (host order) */
-static int udp_splice_ns  [IP_VERSIONS][NUM_PORTS];
-static int udp_splice_init[IP_VERSIONS][NUM_PORTS];
-
 /* Static buffers */
 
 /* UDP header and data for inbound messages */
@@ -192,19 +188,6 @@ static struct mmsghdr	udp_mh_splice		[UDP_MAX_FRAMES];
 
 /* IOVs for L2 frames */
 static struct iovec	udp_l2_iov		[UDP_MAX_FRAMES][UDP_NUM_IOVS];
-
-/**
- * udp_portmap_clear() - Clear UDP port map before configuration
- */
-void udp_portmap_clear(void)
-{
-	unsigned i;
-
-	for (i = 0; i < NUM_PORTS; i++) {
-		udp_splice_ns[V4][i] = udp_splice_ns[V6][i] = -1;
-		udp_splice_init[V4][i] = udp_splice_init[V6][i] = -1;
-	}
-}
 
 /**
  * udp_update_l2_buf() - Update L2 buffers with Ethernet and IPv4 addresses
@@ -1145,17 +1128,9 @@ int udp_listen(const struct ctx *c, uint8_t pif,
 		.pif = pif,
 		.port = port,
 	};
-	int (*socks)[NUM_PORTS];
 	int s;
 
 	ASSERT(!c->no_udp);
-
-	if (pif == PIF_HOST) {
-		socks = udp_splice_init;
-	} else {
-		ASSERT(pif == PIF_SPLICE);
-		socks = udp_splice_ns;
-	}
 
 	if (!c->ifi4) {
 		if (!addr)
@@ -1174,11 +1149,6 @@ int udp_listen(const struct ctx *c, uint8_t pif,
 
 	s = pif_sock_l4(c, EPOLL_TYPE_UDP_LISTEN, pif,
 			addr, ifname, port, ref.u32);
-
-	if (!addr || inany_v4(addr))
-		socks[V4][port] = s < 0 ? -1 : s;
-	if (!addr || !inany_v4(addr))
-		socks[V6][port] = s < 0 ? -1 : s;
 
 	return s;
 }

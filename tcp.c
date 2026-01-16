@@ -412,10 +412,6 @@ static const char *tcp_flag_str[] __attribute((__unused__)) = {
 	"ACK_FROM_TAP_DUE", "ACK_FROM_TAP_BLOCKS", "SYN_RETRIED",
 };
 
-/* Listening sockets, used for automatic port forwarding in pasta mode only */
-static int tcp_sock_init_ext	[NUM_PORTS][IP_VERSIONS];
-static int tcp_sock_ns		[NUM_PORTS][IP_VERSIONS];
-
 /* Table of our guest side addresses with very low RTT (assumed to be local to
  * the host), LRU
  */
@@ -2688,8 +2684,6 @@ int tcp_listen(const struct ctx *c, uint8_t pif,
 		.port = port,
 		.pif = pif,
 	};
-	const struct fwd_ports *fwd;
-	int (*socks)[IP_VERSIONS];
 	int s;
 
 	ASSERT(!c->no_tcp);
@@ -2709,24 +2703,8 @@ int tcp_listen(const struct ctx *c, uint8_t pif,
 			return -EAFNOSUPPORT;
 	}
 
-	if (pif == PIF_HOST) {
-		fwd = &c->tcp.fwd_in;
-		socks = tcp_sock_init_ext;
-	} else {
-		ASSERT(pif == PIF_SPLICE);
-		fwd = &c->tcp.fwd_out;
-		socks = tcp_sock_ns;
-	}
-
 	s = pif_sock_l4(c, EPOLL_TYPE_TCP_LISTEN, pif, addr, ifname,
 			port, ref.u32);
-
-	if (fwd->mode == FWD_AUTO) {
-		if (!addr || inany_v4(addr))
-			socks[port][V4] = s < 0 ? -1 : s;
-		if (!addr || !inany_v4(addr))
-			socks[port][V6] = s < 0 ? -1 : s;
-	}
 
 	return s;
 }
@@ -2869,8 +2847,6 @@ int tcp_init(struct ctx *c)
 
 	memset(init_sock_pool4,		0xff,	sizeof(init_sock_pool4));
 	memset(init_sock_pool6,		0xff,	sizeof(init_sock_pool6));
-	memset(tcp_sock_init_ext,	0xff,	sizeof(tcp_sock_init_ext));
-	memset(tcp_sock_ns,		0xff,	sizeof(tcp_sock_ns));
 
 	tcp_sock_refill_init(c);
 

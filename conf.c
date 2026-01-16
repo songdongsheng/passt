@@ -2061,7 +2061,6 @@ void conf(struct ctx *c, int argc, char **argv)
 	 * settings
 	 */
 	fwd_probe_ephemeral();
-	udp_portmap_clear();
 	optind = 0;
 	do {
 		name = getopt_long(argc, argv, optstring, options, NULL);
