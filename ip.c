@@ -78,7 +78,6 @@ found:
  * /etc/protocols and might allocate, which isn't possible for us once
  * self-isolated.
  */
-/* cppcheck-suppress unusedFunction */
 const char *ipproto_name(uint8_t proto)
 {
 	switch (proto) {

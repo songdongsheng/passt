@@ -1204,102 +1204,10 @@ static void udp_splice_iov_init(void)
 }
 
 /**
- * udp_ns_listen() - Init socket to listen for spliced outbound connections
- * @c:		Execution context
- * @port:	Port, host order
- */
-static void udp_ns_listen(const struct ctx *c, in_port_t port)
-{
-	ASSERT(!c->no_udp);
-
-	if (!c->no_bindtodevice) {
-		udp_listen(c, PIF_SPLICE, NULL, "lo", port);
-		return;
-	}
-
-	if (c->ifi4)
-		udp_listen(c, PIF_SPLICE, &inany_loopback4, NULL, port);
-	if (c->ifi6)
-		udp_listen(c, PIF_SPLICE, &inany_loopback6, NULL, port);
-}
-
-/**
- * udp_port_rebind() - Rebind ports to match forward maps
- * @c:		Execution context
- * @outbound:	True to remap outbound forwards, otherwise inbound
- *
- * Must be called in namespace context if @outbound is true.
- */
-static void udp_port_rebind(struct ctx *c, bool outbound)
-{
-	int (*socks)[NUM_PORTS] = outbound ? udp_splice_ns : udp_splice_init;
-	const uint8_t *fmap
-		= outbound ? c->udp.fwd_out.map : c->udp.fwd_in.map;
-	unsigned port;
-
-	for (port = 0; port < NUM_PORTS; port++) {
-		if (!bitmap_isset(fmap, port)) {
-			if (socks[V4][port] >= 0) {
-				close(socks[V4][port]);
-				socks[V4][port] = -1;
-			}
-
-			if (socks[V6][port] >= 0) {
-				close(socks[V6][port]);
-				socks[V6][port] = -1;
-			}
-
-			continue;
-		}
-
-		if ((c->ifi4 && socks[V4][port] == -1) ||
-		    (c->ifi6 && socks[V6][port] == -1)) {
-			if (outbound)
-				udp_ns_listen(c, port);
-			else
-				udp_listen(c, PIF_HOST, NULL, NULL, port);
-		}
-	}
-}
-
-/**
- * udp_port_rebind_outbound() - Rebind ports in namespace
- * @arg:	Execution context
- *
- * Called with NS_CALL()
- *
- * Return: 0
- */
-static int udp_port_rebind_outbound(void *arg)
-{
-	struct ctx *c = (struct ctx *)arg;
-
-	ns_enter(c);
-	udp_port_rebind(c, true);
-
-	return 0;
-}
-
-/**
- * udp_port_rebind_all() - Rebind ports to match forward maps (in host & ns)
- * @c:		Execution context
- */
-void udp_port_rebind_all(struct ctx *c)
-{
-	ASSERT(c->mode == MODE_PASTA && !c->no_udp);
-
-	if (c->udp.fwd_out.mode == FWD_AUTO)
-		NS_CALL(udp_port_rebind_outbound, c);
-
-	if (c->udp.fwd_in.mode == FWD_AUTO)
-		udp_port_rebind(c, false);
-}
-
-/**
  * udp_init() - Initialise per-socket data, and sockets in namespace
  * @c:		Execution context
  *
- * Return: 0
+ * Return: 0 on success, -1 on failure
  */
 int udp_init(struct ctx *c)
 {
@@ -1307,9 +1215,14 @@ int udp_init(struct ctx *c)
 
 	udp_iov_init(c);
 
+	if (fwd_listen_sync(c, &c->udp.fwd_in, PIF_HOST, IPPROTO_UDP) < 0)
+		return -1;
+
 	if (c->mode == MODE_PASTA) {
 		udp_splice_iov_init();
-		NS_CALL(udp_port_rebind_outbound, c);
+		if (fwd_listen_sync(c, &c->udp.fwd_out,
+				    PIF_SPLICE, IPPROTO_UDP) < 0)
+			return -1;
 	}
 
 	return 0;

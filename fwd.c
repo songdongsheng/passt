@@ -22,6 +22,7 @@
 #include <stdio.h>
 
 #include "util.h"
+#include "epoll_ctl.h"
 #include "ip.h"
 #include "siphash.h"
 #include "inany.h"
@@ -429,6 +430,156 @@ void fwd_rules_print(const struct fwd_ports *fwd)
 	}
 }
 
+/** fwd_sync_one() - Create or remove listening sockets for a forward entry
+ * @c:		Execution context
+ * @rule:	Forwarding rule
+ * @pif:	Interface to create listening sockets for
+ * @proto:	Protocol to listen for
+ * @scanmap:	Bitmap of ports to listen for on FWD_SCAN entries
+ *
+ * Return: 0 on success, -1 on failure
+ */
+static int fwd_sync_one(const struct ctx *c, const struct fwd_rule *rule,
+			uint8_t pif, uint8_t proto, const uint8_t *scanmap)
+{
+	const union inany_addr *addr = fwd_rule_addr(rule);
+	const char *ifname = rule->ifname;
+	bool bound_one = false;
+	unsigned port;
+
+	ASSERT(pif_is_socket(pif));
+
+	if (!*ifname)
+		ifname = NULL;
+
+	for (port = rule->first; port <= rule->last; port++) {
+		int fd = rule->socks[port - rule->first];
+
+		if ((rule->flags & FWD_SCAN) && !bitmap_isset(scanmap, port)) {
+			/* We don't want to listen on this port */
+			if (fd >= 0) {
+				/* We already are, so stop */
+				epoll_del(c->epollfd, fd);
+				close(fd);
+				rule->socks[port - rule->first] = -1;
+			}
+			continue;
+		}
+
+		if (fd >= 0) /* Already listening, nothing to do */ {
+			bound_one = true;
+			continue;
+		}
+
+		if (proto == IPPROTO_TCP)
+			fd = tcp_listen(c, pif, addr, ifname, port);
+		else if (proto == IPPROTO_UDP)
+			fd = udp_listen(c, pif, addr, ifname, port);
+		else
+			ASSERT(0);
+
+		if (fd < 0) {
+			char astr[INANY_ADDRSTRLEN];
+
+			warn("Listen failed for %s %s port %s%s%s/%u: %s",
+			     pif_name(pif), ipproto_name(proto),
+			     inany_ntop(addr, astr, sizeof(astr)),
+			     ifname ? "%" : "", ifname ? ifname : "",
+			     port, strerror_(-fd));
+
+			if (!(rule->flags & FWD_WEAK))
+				return -1;
+
+			continue;
+		}
+
+		rule->socks[port - rule->first] = fd;
+		bound_one = true;
+	}
+
+	if (!bound_one && !(rule->flags & FWD_SCAN)) {
+		char astr[INANY_ADDRSTRLEN];
+
+		warn("All listens failed for %s %s %s%s%s/%u-%u",
+		     pif_name(pif), ipproto_name(proto),
+		     inany_ntop(addr, astr, sizeof(astr)),
+		     ifname ? "%" : "", ifname ? ifname : "",
+		     rule->first, rule->last);
+		return -1;
+	}
+
+	return 0;
+}
+
+/** struct fwd_listen_args - arguments for fwd_listen_init_()
+ * @c:		Execution context
+ * @fwd:	Forwarding information
+ * @scanmap:	Bitmap of ports to auto-forward
+ * @pif:	Interface to create listening sockets for
+ * @proto:	Protocol
+ * @ret:	Return code
+ */
+struct fwd_listen_args {
+	const struct ctx *c;
+	const struct fwd_ports *fwd;
+	const uint8_t *scanmap;
+	uint8_t pif;
+	uint8_t proto;
+	int ret;
+};
+
+/** fwd_listen_sync_() - Update listening sockets to match forwards
+ * @arg:	struct fwd_listen_args with arguments
+ *
+ * Returns: zero
+ */
+static int fwd_listen_sync_(void *arg)
+{
+	struct fwd_listen_args *a = arg;
+	unsigned i;
+
+	if (a->pif == PIF_SPLICE)
+		ns_enter(a->c);
+
+	for (i = 0; i < a->fwd->count; i++) {
+		a->ret = fwd_sync_one(a->c, &a->fwd->rules[i],
+				      a->pif, a->proto, a->fwd->map);
+		if (a->ret < 0)
+			break;
+	}
+
+	return 0;
+}
+
+/** fwd_listen_sync() - Call fwd_listen_sync_() in correct namespace
+ * @c:		Execution context
+ * @fwd:	Forwarding information
+ * @pif:	Interface to create listening sockets for
+ * @proto:	Protocol
+ *
+ * Return: 0 on success, -1 on failure
+ */
+int fwd_listen_sync(const struct ctx *c, const struct fwd_ports *fwd,
+		    uint8_t pif, uint8_t proto)
+{
+	struct fwd_listen_args a = {
+		.c = c, .fwd = fwd, .pif = pif, .proto = proto,
+	};
+
+	if (pif == PIF_SPLICE)
+		NS_CALL(fwd_listen_sync_, &a);
+	else
+		fwd_listen_sync_(&a);
+
+	if (a.ret < 0) {
+		err("Couldn't listen on requested %s ports",
+		    ipproto_name(proto));
+		return -1;
+	}
+
+	return 0;
+}
+
 /* See enum in kernel's include/net/tcp_states.h */
 #define UDP_LISTEN	0x07
 #define TCP_LISTEN	0x0a
@@ -587,10 +738,14 @@ void fwd_scan_ports_timer(struct ctx *c, const struct timespec *now)
 
 	fwd_scan_ports(c);
 
-	if (!c->no_tcp)
-		tcp_port_rebind_all(c);
-	if (!c->no_udp)
-		udp_port_rebind_all(c);
+	if (!c->no_tcp) {
+		fwd_listen_sync(c, &c->tcp.fwd_in, PIF_HOST, IPPROTO_TCP);
+		fwd_listen_sync(c, &c->tcp.fwd_out, PIF_SPLICE, IPPROTO_TCP);
+	}
+	if (!c->no_udp) {
+		fwd_listen_sync(c, &c->udp.fwd_in, PIF_HOST, IPPROTO_UDP);
+		fwd_listen_sync(c, &c->udp.fwd_out, PIF_SPLICE, IPPROTO_UDP);
+	}
 }
 
 /**

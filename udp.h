@@ -19,7 +19,6 @@ int udp_listen(const struct ctx *c, uint8_t pif,
 	       const union inany_addr *addr, const char *ifname,
 	       in_port_t port);
 int udp_init(struct ctx *c);
-void udp_port_rebind_all(struct ctx *c);
 void udp_update_l2_buf(const unsigned char *eth_d);
 
 /**

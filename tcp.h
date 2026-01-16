@@ -22,7 +22,6 @@ int tcp_listen(const struct ctx *c, uint8_t pif,
 	       const union inany_addr *addr, const char *ifname,
 	       in_port_t port);
 int tcp_init(struct ctx *c);
-void tcp_port_rebind_all(struct ctx *c);
 void tcp_timer(const struct ctx *c, const struct timespec *now);
 void tcp_defer_handler(struct ctx *c);
 

@@ -148,9 +148,7 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 				    uint8_t flags)
 {
 	unsigned delta = to - first;
-	bool bound_one = false;
 	unsigned base, i;
-	int fd;
 
 	if (first == 0) {
 		die("Can't forward port 0 for option '-%c %s'",
@@ -179,28 +177,6 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 				warn(
 "Altering mapping of already mapped port number: %s", optarg);
 			}
-
-			if (!(flags & FWD_SCAN) && optname == 't')
-				fd = tcp_listen(c, PIF_HOST, addr, ifname, i);
-			else if (!(flags & FWD_SCAN) && optname == 'u')
-				fd = udp_listen(c, PIF_HOST, addr, ifname, i);
-			else
-				/* No way to check in advance for -T and -U */
-				fd = 0;
-
-			if (fd == -ENFILE || fd == -EMFILE) {
-				die(
-"Can't open enough sockets for port specifier: %s",
-				    optarg);
-			}
-
-			if (fd >= 0) {
-				bound_one = true;
-			} else if (!(flags & FWD_WEAK)) {
-				die(
-"Failed to bind port %u (%s) for option '-%c %s'",
-				    i, strerror_(-fd), optname, optarg);
-			}
 		}
 
 		if ((optname == 'T' || optname == 'U') && c->no_bindtodevice) {
@@ -226,9 +202,6 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 		}
 		base = i - 1;
 	}
-
-	if (!bound_one)
-		die("Failed to bind any port for '-%c %s'", optname, optarg);
 }
 
 /**
