@@ -85,7 +85,6 @@ enum fwd_ports_mode {
  * @count:	Number of forwarding rules
  * @rules:	Array of forwarding rules
  * @map:	Bitmap describing which ports are forwarded
- * @delta:	Offset between the original mapped port number
  * @sock_count:	Number of entries used in @socks
  * @socks:	Listening sockets for forwarding
  */
@@ -96,7 +95,6 @@ struct fwd_ports {
 	unsigned count;
 	struct fwd_rule rules[MAX_FWD_RULES];
 	uint8_t map[PORT_BITMAP_SIZE];
-	in_port_t delta[NUM_PORTS];
 	unsigned sock_count;
 	int socks[MAX_LISTEN_SOCKS];
 };
@@ -120,9 +118,10 @@ bool nat_inbound(const struct ctx *c, const union inany_addr *addr,
 		 union inany_addr *translated);
 uint8_t fwd_nat_from_tap(const struct ctx *c, uint8_t proto,
 			 const struct flowside *ini, struct flowside *tgt);
-uint8_t fwd_nat_from_splice(const struct ctx *c, uint8_t proto,
+uint8_t fwd_nat_from_splice(const struct fwd_rule *rule, uint8_t proto,
 			    const struct flowside *ini, struct flowside *tgt);
-uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
+uint8_t fwd_nat_from_host(const struct ctx *c,
+			  const struct fwd_rule *rule, uint8_t proto,
 			  const struct flowside *ini, struct flowside *tgt);
 void fwd_neigh_table_update(const struct ctx *c, const union inany_addr *addr,
 			    const uint8_t *mac, bool permanent);

@@ -411,7 +411,6 @@ void fwd_rule_add(struct fwd_ports *fwd, uint8_t flags,
 		/* Fill in the legacy forwarding data structures to match the table */
 		if (!(new->flags & FWD_SCAN))
 			bitmap_set(fwd->map, port);
-		fwd->delta[port] = new->to - new->first;
 	}
 }
 
@@ -984,7 +983,7 @@ uint8_t fwd_nat_from_tap(const struct ctx *c, uint8_t proto,
 
 /**
  * fwd_nat_from_splice() - Determine to forward a flow from the splice interface
- * @c:		Execution context
+ * @rule:	Forwarding rule to apply
  * @proto:	Protocol (IP L4 protocol number)
  * @ini:	Flow address information of the initiating side
  * @tgt:	Flow address information on the target side (updated)
@@ -992,7 +991,7 @@ uint8_t fwd_nat_from_tap(const struct ctx *c, uint8_t proto,
  * Return: pif of the target interface to forward the flow to, PIF_NONE if the
  *         flow cannot or should not be forwarded at all.
  */
-uint8_t fwd_nat_from_splice(const struct ctx *c, uint8_t proto,
+uint8_t fwd_nat_from_splice(const struct fwd_rule *rule, uint8_t proto,
 			    const struct flowside *ini, struct flowside *tgt)
 {
 	if (!inany_is_loopback(&ini->eaddr) ||
@@ -1016,11 +1015,7 @@ uint8_t fwd_nat_from_splice(const struct ctx *c, uint8_t proto,
 		/* But for UDP preserve the source port */
 		tgt->oport = ini->eport;
 
-	tgt->eport = ini->oport;
-	if (proto == IPPROTO_TCP)
-		tgt->eport += c->tcp.fwd_out.delta[tgt->eport];
-	else if (proto == IPPROTO_UDP)
-		tgt->eport += c->udp.fwd_out.delta[tgt->eport];
+	tgt->eport = rule->to + (ini->oport - rule->first);
 
 	return PIF_HOST;
 }
@@ -1064,6 +1059,7 @@ bool nat_inbound(const struct ctx *c, const union inany_addr *addr,
 /**
  * fwd_nat_from_host() - Determine to forward a flow from the host interface
  * @c:		Execution context
+ * @rule:	Forwarding rule to apply
  * @proto:	Protocol (IP L4 protocol number)
  * @ini:	Flow address information of the initiating side
  * @tgt:	Flow address information on the target side (updated)
@@ -1071,15 +1067,12 @@ bool nat_inbound(const struct ctx *c, const union inany_addr *addr,
  * Return: pif of the target interface to forward the flow to, PIF_NONE if the
  *         flow cannot or should not be forwarded at all.
  */
-uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
+uint8_t fwd_nat_from_host(const struct ctx *c,
+			  const struct fwd_rule *rule, uint8_t proto,
 			  const struct flowside *ini, struct flowside *tgt)
 {
 	/* Common for spliced and non-spliced cases */
-	tgt->eport = ini->oport;
-	if (proto == IPPROTO_TCP)
-		tgt->eport += c->tcp.fwd_in.delta[tgt->eport];
-	else if (proto == IPPROTO_UDP)
-		tgt->eport += c->udp.fwd_in.delta[tgt->eport];
+	tgt->eport = rule->to + (ini->oport - rule->first);
 
 	if (!c->no_splice && inany_is_loopback(&ini->eaddr) &&
 	    (proto == IPPROTO_TCP || proto == IPPROTO_UDP)) {

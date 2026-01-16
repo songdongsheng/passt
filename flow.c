@@ -530,36 +530,14 @@ struct flowside *flow_target(const struct ctx *c, union flow *flow,
 	struct flow_common *f = &flow->f;
 	const struct flowside *ini = &f->side[INISIDE];
 	struct flowside *tgt = &f->side[TGTSIDE];
+	const struct fwd_rule *rule = NULL;
+	const struct fwd_ports *fwd;
 	uint8_t tgtpif = PIF_NONE;
 
 	ASSERT(flow_new_entry == flow && f->state == FLOW_STATE_INI);
 	ASSERT(f->type == FLOW_TYPE_NONE);
 	ASSERT(f->pif[INISIDE] != PIF_NONE && f->pif[TGTSIDE] == PIF_NONE);
 	ASSERT(flow->f.state == FLOW_STATE_INI);
-
-	if (pif_is_socket(f->pif[INISIDE])) {
-		const struct fwd_ports *fwd;
-
-		if (f->pif[INISIDE] == PIF_HOST && proto == IPPROTO_TCP)
-			fwd = &c->tcp.fwd_in;
-		else if (f->pif[INISIDE] == PIF_HOST && proto == IPPROTO_UDP)
-			fwd = &c->udp.fwd_in;
-		else if (f->pif[INISIDE] == PIF_SPLICE && proto == IPPROTO_TCP)
-			fwd = &c->tcp.fwd_out;
-		else if (f->pif[INISIDE] == PIF_SPLICE && proto == IPPROTO_UDP)
-			fwd = &c->udp.fwd_out;
-		else
-			goto nofwd;
-
-		if (!fwd_rule_search(fwd, ini)) {
-			/* This shouldn't happen, because if there's no rule for
-			 * it we should have no listening socket that would let
-			 * us get here
-			 */
-			flow_dbg(flow, "Unexpected missing forward rule");
-			goto nofwd;
-		}
-	}
 
 	switch (f->pif[INISIDE]) {
 	case PIF_TAP:
@@ -568,11 +546,31 @@ struct flowside *flow_target(const struct ctx *c, union flow *flow,
 		break;
 
 	case PIF_SPLICE:
-		tgtpif = fwd_nat_from_splice(c, proto, ini, tgt);
+		if (proto == IPPROTO_TCP)
+			fwd = &c->tcp.fwd_out;
+		else if (proto == IPPROTO_UDP)
+			fwd = &c->udp.fwd_out;
+		else
+			goto nofwd;
+
+		if (!(rule = fwd_rule_search(fwd, ini)))
+			goto norule;
+
+		tgtpif = fwd_nat_from_splice(rule, proto, ini, tgt);
 		break;
 
 	case PIF_HOST:
-		tgtpif = fwd_nat_from_host(c, proto, ini, tgt);
+		if (proto == IPPROTO_TCP)
+			fwd = &c->tcp.fwd_in;
+		else if (proto == IPPROTO_UDP)
+			fwd = &c->udp.fwd_in;
+		else
+			goto nofwd;
+
+		if (!(rule = fwd_rule_search(fwd, ini)))
+			goto norule;
+
+		tgtpif = fwd_nat_from_host(c, rule, proto, ini, tgt);
 		fwd_neigh_mac_get(c, &tgt->oaddr, f->tap_omac);
 		break;
 	default:
@@ -585,6 +583,13 @@ struct flowside *flow_target(const struct ctx *c, union flow *flow,
 	f->pif[TGTSIDE] = tgtpif;
 	flow_set_state(f, FLOW_STATE_TGT);
 	return tgt;
+
+norule:
+	/* This shouldn't happen, because if there's no rule for it we should
+	 * have no listening socket that would let us get here
+	 */
+	flow_dbg(flow, "Missing forward rule");
+	flow_log_details_(f, LOG_DEBUG, f->state);
 
 nofwd:
 	flow_err(flow, "No rules to forward %s %s [%s]:%hu -> [%s]:%hu",
