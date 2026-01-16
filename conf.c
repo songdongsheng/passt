@@ -135,7 +135,7 @@ static int parse_port_range(const char *s, char **endptr,
  * @ifname:	Listening interface
  * @first:	First port to forward
  * @last:	Last port to forward
- * @exclude:	Bitmap of ports to exclude
+ * @exclude:	Bitmap of ports to exclude (may be NULL)
  * @to:		Port to translate @first to when forwarding
  * @flags:	Flags for forwarding entries
  */
@@ -168,11 +168,11 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 	}
 
 	for (base = first; base <= last; base++) {
-		if (bitmap_isset(exclude, base))
+		if (exclude && bitmap_isset(exclude, base))
 			continue;
 
 		for (i = base; i <= last; i++) {
-			if (bitmap_isset(exclude, i))
+			if (exclude && bitmap_isset(exclude, i))
 				break;
 
 			if (bitmap_isset(fwd->map, i)) {
@@ -180,9 +180,9 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 "Altering mapping of already mapped port number: %s", optarg);
 			}
 
-			if (optname == 't')
+			if (!(flags & FWD_SCAN) && optname == 't')
 				fd = tcp_listen(c, PIF_HOST, addr, ifname, i);
-			else if (optname == 'u')
+			else if (!(flags & FWD_SCAN) && optname == 'u')
 				fd = udp_listen(c, PIF_HOST, addr, ifname, i);
 			else
 				/* No way to check in advance for -T and -U */
@@ -2199,6 +2199,27 @@ void conf(struct ctx *c, int argc, char **argv)
 		c->udp.fwd_in.mode = fwd_default;
 	if (!c->udp.fwd_out.mode)
 		c->udp.fwd_out.mode = fwd_default;
+
+	if (c->tcp.fwd_in.mode == FWD_AUTO) {
+		conf_ports_range_except(c, 't', "auto", &c->tcp.fwd_in,
+					NULL, NULL, 1, NUM_PORTS - 1,
+					NULL, 1, FWD_SCAN);
+	}
+	if (c->tcp.fwd_out.mode == FWD_AUTO) {
+		conf_ports_range_except(c, 'T', "auto", &c->tcp.fwd_out,
+					NULL, "lo", 1, NUM_PORTS - 1,
+					NULL, 1, FWD_SCAN);
+	}
+	if (c->udp.fwd_in.mode == FWD_AUTO) {
+		conf_ports_range_except(c, 'u', "auto", &c->udp.fwd_in,
+					NULL, NULL, 1, NUM_PORTS - 1,
+					NULL, 1, FWD_SCAN);
+	}
+	if (c->udp.fwd_out.mode == FWD_AUTO) {
+		conf_ports_range_except(c, 'U', "auto", &c->udp.fwd_out,
+					NULL, "lo", 1, NUM_PORTS - 1,
+					NULL, 1, FWD_SCAN);
+	}
 
 	if (!c->quiet)
 		conf_print(c);

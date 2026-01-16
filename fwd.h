@@ -26,6 +26,7 @@ bool fwd_port_is_ephemeral(in_port_t port);
  * @flags:	Flag mask
  * 	FWD_DUAL_STACK_ANY - match any IPv4 or IPv6 address (@addr should be ::)
  *	FWD_WEAK - Don't give an error if binds fail for some forwards
+ *	FWD_SCAN - Only forward if the matching port in the target is listening
  *
  * FIXME: @addr and @ifname currently ignored for outbound tables
  */
@@ -37,6 +38,7 @@ struct fwd_rule {
 	in_port_t to;
 #define FWD_DUAL_STACK_ANY	BIT(0)
 #define FWD_WEAK		BIT(1)
+#define FWD_SCAN		BIT(2)
 	uint8_t flags;
 };
 

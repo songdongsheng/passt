@@ -345,7 +345,7 @@ void fwd_rule_add(struct fwd_ports *fwd, uint8_t flags,
 		  in_port_t first, in_port_t last, in_port_t to)
 {
 	/* Flags which can be set from the caller */
-	const uint8_t allowed_flags = FWD_WEAK;
+	const uint8_t allowed_flags = FWD_WEAK | FWD_SCAN;
 	struct fwd_rule *new;
 	unsigned port;
 
@@ -381,7 +381,8 @@ void fwd_rule_add(struct fwd_ports *fwd, uint8_t flags,
 
 	for (port = new->first; port <= new->last; port++) {
 		/* Fill in the legacy data structures to match the table */
-		bitmap_set(fwd->map, port);
+		if (!(new->flags & FWD_SCAN))
+			bitmap_set(fwd->map, port);
 		fwd->delta[port] = new->to - new->first;
 	}
 }
@@ -397,21 +398,25 @@ void fwd_rules_print(const struct fwd_ports *fwd)
 	for (i = 0; i < fwd->count; i++) {
 		const struct fwd_rule *rule = &fwd->rules[i];
 		const char *percent = *rule->ifname ? "%" : "";
+		const char *weak = "", *scan = "";
 		char addr[INANY_ADDRSTRLEN];
-		const char *weak = "";
 
 		inany_ntop(fwd_rule_addr(rule), addr, sizeof(addr));
 		if (rule->flags & FWD_WEAK)
 			weak = " (best effort)";
+		if (rule->flags & FWD_SCAN)
+			scan = " (auto-scan)";
 
 		if (rule->first == rule->last) {
-			info("    [%s]%s%s:%hu  =>  %hu %s",
+			info("    [%s]%s%s:%hu  =>  %hu %s%s",
 			     addr, percent, rule->ifname,
-			     rule->first, rule->to, weak);
+			     rule->first, rule->to, weak, scan);
 		} else {
-			info("    [%s]%s%s:%hu-%hu  =>  %hu-%hu %s",
-			     addr, percent, rule->ifname, rule->first, rule->last,
-			     rule->to, rule->last - rule->first + rule->to, weak);
+			info("    [%s]%s%s:%hu-%hu  =>  %hu-%hu %s%s",
+			     addr, percent, rule->ifname,
+			     rule->first, rule->last,
+			     rule->to, rule->last - rule->first + rule->to,
+			     weak, scan);
 		}
 	}
 }
