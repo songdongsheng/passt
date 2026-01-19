@@ -3625,7 +3625,6 @@ static int tcp_flow_repair_connect(const struct ctx *c,
 		return rc;
 	}
 
-	flow_epollid_clear(&conn->f);
 	conn->timer = -1;
 	conn->listening_sock = -1;
 
