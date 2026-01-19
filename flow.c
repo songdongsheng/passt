@@ -357,6 +357,7 @@ static void flow_set_state(struct flow_common *f, enum flow_state state)
  *
  * Return: true if flow is registered with epoll, false otherwise
  */
+/* cppcheck-suppress unusedFunction */
 bool flow_in_epoll(const struct flow_common *f)
 {
 	return f->epollid != EPOLLFD_ID_INVALID;
