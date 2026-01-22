@@ -3684,17 +3684,19 @@ int tcp_flow_migrate_target(struct ctx *c, int fd)
 
 	if ((rc = tcp_flow_repair_socket(c, conn))) {
 		flow_err(flow, "Can't set up socket: %s, drop", strerror_(-rc));
-		/* Can't leave the flow in an incomplete state */
-		FLOW_ACTIVATE(conn);
-		return 0;
+		goto out;
 	}
 
 	flow_epollid_set(&conn->f, EPOLLFD_ID_DEFAULT);
-	flow_epoll_set(&conn->f, EPOLL_CTL_ADD, 0, conn->sock, !TAPSIDE(conn));
+	if (flow_epoll_set(&conn->f, EPOLL_CTL_ADD, 0, conn->sock,
+			   !TAPSIDE(conn)))
+		goto out; /* tcp_flow_migrate_target_ext() will clean this up */
 
 	flow_hash_insert(c, TAP_SIDX(conn));
-	FLOW_ACTIVATE(conn);
 
+out:
+	/* Never leave the flow in an incomplete state */
+	FLOW_ACTIVATE(conn);
 	return 0;
 }
 
