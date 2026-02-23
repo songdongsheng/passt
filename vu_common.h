@@ -7,7 +7,13 @@
 
 #ifndef VU_COMMON_H
 #define VU_COMMON_H
+
+#include <stddef.h>
+
 #include <linux/virtio_net.h>
+
+#include "ip.h"
+#include "virtio.h"
 
 static inline void *vu_eth(void *base)
 {

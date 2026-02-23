@@ -7,7 +7,15 @@
 #ifndef FWD_H
 #define FWD_H
 
-union inany_addr;
+#include <assert.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#include <netinet/in.h>
+
+#include "inany.h"
+
 struct flowside;
 
 /* Number of ports for both TCP and UDP */

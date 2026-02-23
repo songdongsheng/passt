@@ -7,6 +7,12 @@
 #ifndef PIF_H
 #define PIF_H
 
+#include <stdbool.h>
+
+#include <netinet/in.h>
+
+#include "epoll_type.h"
+
 union inany_addr;
 union sockaddr_inany;
 
