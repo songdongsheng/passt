@@ -2907,11 +2907,8 @@ static void tcp_keepalive(struct ctx *c, const struct timespec *now)
 
 	c->tcp.keepalive_run = now->tv_sec;
 
-	flow_foreach(flow) {
+	flow_foreach_of_type(flow, FLOW_TCP) {
 		struct tcp_tap_conn *conn = &flow->tcp;
-
-		if (flow->f.type != FLOW_TCP)
-			continue;
 
 		if (conn->tap_inactive) {
 			flow_dbg(conn, "No tap activity for least %us, send keepalive",
@@ -2938,11 +2935,8 @@ static void tcp_inactivity(struct ctx *c, const struct timespec *now)
 	debug("TCP inactivity scan");
 	c->tcp.inactivity_run = now->tv_sec;
 
-	flow_foreach(flow) {
+	flow_foreach_of_type(flow, FLOW_TCP) {
 		struct tcp_tap_conn *conn = &flow->tcp;
-
-		if (flow->f.type != FLOW_TCP)
-			continue;
 
 		if (conn->inactive) {
 			/* No activity in this interval, reset */
