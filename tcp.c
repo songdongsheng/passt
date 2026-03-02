@@ -2698,11 +2698,6 @@ void tcp_sock_handler(const struct ctx *c, union epoll_ref ref,
 int tcp_listen(const struct ctx *c, uint8_t pif, unsigned rule,
 	       const union inany_addr *addr, const char *ifname, in_port_t port)
 {
-	union fwd_listen_ref ref = {
-		.port = port,
-		.pif = pif,
-		.rule = rule,
-	};
 	int s;
 
 	ASSERT(!c->no_tcp);
@@ -2722,8 +2717,7 @@ int tcp_listen(const struct ctx *c, uint8_t pif, unsigned rule,
 			return -EAFNOSUPPORT;
 	}
 
-	s = pif_sock_l4(c, EPOLL_TYPE_TCP_LISTEN, pif, addr, ifname,
-			port, ref.u32);
+	s = pif_listen(c, EPOLL_TYPE_TCP_LISTEN, pif, addr, ifname, port, rule);
 
 	return s;
 }
