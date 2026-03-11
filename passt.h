@@ -186,7 +186,7 @@ struct ip6_ctx {
  * @pasta_conf_ns:	Configure namespace after creating it
  * @no_tcp:		Disable TCP operation
  * @tcp:		Context for TCP protocol handler
- * @no_tcp:		Disable UDP operation
+ * @no_udp:		Disable UDP operation
  * @udp:		Context for UDP protocol handler
  * @no_icmp:		Disable ICMP operation
  * @icmp:		Context for ICMP protocol handler
