@@ -718,13 +718,28 @@ static void procfs_scan_listen(int fd, unsigned int lstate, uint8_t *map)
 }
 
 /**
+ * has_scan_rules() - Does the given table have any FWD_SCAN rules?
+ * @fwd:	Forwarding table
+ */
+static bool has_scan_rules(const struct fwd_ports *fwd)
+{
+	unsigned i;
+
+	for (i = 0; i < fwd->count; i++) {
+		if (fwd->rules[i].flags & FWD_SCAN)
+			return true;
+	}
+	return false;
+}
+
+/**
  * fwd_scan_ports_tcp() - Scan /proc to update TCP forwarding map
  * @fwd:	Forwarding information to update
  * @exclude:	Ports to _not_ forward
  */
 static void fwd_scan_ports_tcp(struct fwd_ports *fwd, const uint8_t *exclude)
 {
-	if (fwd->mode != FWD_AUTO)
+	if (!has_scan_rules(fwd))
 		return;
 
 	memset(fwd->map, 0, PORT_BITMAP_SIZE);
@@ -743,7 +758,7 @@ static void fwd_scan_ports_udp(struct fwd_ports *fwd,
 			       const struct fwd_ports *tcp_fwd,
 			       const uint8_t *exclude)
 {
-	if (fwd->mode != FWD_AUTO)
+	if (!has_scan_rules(fwd))
 		return;
 
 	memset(fwd->map, 0, PORT_BITMAP_SIZE);
@@ -816,19 +831,19 @@ void fwd_scan_ports_init(struct ctx *c)
 	c->udp.fwd_in.scan4 = c->udp.fwd_in.scan6 = -1;
 	c->udp.fwd_out.scan4 = c->udp.fwd_out.scan6 = -1;
 
-	if (c->tcp.fwd_in.mode == FWD_AUTO) {
+	if (has_scan_rules(&c->tcp.fwd_in)) {
 		c->tcp.fwd_in.scan4 = open_in_ns(c, "/proc/net/tcp", flags);
 		c->tcp.fwd_in.scan6 = open_in_ns(c, "/proc/net/tcp6", flags);
 	}
-	if (c->udp.fwd_in.mode == FWD_AUTO) {
+	if (has_scan_rules(&c->udp.fwd_in)) {
 		c->udp.fwd_in.scan4 = open_in_ns(c, "/proc/net/udp", flags);
 		c->udp.fwd_in.scan6 = open_in_ns(c, "/proc/net/udp6", flags);
 	}
-	if (c->tcp.fwd_out.mode == FWD_AUTO) {
+	if (has_scan_rules(&c->tcp.fwd_out)) {
 		c->tcp.fwd_out.scan4 = open("/proc/net/tcp", flags);
 		c->tcp.fwd_out.scan6 = open("/proc/net/tcp6", flags);
 	}
-	if (c->udp.fwd_out.mode == FWD_AUTO) {
+	if (has_scan_rules(&c->udp.fwd_out)) {
 		c->udp.fwd_out.scan4 = open("/proc/net/udp", flags);
 		c->udp.fwd_out.scan6 = open("/proc/net/udp6", flags);
 	}

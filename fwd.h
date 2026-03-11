@@ -68,14 +68,6 @@ struct fwd_listen_ref {
 	unsigned	rule :FWD_RULE_BITS;
 };
 
-enum fwd_ports_mode {
-	FWD_UNSET = 0,
-	FWD_SPEC = 1,
-	FWD_NONE,
-	FWD_AUTO,
-	FWD_ALL,
-};
-
 #define PORT_BITMAP_SIZE	DIV_ROUND_UP(NUM_PORTS, 8)
 
 /* Maximum number of listening sockets (per pif & protocol)
@@ -87,7 +79,6 @@ enum fwd_ports_mode {
 
 /**
  * fwd_ports() - Describes port forwarding for one protocol and direction
- * @mode:	Overall mode (all, none, auto, specific ports)
  * @scan4:	/proc/net fd to scan for IPv4 ports when in AUTO mode
  * @scan6:	/proc/net fd to scan for IPv6 ports when in AUTO mode
  * @count:	Number of forwarding rules
@@ -97,7 +88,6 @@ enum fwd_ports_mode {
  * @socks:	Listening sockets for forwarding
  */
 struct fwd_ports {
-	enum fwd_ports_mode mode;
 	int scan4;
 	int scan6;
 	unsigned count;
