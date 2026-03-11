@@ -2152,7 +2152,7 @@ void conf(struct ctx *c, int argc, char **argv)
 	if (c->ifi4 && IN4_IS_ADDR_UNSPECIFIED(&c->ip4.guest_gw))
 		c->no_dhcp = 1;
 
-	/* Inbound port options can be parsed now, after IPv4/IPv6 settings */
+	/* Forwarding options can be parsed now, after IPv4/IPv6 settings */
 	fwd_probe_ephemeral();
 	optind = 0;
 	do {
@@ -2162,6 +2162,10 @@ void conf(struct ctx *c, int argc, char **argv)
 			conf_ports(c, name, optarg, &c->fwd_in, &tcp_in_mode);
 		else if (name == 'u')
 			conf_ports(c, name, optarg, &c->fwd_in, &udp_in_mode);
+		else if (name == 'T')
+			conf_ports(c, name, optarg, &c->fwd_out, &tcp_out_mode);
+		else if (name == 'U')
+			conf_ports(c, name, optarg, &c->fwd_out, &udp_out_mode);
 	} while (name != -1);
 
 	if (c->mode == MODE_PASTA)
@@ -2190,17 +2194,6 @@ void conf(struct ctx *c, int argc, char **argv)
 
 	if (c->mode == MODE_PASTA)
 		nl_sock_init(c, true);
-
-	/* ...and outbound port options now that namespaces are set up. */
-	optind = 0;
-	do {
-		name = getopt_long(argc, argv, optstring, options, NULL);
-
-		if (name == 'T')
-			conf_ports(c, name, optarg, &c->fwd_out, &tcp_out_mode);
-		else if (name == 'U')
-			conf_ports(c, name, optarg, &c->fwd_out, &udp_out_mode);
-	} while (name != -1);
 
 	if (!c->ifi4)
 		c->no_dhcp = 1;
