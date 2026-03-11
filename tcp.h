@@ -38,7 +38,6 @@ extern bool peek_offset_cap;
 
 /**
  * struct tcp_ctx - Execution context for TCP routines
- * @port_to_tap:	Ports bound host-side, packets to tap or spliced
  * @fwd_in:		Port forwarding configuration for inbound packets
  * @fwd_out:		Port forwarding configuration for outbound packets
  * @timer_run:		Timestamp of most recent timer run
