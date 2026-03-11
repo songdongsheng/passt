@@ -877,23 +877,19 @@ void fwd_scan_ports_init(struct ctx *c)
 	c->udp.scan_in.scan4 = c->udp.scan_in.scan6 = -1;
 	c->udp.scan_out.scan4 = c->udp.scan_out.scan6 = -1;
 
-	if (has_scan_rules(&c->fwd_in, IPPROTO_TCP)) {
-		c->tcp.scan_in.scan4 = open_in_ns(c, "/proc/net/tcp", flags);
-		c->tcp.scan_in.scan6 = open_in_ns(c, "/proc/net/tcp6", flags);
-	}
-	if (has_scan_rules(&c->fwd_in, IPPROTO_UDP)) {
-		c->udp.scan_in.scan4 = open_in_ns(c, "/proc/net/udp", flags);
-		c->udp.scan_in.scan6 = open_in_ns(c, "/proc/net/udp6", flags);
-	}
-	if (has_scan_rules(&c->fwd_out, IPPROTO_TCP)) {
+	if (c->mode == MODE_PASTA) {
 		c->tcp.scan_out.scan4 = open("/proc/net/tcp", flags);
 		c->tcp.scan_out.scan6 = open("/proc/net/tcp6", flags);
-	}
-	if (has_scan_rules(&c->fwd_out, IPPROTO_UDP)) {
 		c->udp.scan_out.scan4 = open("/proc/net/udp", flags);
 		c->udp.scan_out.scan6 = open("/proc/net/udp6", flags);
+
+		c->tcp.scan_in.scan4 = open_in_ns(c, "/proc/net/tcp", flags);
+		c->tcp.scan_in.scan6 = open_in_ns(c, "/proc/net/tcp6", flags);
+		c->udp.scan_in.scan4 = open_in_ns(c, "/proc/net/udp", flags);
+		c->udp.scan_in.scan6 = open_in_ns(c, "/proc/net/udp6", flags);
+
+		fwd_scan_ports(c);
 	}
-	fwd_scan_ports(c);
 }
 
 /* Last time we scanned for open ports */
