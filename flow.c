@@ -505,7 +505,7 @@ struct flowside *flow_target(const struct ctx *c, union flow *flow,
 	const struct flowside *ini = &f->side[INISIDE];
 	struct flowside *tgt = &f->side[TGTSIDE];
 	const struct fwd_rule *rule = NULL;
-	const struct fwd_ports *fwd;
+	const struct fwd_table *fwd;
 	uint8_t tgtpif = PIF_NONE;
 
 	ASSERT(flow_new_entry == flow && f->state == FLOW_STATE_INI);
@@ -1023,7 +1023,8 @@ static int flow_migrate_source_rollback(struct ctx *c, unsigned bound, int ret)
 
 	debug("...roll back migration");
 
-	if (fwd_listen_sync(c, &c->tcp.fwd_in, PIF_HOST, IPPROTO_TCP) < 0)
+	if (fwd_listen_sync(c, &c->tcp.fwd_in, &c->tcp.scan_in,
+			    PIF_HOST, IPPROTO_TCP) < 0)
 		die("Failed to re-establish listening sockets");
 
 	foreach_established_tcp_flow(flow) {

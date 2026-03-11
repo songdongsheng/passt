@@ -130,7 +130,7 @@ static int parse_port_range(const char *s, char **endptr,
  * @c:		Execution context
  * @optname:	Short option name, t, T, u, or U
  * @optarg:	Option argument (port specification)
- * @fwd:	Pointer to @fwd_ports to be updated
+ * @fwd:	Forwarding table to be updated
  * @addr:	Listening address
  * @ifname:	Listening interface
  * @first:	First port to forward
@@ -140,7 +140,7 @@ static int parse_port_range(const char *s, char **endptr,
  * @flags:	Flags for forwarding entries
  */
 static void conf_ports_range_except(const struct ctx *c, char optname,
-				    const char *optarg, struct fwd_ports *fwd,
+				    const char *optarg, struct fwd_table *fwd,
 				    const union inany_addr *addr,
 				    const char *ifname,
 				    uint16_t first, uint16_t last,
@@ -220,11 +220,11 @@ enum fwd_mode {
  * @c:		Execution context
  * @optname:	Short option name, t, T, u, or U
  * @optarg:	Option argument (port specification)
- * @fwd:	Pointer to @fwd_ports to be updated
+ * @fwd:	Forwarding table to be updated
  * @mode:	Overall port forwarding mode (updated)
  */
 static void conf_ports(const struct ctx *c, char optname, const char *optarg,
-		       struct fwd_ports *fwd, enum fwd_mode *mode)
+		       struct fwd_table *fwd, enum fwd_mode *mode)
 {
 	union inany_addr addr_buf = inany_any6, *addr = &addr_buf;
 	char buf[BUFSIZ], *spec, *ifname = NULL, *p;
@@ -1250,7 +1250,7 @@ dns6:
 		info("Outbound TCP forwarding:");
 		fwd_rules_print(&c->tcp.fwd_out);
 		info("Outbound UDP forwarding:");
-		fwd_rules_print(&c->udp.fwd_out);
+		fwd_rules_print(&c->tcp.fwd_out);
 	}
 }
 
@@ -2121,7 +2121,7 @@ void conf(struct ctx *c, int argc, char **argv)
 
 		if (name == 't') {
 			conf_ports(c, name, optarg,
-				   &c->tcp.fwd_in, &tcp_in_mode);
+				&c->tcp.fwd_in, &tcp_in_mode);
 		} else if (name == 'u') {
 			conf_ports(c, name, optarg,
 				   &c->udp.fwd_in, &udp_in_mode);
