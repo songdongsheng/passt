@@ -405,13 +405,8 @@ void fwd_rule_add(struct fwd_ports *fwd, uint8_t flags,
 	new->socks = &fwd->socks[fwd->sock_count];
 	fwd->sock_count += num;
 
-	for (port = new->first; port <= new->last; port++) {
+	for (port = new->first; port <= new->last; port++)
 		new->socks[port - new->first] = -1;
-
-		/* Fill in the legacy forwarding data structures to match the table */
-		if (!(new->flags & FWD_SCAN))
-			bitmap_set(fwd->map, port);
-	}
 }
 
 /**
