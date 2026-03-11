@@ -2001,8 +2001,43 @@ void conf(struct ctx *c, int argc, char **argv)
 			break;
 		case 't':
 		case 'u':
-		case 'D':
 			/* Handle these later, once addresses are configured */
+			break;
+		case 'D': {
+			struct in6_addr dns6_tmp;
+			struct in_addr dns4_tmp;
+
+			if (!strcmp(optarg, "none")) {
+				c->no_dns = 1;
+
+				dns4_idx = 0;
+				memset(c->ip4.dns, 0, sizeof(c->ip4.dns));
+				c->ip4.dns[0]    = (struct in_addr){ 0 };
+				c->ip4.dns_match = (struct in_addr){ 0 };
+				c->ip4.dns_host  = (struct in_addr){ 0 };
+
+				dns6_idx = 0;
+				memset(c->ip6.dns, 0, sizeof(c->ip6.dns));
+				c->ip6.dns_match = (struct in6_addr){ 0 };
+				c->ip6.dns_host  = (struct in6_addr){ 0 };
+
+				continue;
+			}
+
+			c->no_dns = 0;
+
+			if (inet_pton(AF_INET, optarg, &dns4_tmp)) {
+				dns4_idx += add_dns4(c, &dns4_tmp, dns4_idx);
+				continue;
+			}
+
+			if (inet_pton(AF_INET6, optarg, &dns6_tmp)) {
+				dns6_idx += add_dns6(c, &dns6_tmp, dns6_idx);
+				continue;
+			}
+
+			die("Cannot use DNS address %s", optarg);
+		}
 			break;
 		case 'T':
 		case 'U':
@@ -2117,53 +2152,16 @@ void conf(struct ctx *c, int argc, char **argv)
 	if (c->ifi4 && IN4_IS_ADDR_UNSPECIFIED(&c->ip4.guest_gw))
 		c->no_dhcp = 1;
 
-	/* Inbound port options and DNS can be parsed now, after IPv4/IPv6
-	 * settings
-	 */
+	/* Inbound port options can be parsed now, after IPv4/IPv6 settings */
 	fwd_probe_ephemeral();
 	optind = 0;
 	do {
 		name = getopt_long(argc, argv, optstring, options, NULL);
 
-		if (name == 't') {
+		if (name == 't')
 			conf_ports(c, name, optarg, &c->fwd_in, &tcp_in_mode);
-		} else if (name == 'u') {
+		else if (name == 'u')
 			conf_ports(c, name, optarg, &c->fwd_in, &udp_in_mode);
-		} else if (name == 'D') {
-			struct in6_addr dns6_tmp;
-			struct in_addr dns4_tmp;
-
-			if (!strcmp(optarg, "none")) {
-				c->no_dns = 1;
-
-				dns4_idx = 0;
-				memset(c->ip4.dns, 0, sizeof(c->ip4.dns));
-				c->ip4.dns[0]    = (struct in_addr){ 0 };
-				c->ip4.dns_match = (struct in_addr){ 0 };
-				c->ip4.dns_host  = (struct in_addr){ 0 };
-
-				dns6_idx = 0;
-				memset(c->ip6.dns, 0, sizeof(c->ip6.dns));
-				c->ip6.dns_match = (struct in6_addr){ 0 };
-				c->ip6.dns_host  = (struct in6_addr){ 0 };
-
-				continue;
-			}
-
-			c->no_dns = 0;
-
-			if (inet_pton(AF_INET, optarg, &dns4_tmp)) {
-				dns4_idx += add_dns4(c, &dns4_tmp, dns4_idx);
-				continue;
-			}
-
-			if (inet_pton(AF_INET6, optarg, &dns6_tmp)) {
-				dns6_idx += add_dns6(c, &dns6_tmp, dns6_idx);
-				continue;
-			}
-
-			die("Cannot use DNS address %s", optarg);
-		}
 	} while (name != -1);
 
 	if (c->mode == MODE_PASTA)
