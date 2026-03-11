@@ -149,11 +149,19 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 {
 	unsigned delta = to - first;
 	unsigned base, i;
+	uint8_t proto;
 
 	if (first == 0) {
 		die("Can't forward port 0 for option '-%c %s'",
 		    optname, optarg);
 	}
+
+	if (optname == 't' || optname == 'T')
+		proto = IPPROTO_TCP;
+	else if (optname == 'u' || optname == 'U')
+		proto = IPPROTO_UDP;
+	else
+		ASSERT(0);
 
 	if (addr) {
 		if (!c->ifi4 && inany_v4(addr)) {
@@ -184,15 +192,17 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 			     optname, optarg);
 
 			if (c->ifi4) {
-				fwd_rule_add(fwd, flags, &inany_loopback4, NULL,
+				fwd_rule_add(fwd, proto, flags,
+					     &inany_loopback4, NULL,
 					     base, i - 1, base + delta);
 			}
 			if (c->ifi6) {
-				fwd_rule_add(fwd, flags, &inany_loopback6, NULL,
+				fwd_rule_add(fwd, proto, flags,
+					     &inany_loopback6, NULL,
 					     base, i - 1, base + delta);
 			}
 		} else {
-			fwd_rule_add(fwd, flags, addr, ifname,
+			fwd_rule_add(fwd, proto, flags, addr, ifname,
 				     base, i - 1, base + delta);
 		}
 		base = i - 1;
@@ -1242,15 +1252,11 @@ dns6:
 		}
 	}
 
-	info("Inbound TCP forwarding:");
-	fwd_rules_print(&c->tcp.fwd_in);
-	info("Inbound UDP forwarding:");
-	fwd_rules_print(&c->udp.fwd_in);
+	info("Inbound forwarding:");
+	fwd_rules_print(&c->fwd_in);
 	if (c->mode == MODE_PASTA) {
-		info("Outbound TCP forwarding:");
-		fwd_rules_print(&c->tcp.fwd_out);
-		info("Outbound UDP forwarding:");
-		fwd_rules_print(&c->tcp.fwd_out);
+		info("Outbound forwarding:");
+		fwd_rules_print(&c->fwd_out);
 	}
 }
 
@@ -2120,11 +2126,9 @@ void conf(struct ctx *c, int argc, char **argv)
 		name = getopt_long(argc, argv, optstring, options, NULL);
 
 		if (name == 't') {
-			conf_ports(c, name, optarg,
-				&c->tcp.fwd_in, &tcp_in_mode);
+			conf_ports(c, name, optarg, &c->fwd_in, &tcp_in_mode);
 		} else if (name == 'u') {
-			conf_ports(c, name, optarg,
-				   &c->udp.fwd_in, &udp_in_mode);
+			conf_ports(c, name, optarg, &c->fwd_in, &udp_in_mode);
 		} else if (name == 'D') {
 			struct in6_addr dns6_tmp;
 			struct in_addr dns4_tmp;
@@ -2194,13 +2198,10 @@ void conf(struct ctx *c, int argc, char **argv)
 	do {
 		name = getopt_long(argc, argv, optstring, options, NULL);
 
-		if (name == 'T') {
-			conf_ports(c, name, optarg,
-				   &c->tcp.fwd_out, &tcp_out_mode);
-		} else if (name == 'U') {
-			conf_ports(c, name, optarg,
-				   &c->udp.fwd_out, &udp_out_mode);
-		}
+		if (name == 'T')
+			conf_ports(c, name, optarg, &c->fwd_out, &tcp_out_mode);
+		else if (name == 'U')
+			conf_ports(c, name, optarg, &c->fwd_out, &udp_out_mode);
 	} while (name != -1);
 
 	if (!c->ifi4)
@@ -2232,24 +2233,20 @@ void conf(struct ctx *c, int argc, char **argv)
 		udp_out_mode = fwd_default;
 
 	if (tcp_in_mode == FWD_MODE_AUTO) {
-		conf_ports_range_except(c, 't', "auto", &c->tcp.fwd_in,
-					NULL, NULL, 1, NUM_PORTS - 1,
-					NULL, 1, FWD_SCAN);
+		conf_ports_range_except(c, 't', "auto", &c->fwd_in, NULL, NULL,
+					1, NUM_PORTS - 1, NULL, 1, FWD_SCAN);
 	}
 	if (tcp_out_mode == FWD_MODE_AUTO) {
-		conf_ports_range_except(c, 'T', "auto", &c->tcp.fwd_out,
-					NULL, "lo", 1, NUM_PORTS - 1,
-					NULL, 1, FWD_SCAN);
+		conf_ports_range_except(c, 'T', "auto", &c->fwd_out, NULL, "lo",
+					1, NUM_PORTS - 1, NULL, 1, FWD_SCAN);
 	}
 	if (udp_in_mode == FWD_MODE_AUTO) {
-		conf_ports_range_except(c, 'u', "auto", &c->udp.fwd_in,
-					NULL, NULL, 1, NUM_PORTS - 1,
-					NULL, 1, FWD_SCAN);
+		conf_ports_range_except(c, 'u', "auto", &c->fwd_in, NULL, NULL,
+					1, NUM_PORTS - 1, NULL, 1, FWD_SCAN);
 	}
 	if (udp_out_mode == FWD_MODE_AUTO) {
-		conf_ports_range_except(c, 'U', "auto", &c->udp.fwd_out,
-					NULL, "lo", 1, NUM_PORTS - 1,
-					NULL, 1, FWD_SCAN);
+		conf_ports_range_except(c, 'U', "auto", &c->fwd_out, NULL, "lo",
+					1, NUM_PORTS - 1, NULL, 1, FWD_SCAN);
 	}
 
 	if (!c->quiet)

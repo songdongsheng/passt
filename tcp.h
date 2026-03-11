@@ -38,9 +38,7 @@ extern bool peek_offset_cap;
 
 /**
  * struct tcp_ctx - Execution context for TCP routines
- * @fwd_in:		Forwarding table for inbound flows
  * @scan_in:		Port scanning state for inbound packets
- * @fwd_out:		Forwarding table for outbound flows
  * @scan_out:		Port scanning state for outbound packets
  * @timer_run:		Timestamp of most recent timer run
  * @pipe_size:		Size of pipes for spliced connections
@@ -51,9 +49,7 @@ extern bool peek_offset_cap;
  * @inactivity_run:	Time we last scanned for inactive connections
  */
 struct tcp_ctx {
-	struct fwd_table fwd_in;
 	struct fwd_scan scan_in;
-	struct fwd_table fwd_out;
 	struct fwd_scan scan_out;
 	struct timespec timer_run;
 	size_t pipe_size;
