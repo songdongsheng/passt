@@ -91,7 +91,11 @@ int vu_collect(const struct vu_dev *vdev, struct vu_virtq *vq,
 		struct iovec *iov;
 		int ret;
 
-		ret = vu_queue_pop(vdev, vq, &elem[elem_cnt]);
+		ret = vu_queue_pop(vdev, vq, &elem[elem_cnt],
+				   elem[elem_cnt].in_sg,
+				   elem[elem_cnt].in_num,
+				   elem[elem_cnt].out_sg,
+				   elem[elem_cnt].out_num);
 		if (ret < 0)
 			break;
 
@@ -178,12 +182,8 @@ static void vu_handle_tx(struct vu_dev *vdev, int index,
 		int ret;
 		struct iov_tail data;
 
-		elem[count].out_num = VU_MAX_TX_BUFFER_NB;
-		elem[count].out_sg = &out_sg[out_sg_count];
-		elem[count].in_num = 0;
-		elem[count].in_sg = NULL;
-
-		ret = vu_queue_pop(vdev, vq, &elem[count]);
+		ret = vu_queue_pop(vdev, vq, &elem[count], NULL, 0,
+				   &out_sg[out_sg_count], VU_MAX_TX_BUFFER_NB);
 		if (ret < 0)
 			break;
 		out_sg_count += elem[count].out_num;
