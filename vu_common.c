@@ -20,8 +20,6 @@
 #include "migrate.h"
 #include "epoll_ctl.h"
 
-#define VU_MAX_TX_BUFFER_NB	2
-
 /**
  * vu_packet_check_range() - Check if a given memory zone is contained in
  * 			     a mapped guest memory region
@@ -177,13 +175,13 @@ static void vu_handle_tx(struct vu_dev *vdev, int index,
 
 	count = 0;
 	out_sg_count = 0;
-	while (count < VIRTQUEUE_MAX_SIZE &&
-	       out_sg_count + VU_MAX_TX_BUFFER_NB <= VIRTQUEUE_MAX_SIZE) {
-		int ret;
+	while (count < ARRAY_SIZE(elem) && out_sg_count < ARRAY_SIZE(out_sg)) {
 		struct iov_tail data;
+		int ret;
 
 		ret = vu_queue_pop(vdev, vq, &elem[count], NULL, 0,
-				   &out_sg[out_sg_count], VU_MAX_TX_BUFFER_NB);
+				   &out_sg[out_sg_count],
+				   ARRAY_SIZE(out_sg) - out_sg_count);
 		if (ret < 0)
 			break;
 		out_sg_count += elem[count].out_num;
