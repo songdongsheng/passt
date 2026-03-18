@@ -87,13 +87,13 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 
 	hdrlen = tcp_vu_hdrlen(CONN_V6(conn));
 
-	vu_set_element(&flags_elem[0], NULL, &flags_iov[0]);
-
 	elem_cnt = vu_collect(vdev, vq, &flags_elem[0], 1,
+			      &flags_iov[0], 1, NULL,
 			      MAX(hdrlen + sizeof(*opts), ETH_ZLEN + VNET_HLEN), NULL);
 	if (elem_cnt != 1)
 		return -1;
 
+	ASSERT(flags_elem[0].in_num == 1);
 	ASSERT(flags_elem[0].in_sg[0].iov_len >=
 	       MAX(hdrlen + sizeof(*opts), ETH_ZLEN + VNET_HLEN));
 
@@ -148,9 +148,8 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	nb_ack = 1;
 
 	if (flags & DUP_ACK) {
-		vu_set_element(&flags_elem[1], NULL, &flags_iov[1]);
-
 		elem_cnt = vu_collect(vdev, vq, &flags_elem[1], 1,
+				      &flags_iov[1], 1, NULL,
 				      flags_elem[0].in_sg[0].iov_len, NULL);
 		if (elem_cnt == 1 &&
 		    flags_elem[1].in_sg[0].iov_len >=
@@ -191,8 +190,8 @@ static ssize_t tcp_vu_sock_recv(const struct ctx *c, struct vu_virtq *vq,
 	const struct vu_dev *vdev = c->vdev;
 	struct msghdr mh_sock = { 0 };
 	uint16_t mss = MSS_GET(conn);
+	size_t hdrlen, iov_used;
 	int s = conn->sock;
-	size_t hdrlen;
 	int elem_cnt;
 	ssize_t ret;
 	int i;
@@ -201,22 +200,26 @@ static ssize_t tcp_vu_sock_recv(const struct ctx *c, struct vu_virtq *vq,
 
 	hdrlen = tcp_vu_hdrlen(v6);
 
-	vu_init_elem(elem, &iov_vu[DISCARD_IOV_NUM], VIRTQUEUE_MAX_SIZE);
-
+	iov_used = 0;
 	elem_cnt = 0;
 	*head_cnt = 0;
-	while (fillsize > 0 && elem_cnt < VIRTQUEUE_MAX_SIZE) {
+	while (fillsize > 0 && elem_cnt < ARRAY_SIZE(elem) &&
+	       iov_used < VIRTQUEUE_MAX_SIZE) {
+		size_t frame_size, dlen, in_total;
 		struct iovec *iov;
-		size_t frame_size, dlen;
 		int cnt;
 
 		cnt = vu_collect(vdev, vq, &elem[elem_cnt],
-				 VIRTQUEUE_MAX_SIZE - elem_cnt,
+				 ARRAY_SIZE(elem) - elem_cnt,
+				 &iov_vu[DISCARD_IOV_NUM + iov_used],
+				 VIRTQUEUE_MAX_SIZE - iov_used, &in_total,
 				 MAX(MIN(mss, fillsize) + hdrlen, ETH_ZLEN + VNET_HLEN),
 				 &frame_size);
 		if (cnt == 0)
 			break;
+		ASSERT((size_t)cnt == in_total); /* one iovec per element */
 
+		iov_used += in_total;
 		dlen = frame_size - hdrlen;
 
 		/* reserve space for headers in iov */
@@ -247,7 +250,7 @@ static ssize_t tcp_vu_sock_recv(const struct ctx *c, struct vu_virtq *vq,
 		ret -= already_sent;
 
 	/* adjust iov number and length of the last iov */
-	i = iov_truncate(&iov_vu[DISCARD_IOV_NUM], elem_cnt, ret);
+	i = iov_truncate(&iov_vu[DISCARD_IOV_NUM], iov_used, ret);
 
 	/* adjust head count */
 	while (*head_cnt > 0 && head[*head_cnt - 1] >= i)
