@@ -76,7 +76,7 @@ static int udp_vu_sock_recv(const struct ctx *c, struct vu_virtq *vq, int s,
 	size_t hdrlen, l2len;
 	size_t iov_cnt;
 
-	ASSERT(!c->no_udp);
+	assert(!c->no_udp);
 
 	if (!vu_queue_enabled(vq) || !vu_queue_started(vq)) {
 		debug("Got UDP packet, but RX virtqueue not usable yet");
@@ -96,10 +96,10 @@ static int udp_vu_sock_recv(const struct ctx *c, struct vu_virtq *vq, int s,
 	if (elem_cnt == 0)
 		return -1;
 
-	ASSERT((size_t)elem_cnt == iov_cnt);	/* one iovec per element */
+	assert((size_t)elem_cnt == iov_cnt);	/* one iovec per element */
 
 	/* reserve space for the headers */
-	ASSERT(iov_vu[0].iov_len >= MAX(hdrlen, ETH_ZLEN + VNET_HLEN));
+	assert(iov_vu[0].iov_len >= MAX(hdrlen, ETH_ZLEN + VNET_HLEN));
 	iov_vu[0].iov_base = (char *)iov_vu[0].iov_base + hdrlen;
 	iov_vu[0].iov_len -= hdrlen;
 

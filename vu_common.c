@@ -41,7 +41,7 @@ int vu_packet_check_range(struct vdev_memory *memory,
 		/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
 		const char *base = (const char *)base_addr;
 
-		ASSERT(base_addr >= dev_region[i].mmap_addr);
+		assert(base_addr >= dev_region[i].mmap_addr);
 
 		if (len <= dev_region[i].size && base <= ptr &&
 		    (size_t)(ptr - base) <= dev_region[i].size - len)
@@ -164,7 +164,7 @@ static void vu_handle_tx(struct vu_dev *vdev, int index,
 	int out_sg_count;
 	int count;
 
-	ASSERT(VHOST_USER_IS_QUEUE_TX(index));
+	assert(VHOST_USER_IS_QUEUE_TX(index));
 
 	tap_flush_pools();
 

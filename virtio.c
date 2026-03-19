@@ -72,6 +72,7 @@
  * SUCH DAMAGE.
  */
 
+#include <assert.h>
 #include <stddef.h>
 #include <endian.h>
 #include <string.h>
@@ -402,8 +403,8 @@ static bool virtqueue_map_desc(const struct vu_dev *dev,
 {
 	unsigned int num_sg = *p_num_sg;
 
-	ASSERT(num_sg < max_num_sg);
-	ASSERT(sz);
+	assert(num_sg < max_num_sg);
+	assert(sz);
 
 	while (sz) {
 		uint64_t len = sz;
