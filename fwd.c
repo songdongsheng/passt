@@ -506,7 +506,7 @@ void fwd_rules_print(const struct fwd_table *fwd)
 /** fwd_sync_one() - Create or remove listening sockets for a forward entry
  * @c:		Execution context
  * @fwd:	Forwarding table
- * @rule:	Forwarding rule
+ * @idx:	Rule index
  * @pif:	Interface to create listening sockets for
  * @tcp:	Bitmap of TCP ports to listen for on FWD_SCAN entries
  * @udp:	Bitmap of UDP ports to listen for on FWD_SCAN entries
@@ -514,22 +514,20 @@ void fwd_rules_print(const struct fwd_table *fwd)
  * Return: 0 on success, -1 on failure
  */
 static int fwd_sync_one(const struct ctx *c, const struct fwd_table *fwd,
-			const struct fwd_rule *rule, uint8_t pif,
+			unsigned idx, uint8_t pif,
 			const uint8_t *tcp, const uint8_t *udp)
 {
+	const struct fwd_rule *rule = &fwd->rules[idx];
 	const union inany_addr *addr = fwd_rule_addr(rule);
 	const char *ifname = rule->ifname;
 	const uint8_t *map = NULL;
 	bool bound_one = false;
-	unsigned port, idx;
+	unsigned port;
 
 	assert(pif_is_socket(pif));
 
 	if (!*ifname)
 		ifname = NULL;
-
-	idx = rule - fwd->rules;
-	assert(idx < MAX_FWD_RULES);
 
 	if (rule->flags & FWD_SCAN) {
 		if (rule->proto == IPPROTO_TCP)
@@ -628,8 +626,8 @@ static int fwd_listen_sync_(void *arg)
 		ns_enter(a->c);
 
 	for (i = 0; i < a->fwd->count; i++) {
-		a->ret = fwd_sync_one(a->c, a->fwd, &a->fwd->rules[i],
-				      a->pif, a->tcpmap, a->udpmap);
+		a->ret = fwd_sync_one(a->c, a->fwd, i, a->pif,
+				      a->tcpmap, a->udpmap);
 		if (a->ret < 0)
 			break;
 	}
