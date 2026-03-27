@@ -21,6 +21,7 @@
 #include "flow_table.h"
 #include "repair.h"
 #include "epoll_ctl.h"
+#include "serialise.h"
 
 const char *flow_state_str[] = {
 	[FLOW_STATE_FREE]	= "FREE",
