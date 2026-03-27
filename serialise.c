@@ -13,7 +13,9 @@
  */
 
 #include <assert.h>
+#include <endian.h>
 #include <errno.h>
+#include <stdint.h>
 #include <unistd.h>
 
 #include "serialise.h"
@@ -86,3 +88,36 @@ int write_all_buf(int fd, const void *buf, size_t len)
 	}
 	return 0;
 }
+
+/**
+ * read_uXXX() - Receive a uXXX value from an fd
+ * @fd:		File descriptor to read from
+ * @valp:	Pointer to variable to update with read value
+ *
+ * Return: 0 on success, -1 on error
+ */
+/**
+ * write_uXXX() - Send a uXXX value to an fd
+ * @fd:		File descriptor to write to
+ * @val:	Value to send
+ *
+ * Return: 0 on success, -1 on error
+ */
+#define SERIALISE_UINT(bits)						\
+	int read_u##bits(int fd, uint##bits##_t *val)			\
+	{								\
+		uint##bits##_t beval;					\
+		if (read_all_buf(fd, &beval, sizeof(beval)) < 0)	\
+			return -1;					\
+		*val = be##bits##toh(beval);				\
+		return 0;						\
+	}								\
+	int write_u##bits(int fd, uint##bits##_t val)			\
+	{								\
+		uint##bits##_t beval = htobe##bits(val);		\
+		return write_all_buf(fd, &beval, sizeof(beval));	\
+	}
+
+SERIALISE_UINT(32)
+
+#undef SERIALISE_UINT

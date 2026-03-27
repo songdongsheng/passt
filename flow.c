@@ -1135,10 +1135,9 @@ int flow_migrate_source(struct ctx *c, const struct migrate_stage *stage,
 			count++;
 	}
 
-	count = htonl(count);
-	if (write_all_buf(fd, &count, sizeof(count))) {
+	if (write_u32(fd, count)) {
 		rc = errno;
-		err_perror("Can't send flow count (%u)", ntohl(count));
+		err_perror("Can't send flow count (%u)", count);
 		return flow_migrate_source_rollback(c, FLOW_MAX, rc);
 	}
 
@@ -1151,7 +1150,7 @@ int flow_migrate_source(struct ctx *c, const struct migrate_stage *stage,
 	debug("Stop listen()s");
 	fwd_listen_close(&c->fwd_in);
 
-	debug("Sending %u flows", ntohl(count));
+	debug("Sending %u flows", count);
 
 	if (!count)
 		return 0;
@@ -1221,10 +1220,9 @@ int flow_migrate_target(struct ctx *c, const struct migrate_stage *stage,
 
 	(void)stage;
 
-	if (read_all_buf(fd, &count, sizeof(count)))
+	if (read_u32(fd, &count))
 		return errno;
 
-	count = ntohl(count);
 	debug("Receiving %u flows", count);
 
 	if (!count)
