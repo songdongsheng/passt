@@ -1252,11 +1252,17 @@ dns6:
 		}
 	}
 
-	info("Inbound forwarding:");
-	fwd_rules_print(&c->fwd_in);
-	if (c->mode == MODE_PASTA) {
-		info("Outbound forwarding:");
-		fwd_rules_print(&c->fwd_out);
+	for (i = 0; i < PIF_NUM_TYPES; i++) {
+		const char *dir = "Outbound";
+
+		if (!c->fwd[i])
+			continue;
+
+		if (i == PIF_HOST)
+			dir = "Inbound";
+
+		info("%s forwarding rules (%s):", dir, pif_name(i));
+		fwd_rules_print(c->fwd[i]);
 	}
 }
 
@@ -2154,18 +2160,24 @@ void conf(struct ctx *c, int argc, char **argv)
 
 	/* Forwarding options can be parsed now, after IPv4/IPv6 settings */
 	fwd_probe_ephemeral();
+	fwd_rule_init(c);
 	optind = 0;
 	do {
 		name = getopt_long(argc, argv, optstring, options, NULL);
 
-		if (name == 't')
-			conf_ports(c, name, optarg, &c->fwd_in, &tcp_in_mode);
-		else if (name == 'u')
-			conf_ports(c, name, optarg, &c->fwd_in, &udp_in_mode);
-		else if (name == 'T')
-			conf_ports(c, name, optarg, &c->fwd_out, &tcp_out_mode);
-		else if (name == 'U')
-			conf_ports(c, name, optarg, &c->fwd_out, &udp_out_mode);
+		if (name == 't') {
+			conf_ports(c, name, optarg, c->fwd[PIF_HOST],
+				   &tcp_in_mode);
+		} else if (name == 'u') {
+			conf_ports(c, name, optarg, c->fwd[PIF_HOST],
+				   &udp_in_mode);
+		} else if (name == 'T') {
+			conf_ports(c, name, optarg, c->fwd[PIF_SPLICE],
+				   &tcp_out_mode);
+		} else if (name == 'U') {
+			conf_ports(c, name, optarg, c->fwd[PIF_SPLICE],
+				   &udp_out_mode);
+		}
 	} while (name != -1);
 
 	if (c->mode == MODE_PASTA)
@@ -2224,20 +2236,24 @@ void conf(struct ctx *c, int argc, char **argv)
 		udp_out_mode = fwd_default;
 
 	if (tcp_in_mode == FWD_MODE_AUTO) {
-		conf_ports_range_except(c, 't', "auto", &c->fwd_in, NULL, NULL,
-					1, NUM_PORTS - 1, NULL, 1, FWD_SCAN);
+		conf_ports_range_except(c, 't', "auto", c->fwd[PIF_HOST],
+					NULL, NULL, 1, NUM_PORTS - 1, NULL, 1,
+					FWD_SCAN);
 	}
 	if (tcp_out_mode == FWD_MODE_AUTO) {
-		conf_ports_range_except(c, 'T', "auto", &c->fwd_out, NULL, "lo",
-					1, NUM_PORTS - 1, NULL, 1, FWD_SCAN);
+		conf_ports_range_except(c, 'T', "auto", c->fwd[PIF_SPLICE],
+					NULL, "lo", 1, NUM_PORTS - 1, NULL, 1,
+					FWD_SCAN);
 	}
 	if (udp_in_mode == FWD_MODE_AUTO) {
-		conf_ports_range_except(c, 'u', "auto", &c->fwd_in, NULL, NULL,
-					1, NUM_PORTS - 1, NULL, 1, FWD_SCAN);
+		conf_ports_range_except(c, 'u', "auto", c->fwd[PIF_HOST],
+					NULL, NULL, 1, NUM_PORTS - 1, NULL, 1,
+					FWD_SCAN);
 	}
 	if (udp_out_mode == FWD_MODE_AUTO) {
-		conf_ports_range_except(c, 'U', "auto", &c->fwd_out, NULL, "lo",
-					1, NUM_PORTS - 1, NULL, 1, FWD_SCAN);
+		conf_ports_range_except(c, 'U', "auto", c->fwd[PIF_SPLICE],
+					NULL, "lo", 1, NUM_PORTS - 1, NULL, 1,
+					FWD_SCAN);
 	}
 
 	if (!c->quiet)

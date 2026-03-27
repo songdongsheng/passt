@@ -108,6 +108,7 @@ struct fwd_scan {
 
 #define FWD_PORT_SCAN_INTERVAL		1000	/* ms */
 
+void fwd_rule_init(struct ctx *c);
 void fwd_rule_add(struct fwd_table *fwd, uint8_t proto, uint8_t flags,
 		  const union inany_addr *addr, const char *ifname,
 		  in_port_t first, in_port_t last, in_port_t to);
@@ -119,8 +120,7 @@ void fwd_rules_print(const struct fwd_table *fwd);
 void fwd_scan_ports_init(struct ctx *c);
 void fwd_scan_ports_timer(struct ctx * c, const struct timespec *now);
 
-int fwd_listen_sync(const struct ctx *c, const struct fwd_table *fwd,
-		    uint8_t pif,
+int fwd_listen_sync(const struct ctx *c, uint8_t pif,
 		    const struct fwd_scan *tcp, const struct fwd_scan *udp);
 void fwd_listen_close(const struct fwd_table *fwd);
 int fwd_listen_init(const struct ctx *c);
