@@ -151,10 +151,7 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 	unsigned base, i;
 	uint8_t proto;
 
-	if (first == 0) {
-		die("Can't forward port 0 for option '-%c %s'",
-		    optname, optarg);
-	}
+	assert(first != 0);
 
 	if (optname == 't' || optname == 'T')
 		proto = IPPROTO_TCP;
@@ -403,6 +400,11 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 
 		if ((*p != '\0')  && (*p != ',')) /* Garbage after the ranges */
 			goto bad;
+
+		if (orig_range.first == 0) {
+			die("Can't forward port 0 for option '-%c %s'",
+			    optname, optarg);
+		}
 
 		conf_ports_range_except(c, optname, optarg, fwd,
 					addr, ifname,
