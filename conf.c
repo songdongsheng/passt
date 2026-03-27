@@ -1125,11 +1125,12 @@ enum passt_modes conf_mode(int argc, char *argv[])
  */
 static void conf_print(const struct ctx *c)
 {
-	char buf4[INET_ADDRSTRLEN], buf6[INET6_ADDRSTRLEN];
-	char bufmac[ETH_ADDRSTRLEN], ifn[IFNAMSIZ];
+	char buf[INANY_ADDRSTRLEN];
 	int i;
 
 	if (c->ifi4 > 0 || c->ifi6 > 0) {
+		char ifn[IFNAMSIZ];
+
 		info("Template interface: %s%s%s%s%s",
 		     c->ifi4 > 0 ? if_indextoname(c->ifi4, ifn) : "",
 		     c->ifi4 > 0 ? " (IPv4)" : "",
@@ -1147,28 +1148,27 @@ static void conf_print(const struct ctx *c)
 		     *c->ip6.ifname_out ? " (IPv6)" : "");
 	}
 
-	if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.addr_out) ||
-	    !IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr_out)) {
-		info("Outbound address: %s%s%s",
-		     IN4_IS_ADDR_UNSPECIFIED(&c->ip4.addr_out) ? "" :
-		     inet_ntop(AF_INET, &c->ip4.addr_out, buf4, sizeof(buf4)),
-		     (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.addr_out) &&
-		      !IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr_out)) ? ", " : "",
-		     IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr_out) ? "" :
-		     inet_ntop(AF_INET6, &c->ip6.addr_out, buf6, sizeof(buf6)));
+	if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.addr_out)) {
+		inet_ntop(AF_INET, &c->ip4.addr_out, buf, sizeof(buf));
+		info("Outbound IPv4 address: %s", buf);
+	}
+
+	if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr_out)) {
+		inet_ntop(AF_INET6, &c->ip6.addr_out, buf, sizeof(buf));
+		info("Outbound IPv6 address: %s", buf);
 	}
 
 	if (c->mode == MODE_PASTA && !c->splice_only)
 		info("Namespace interface: %s", c->pasta_ifn);
 
 	info("MAC:");
-	info("    host: %s", eth_ntop(c->our_tap_mac, bufmac, sizeof(bufmac)));
+	info("    host: %s", eth_ntop(c->our_tap_mac, buf, sizeof(buf)));
 
 	if (c->ifi4) {
 		if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.map_host_loopback))
 			info("    NAT to host 127.0.0.1: %s",
 			     inet_ntop(AF_INET, &c->ip4.map_host_loopback,
-				       buf4, sizeof(buf4)));
+				       buf, sizeof(buf)));
 
 		if (!c->no_dhcp) {
 			uint32_t mask;
@@ -1177,12 +1177,12 @@ static void conf_print(const struct ctx *c)
 
 			info("DHCP:");
 			info("    assign: %s",
-			     inet_ntop(AF_INET, &c->ip4.addr, buf4, sizeof(buf4)));
+			     inet_ntop(AF_INET, &c->ip4.addr, buf, sizeof(buf)));
 			info("    mask: %s",
-			     inet_ntop(AF_INET, &mask,        buf4, sizeof(buf4)));
+			     inet_ntop(AF_INET, &mask,        buf, sizeof(buf)));
 			info("    router: %s",
 			     inet_ntop(AF_INET, &c->ip4.guest_gw,
-				       buf4, sizeof(buf4)));
+				       buf, sizeof(buf)));
 		}
 
 		for (i = 0; i < ARRAY_SIZE(c->ip4.dns); i++) {
@@ -1190,8 +1190,8 @@ static void conf_print(const struct ctx *c)
 				break;
 			if (!i)
 				info("DNS:");
-			inet_ntop(AF_INET, &c->ip4.dns[i], buf4, sizeof(buf4));
-			info("    %s", buf4);
+			inet_ntop(AF_INET, &c->ip4.dns[i], buf, sizeof(buf));
+			info("    %s", buf);
 		}
 
 		for (i = 0; *c->dns_search[i].n; i++) {
@@ -1205,7 +1205,7 @@ static void conf_print(const struct ctx *c)
 		if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.map_host_loopback))
 			info("    NAT to host ::1: %s",
 			     inet_ntop(AF_INET6, &c->ip6.map_host_loopback,
-				       buf6, sizeof(buf6)));
+				       buf, sizeof(buf)));
 
 		if (!c->no_ndp && !c->no_dhcpv6)
 			info("NDP/DHCPv6:");
@@ -1217,12 +1217,12 @@ static void conf_print(const struct ctx *c)
 			goto dns6;
 
 		info("    assign: %s",
-		     inet_ntop(AF_INET6, &c->ip6.addr, buf6, sizeof(buf6)));
+		     inet_ntop(AF_INET6, &c->ip6.addr, buf, sizeof(buf)));
 		info("    router: %s",
-		     inet_ntop(AF_INET6, &c->ip6.guest_gw, buf6, sizeof(buf6)));
+		     inet_ntop(AF_INET6, &c->ip6.guest_gw, buf, sizeof(buf)));
 		info("    our link-local: %s",
 		     inet_ntop(AF_INET6, &c->ip6.our_tap_ll,
-			       buf6, sizeof(buf6)));
+			       buf, sizeof(buf)));
 
 dns6:
 		for (i = 0; i < ARRAY_SIZE(c->ip6.dns); i++) {
@@ -1230,8 +1230,8 @@ dns6:
 			    break;
 			if (!i)
 				info("DNS:");
-			inet_ntop(AF_INET6, &c->ip6.dns[i], buf6, sizeof(buf6));
-			info("    %s", buf6);
+			inet_ntop(AF_INET6, &c->ip6.dns[i], buf, sizeof(buf));
+			info("    %s", buf);
 		}
 
 		for (i = 0; *c->dns_search[i].n; i++) {
