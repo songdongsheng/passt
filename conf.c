@@ -36,6 +36,7 @@
 #include <netinet/if_ether.h>
 
 #include "util.h"
+#include "bitmap.h"
 #include "ip.h"
 #include "passt.h"
 #include "netlink.h"

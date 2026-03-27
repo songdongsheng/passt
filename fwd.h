@@ -14,6 +14,7 @@
 
 #include <netinet/in.h>
 
+#include "bitmap.h"
 #include "inany.h"
 
 struct flowside;
