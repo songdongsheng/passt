@@ -355,12 +355,8 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		if ((*p != '\0')  && (*p != ',')) /* Garbage after the range */
 			goto bad;
 
-		for (i = xrange.first; i <= xrange.last; i++) {
-			if (bitmap_isset(exclude, i))
-				die("Overlapping excluded ranges %s", optarg);
-
+		for (i = xrange.first; i <= xrange.last; i++)
 			bitmap_set(exclude, i);
-		}
 	} while ((p = next_chunk(p, ',')));
 
 	if (ifname && c->no_bindtodevice) {
