@@ -508,16 +508,18 @@ void fwd_rules_print(const struct fwd_table *fwd)
  * @fwd:	Forwarding table
  * @rule:	Forwarding rule
  * @pif:	Interface to create listening sockets for
- * @scanmap:	Bitmap of ports to listen for on FWD_SCAN entries
+ * @tcp:	Bitmap of TCP ports to listen for on FWD_SCAN entries
+ * @udp:	Bitmap of UDP ports to listen for on FWD_SCAN entries
  *
  * Return: 0 on success, -1 on failure
  */
 static int fwd_sync_one(const struct ctx *c, const struct fwd_table *fwd,
 			const struct fwd_rule *rule, uint8_t pif,
-			const uint8_t *scanmap)
+			const uint8_t *tcp, const uint8_t *udp)
 {
 	const union inany_addr *addr = fwd_rule_addr(rule);
 	const char *ifname = rule->ifname;
+	const uint8_t *map = NULL;
 	bool bound_one = false;
 	unsigned port, idx;
 
@@ -528,12 +530,19 @@ static int fwd_sync_one(const struct ctx *c, const struct fwd_table *fwd,
 
 	idx = rule - fwd->rules;
 	assert(idx < MAX_FWD_RULES);
-	assert(!(rule->flags & FWD_SCAN && !scanmap));
-	
+
+	if (rule->flags & FWD_SCAN) {
+		if (rule->proto == IPPROTO_TCP)
+			map = tcp;
+		else if (rule->proto == IPPROTO_UDP)
+			map = udp;
+		assert(map);
+	}
+
 	for (port = rule->first; port <= rule->last; port++) {
 		int fd = rule->socks[port - rule->first];
 
-		if ((rule->flags & FWD_SCAN) && !bitmap_isset(scanmap, port)) {
+		if (map && !bitmap_isset(map, port)) {
 			/* We don't want to listen on this port */
 			if (fd >= 0) {
 				/* We already are, so stop */
@@ -619,15 +628,8 @@ static int fwd_listen_sync_(void *arg)
 		ns_enter(a->c);
 
 	for (i = 0; i < a->fwd->count; i++) {
-		const uint8_t *scanmap = NULL;
-
-		if (a->fwd->rules[i].proto == IPPROTO_TCP)
-			scanmap = a->tcpmap;
-		else if (a->fwd->rules[i].proto == IPPROTO_UDP)
-			scanmap = a->udpmap;
-
 		a->ret = fwd_sync_one(a->c, a->fwd, &a->fwd->rules[i],
-				      a->pif, scanmap);
+				      a->pif, a->tcpmap, a->udpmap);
 		if (a->ret < 0)
 			break;
 	}
