@@ -1320,7 +1320,7 @@ static int conf_runas(const char *opt, unsigned int *uid, unsigned int *gid)
  * @uid:	User ID, set on success
  * @gid:	Group ID, set on success
  */
-static void conf_ugid(char *runas, uid_t *uid, gid_t *gid)
+static void conf_ugid(const char *runas, uid_t *uid, gid_t *gid)
 {
 	/* If user has specified --runas, that takes precedence... */
 	if (runas) {
@@ -1561,8 +1561,8 @@ void conf(struct ctx *c, int argc, char **argv)
 	uint8_t prefix_len_from_opt = 0;
 	unsigned int ifi4 = 0, ifi6 = 0;
 	const char *logfile = NULL;
+	const char *runas = NULL;
 	size_t logsize = 0;
-	char *runas = NULL;
 	long fd_tap_opt;
 	int name, ret;
 	uid_t uid;
