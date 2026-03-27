@@ -362,12 +362,15 @@ void fwd_rule_add(struct fwd_table *fwd, uint8_t proto, uint8_t flags,
 		  in_port_t first, in_port_t last, in_port_t to)
 {
 	/* Flags which can be set from the caller */
-	const uint8_t allowed_flags = FWD_WEAK | FWD_SCAN;
+	const uint8_t allowed_flags = FWD_WEAK | FWD_SCAN | FWD_DUAL_STACK_ANY;
 	unsigned num = (unsigned)last - first + 1;
 	struct fwd_rule *new;
 	unsigned i, port;
 
 	assert(!(flags & ~allowed_flags));
+	/* Passing a non-wildcard address with DUAL_STACK_ANY is a bug */
+	assert(!(flags & FWD_DUAL_STACK_ANY) || !addr ||
+	       inany_equals(addr, &inany_any6));
 
 	if (fwd->count >= ARRAY_SIZE(fwd->rules))
 		die("Too many port forwarding ranges");
