@@ -282,9 +282,7 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		*mode = FWD_MODE_ALL;
 
 		/* Exclude ephemeral ports */
-		for (i = 0; i < NUM_PORTS; i++)
-			if (fwd_port_is_ephemeral(i))
-				bitmap_set(exclude, i);
+		fwd_port_map_ephemeral(exclude);
 
 		conf_ports_range_except(c, optname, optarg, fwd,
 					NULL, NULL,
@@ -376,9 +374,7 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 
 	if (exclude_only) {
 		/* Exclude ephemeral ports */
-		for (i = 0; i < NUM_PORTS; i++)
-			if (fwd_port_is_ephemeral(i))
-				bitmap_set(exclude, i);
+		fwd_port_map_ephemeral(exclude);
 
 		conf_ports_range_except(c, optname, optarg, fwd,
 					addr, ifname,

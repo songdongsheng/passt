@@ -319,16 +319,15 @@ static const union inany_addr *fwd_rule_addr(const struct fwd_rule *rule)
 }
 
 /**
- * fwd_port_is_ephemeral() - Is port number ephemeral?
- * @port:	Port number
- *
- * Return: true if @port is ephemeral, that is may be allocated by the kernel as
- *         a local port for outgoing connections or datagrams, but should not be
- *         used for binding services to.
+ * fwd_port_map_ephemeral() - Mark ephemeral ports in a bitmap
+ * @map:	Bitmap to update
  */
-bool fwd_port_is_ephemeral(in_port_t port)
+void fwd_port_map_ephemeral(uint8_t *map)
 {
-	return (port >= fwd_ephemeral_min) && (port <= fwd_ephemeral_max);
+	unsigned port;
+
+	for (port = fwd_ephemeral_min; port <= fwd_ephemeral_max; port++)
+		bitmap_set(map, port);
 }
 
 /* Forwarding table storage, generally accessed via pointers in struct ctx */

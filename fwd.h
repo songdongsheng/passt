@@ -22,7 +22,7 @@ struct flowside;
 #define	NUM_PORTS	(1U << 16)
 
 void fwd_probe_ephemeral(void);
-bool fwd_port_is_ephemeral(in_port_t port);
+void fwd_port_map_ephemeral(uint8_t *map);
 
 /**
  * struct fwd_rule - Forwarding rule governing a range of ports
