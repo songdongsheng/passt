@@ -160,16 +160,6 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 	else
 		assert(0);
 
-	if (addr) {
-		if (!c->ifi4 && inany_v4(addr)) {
-			die("IPv4 is disabled, can't use -%c %s",
-			    optname, optarg);
-		} else if (!c->ifi6 && !inany_v4(addr)) {
-			die("IPv6 is disabled, can't use -%c %s",
-			    optname, optarg);
-		}
-	}
-
 	for (base = first; base <= last; base++) {
 		if (exclude && bitmap_isset(exclude, base))
 			continue;
@@ -333,6 +323,16 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		spec = buf;
 
 		addr = NULL;
+	}
+
+	if (addr) {
+		if (!c->ifi4 && inany_v4(addr)) {
+			die("IPv4 is disabled, can't use -%c %s",
+			    optname, optarg);
+		} else if (!c->ifi6 && !inany_v4(addr)) {
+			die("IPv6 is disabled, can't use -%c %s",
+			    optname, optarg);
+		}
 	}
 
 	/* Mark all exclusions first, they might be given after base ranges */
