@@ -363,7 +363,7 @@ void fwd_rule_add(struct fwd_table *fwd, uint8_t proto, uint8_t flags,
 	/* Flags which can be set from the caller */
 	const uint8_t allowed_flags = FWD_WEAK | FWD_SCAN | FWD_DUAL_STACK_ANY;
 	unsigned num = (unsigned)last - first + 1;
-	struct fwd_rule *new;
+	struct fwd_rule_state *new;
 	unsigned i, port;
 
 	assert(!(flags & ~allowed_flags));
@@ -379,7 +379,7 @@ void fwd_rule_add(struct fwd_table *fwd, uint8_t proto, uint8_t flags,
 	/* Check for any conflicting entries */
 	for (i = 0; i < fwd->count; i++) {
 		char newstr[INANY_ADDRSTRLEN], rulestr[INANY_ADDRSTRLEN];
-		const struct fwd_rule *rule = &fwd->rules[i];
+		const struct fwd_rule *rule = &fwd->rules[i].rule;
 
 		if (proto != rule->proto)
 			/* Non-conflicting protocols */
@@ -400,36 +400,37 @@ void fwd_rule_add(struct fwd_table *fwd, uint8_t proto, uint8_t flags,
 	}
 
 	new = &fwd->rules[fwd->count++];
-	new->proto = proto;
-	new->flags = flags;
+	new->rule.proto = proto;
+	new->rule.flags = flags;
 
 	if (addr) {
-		new->addr = *addr;
+		new->rule.addr = *addr;
 	} else {
-		new->addr = inany_any6;
-		new->flags |= FWD_DUAL_STACK_ANY;
+		new->rule.addr = inany_any6;
+		new->rule.flags |= FWD_DUAL_STACK_ANY;
 	}
 
-	memset(new->ifname, 0, sizeof(new->ifname));
+	memset(new->rule.ifname, 0, sizeof(new->rule.ifname));
 	if (ifname) {
 		int ret;
 
-		ret = snprintf(new->ifname, sizeof(new->ifname), "%s", ifname);
-		if (ret <= 0 || (size_t)ret >= sizeof(new->ifname))
+		ret = snprintf(new->rule.ifname, sizeof(new->rule.ifname),
+			       "%s", ifname);
+		if (ret <= 0 || (size_t)ret >= sizeof(new->rule.ifname))
 			die("Invalid interface name: %s", ifname);
 	}
 
 	assert(first <= last);
-	new->first = first;
-	new->last = last;
+	new->rule.first = first;
+	new->rule.last = last;
 
-	new->to = to;
+	new->rule.to = to;
 
 	new->socks = &fwd->socks[fwd->sock_count];
 	fwd->sock_count += num;
 
-	for (port = new->first; port <= new->last; port++)
-		new->socks[port - new->first] = -1;
+	for (port = new->rule.first; port <= new->rule.last; port++)
+		new->socks[port - new->rule.first] = -1;
 }
 
 /**
@@ -465,7 +466,7 @@ const struct fwd_rule *fwd_rule_search(const struct fwd_table *fwd,
 
 	if (hint >= 0) {
 		char ostr[INANY_ADDRSTRLEN], rstr[INANY_ADDRSTRLEN];
-		const struct fwd_rule *rule = &fwd->rules[hint];
+		const struct fwd_rule *rule = &fwd->rules[hint].rule;
 
 		assert((unsigned)hint < fwd->count);
 		if (fwd_rule_match(rule, ini, proto))
@@ -479,8 +480,8 @@ const struct fwd_rule *fwd_rule_search(const struct fwd_table *fwd,
 	}
 
 	for (i = 0; i < fwd->count; i++) {
-		if (fwd_rule_match(&fwd->rules[i], ini, proto))
-			return &fwd->rules[i];
+		if (fwd_rule_match(&fwd->rules[i].rule, ini, proto))
+			return &fwd->rules[i].rule;
 	}
 
 	return NULL;
@@ -495,7 +496,7 @@ void fwd_rules_print(const struct fwd_table *fwd)
 	unsigned i;
 
 	for (i = 0; i < fwd->count; i++) {
-		const struct fwd_rule *rule = &fwd->rules[i];
+		const struct fwd_rule *rule = &fwd->rules[i].rule;
 		const char *percent = *rule->ifname ? "%" : "";
 		const char *weak = "", *scan = "";
 		char addr[INANY_ADDRSTRLEN];
@@ -532,7 +533,8 @@ void fwd_rules_print(const struct fwd_table *fwd)
 static int fwd_sync_one(const struct ctx *c, uint8_t pif, unsigned idx,
 			const uint8_t *tcp, const uint8_t *udp)
 {
-	const struct fwd_rule *rule = &c->fwd[pif]->rules[idx];
+	const struct fwd_rule_state *rs = &c->fwd[pif]->rules[idx];
+	const struct fwd_rule *rule = &rs->rule;
 	const union inany_addr *addr = fwd_rule_addr(rule);
 	const char *ifname = rule->ifname;
 	const uint8_t *map = NULL;
@@ -553,7 +555,7 @@ static int fwd_sync_one(const struct ctx *c, uint8_t pif, unsigned idx,
 	}
 
 	for (port = rule->first; port <= rule->last; port++) {
-		int fd = rule->socks[port - rule->first];
+		int fd = rs->socks[port - rule->first];
 
 		if (map && !bitmap_isset(map, port)) {
 			/* We don't want to listen on this port */
@@ -561,7 +563,7 @@ static int fwd_sync_one(const struct ctx *c, uint8_t pif, unsigned idx,
 				/* We already are, so stop */
 				epoll_del(c->epollfd, fd);
 				close(fd);
-				rule->socks[port - rule->first] = -1;
+				rs->socks[port - rule->first] = -1;
 			}
 			continue;
 		}
@@ -593,7 +595,7 @@ static int fwd_sync_one(const struct ctx *c, uint8_t pif, unsigned idx,
 			continue;
 		}
 
-		rule->socks[port - rule->first] = fd;
+		rs->socks[port - rule->first] = fd;
 		bound_one = true;
 	}
 
@@ -683,11 +685,11 @@ void fwd_listen_close(const struct fwd_table *fwd)
 	unsigned i;
 
 	for (i = 0; i < fwd->count; i++) {
-		const struct fwd_rule *rule = &fwd->rules[i];
+		const struct fwd_rule_state *rs = &fwd->rules[i];
 		unsigned port;
 
-		for (port = rule->first; port <= rule->last; port++) {
-			int *fdp = &rule->socks[port - rule->first];
+		for (port = rs->rule.first; port <= rs->rule.last; port++) {
+			int *fdp = &rs->socks[port - rs->rule.first];
 			if (*fdp >= 0) {
 				close(*fdp);
 				*fdp = -1;
@@ -767,8 +769,8 @@ static bool has_scan_rules(const struct fwd_table *fwd, uint8_t proto)
 	unsigned i;
 
 	for (i = 0; i < fwd->count; i++) {
-		if (fwd->rules[i].proto == proto &&
-		    fwd->rules[i].flags & FWD_SCAN)
+		if (fwd->rules[i].rule.proto == proto &&
+		    fwd->rules[i].rule.flags & FWD_SCAN)
 			return true;
 	}
 	return false;
@@ -836,14 +838,14 @@ static void current_listen_map(uint8_t *map, const struct fwd_table *fwd,
 	memset(map, 0, PORT_BITMAP_SIZE);
 
 	for (i = 0; i < fwd->count; i++) {
-		const struct fwd_rule *rule = &fwd->rules[i];
+		const struct fwd_rule_state *rs = &fwd->rules[i];
 		unsigned port;
 
-		if (rule->proto != proto)
+		if (rs->rule.proto != proto)
 			continue;
 
-		for (port = rule->first; port <= rule->last; port++) {
-			if (rule->socks[port - rule->first] >= 0)
+		for (port = rs->rule.first; port <= rs->rule.last; port++) {
+			if (rs->socks[port - rs->rule.first] >= 0)
 				bitmap_set(map, port);
 		}
 	}
