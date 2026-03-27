@@ -362,7 +362,7 @@ void fwd_rule_add(struct fwd_table *fwd, uint8_t proto, uint8_t flags,
 	/* Check for any conflicting entries */
 	for (i = 0; i < fwd->count; i++) {
 		char newstr[INANY_ADDRSTRLEN], rulestr[INANY_ADDRSTRLEN];
-		struct fwd_rule *rule = &fwd->rules[i];
+		const struct fwd_rule *rule = &fwd->rules[i];
 
 		if (proto != rule->proto)
 			/* Non-conflicting protocols */
