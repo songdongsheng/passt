@@ -66,21 +66,6 @@
 const char *pasta_default_ifn = "tap0";
 
 /**
- * next_chunk() - Return the next piece of a string delimited by a character
- * @s:		String to search
- * @c:		Delimiter character
- *
- * Return: if another @c is found in @s, returns a pointer to the
- *	   character *after* the delimiter, if no further @c is in @s,
- *	   return NULL
- */
-static const char *next_chunk(const char *s, char c)
-{
-	char *sep = strchr(s, c);
-	return sep ? sep + 1 : NULL;
-}
-
-/**
  * port_range() - Represents a non-empty range of ports
  * @first:	First port number in the range
  * @last:	Last port number in the range (inclusive)
@@ -232,6 +217,18 @@ fail:
 	    fwd_rule_fmt(&rule, rulestr, sizeof(rulestr)));
 }
 
+/*
+ * for_each_chunk - Step through delimited chunks of a string
+ * @p_:		Pointer to start of each chunk (updated)
+ * @ep_:	Pointer to end of each chunk (updated)
+ * @s_:		String to step through
+ * @sep_:	String of all allowed delimiters
+ */
+#define for_each_chunk(p_, ep_, s_, sep_)			\
+	for ((p_) = (s_);					\
+	     (ep_) = (p_) + strcspn((p_), (sep_)), *(p_);	\
+	     (p_) = *(ep_) ? (ep_) + 1 : (ep_))
+
 /**
  * conf_ports_spec() - Parse port range(s) specifier
  * @c:		Execution context
@@ -251,12 +248,11 @@ static void conf_ports_spec(const struct ctx *c,
 {
 	uint8_t exclude[PORT_BITMAP_SIZE] = { 0 };
 	bool exclude_only = true;
-	const char *p;
+	const char *p, *ep;
 	unsigned i;
 
 	/* Mark all exclusions first, they might be given after base ranges */
-	p = spec;
-	do {
+	for_each_chunk(p, ep, spec, ",") {
 		struct port_range xrange;
 
 		if (*p != '~') {
@@ -273,7 +269,7 @@ static void conf_ports_spec(const struct ctx *c,
 
 		for (i = xrange.first; i <= xrange.last; i++)
 			bitmap_set(exclude, i);
-	} while ((p = next_chunk(p, ',')));
+	}
 
 	if (exclude_only) {
 		/* Exclude ephemeral ports */
@@ -287,8 +283,7 @@ static void conf_ports_spec(const struct ctx *c,
 	}
 
 	/* Now process base ranges, skipping exclusions */
-	p = spec;
-	do {
+	for_each_chunk(p, ep, spec, ",") {
 		struct port_range orig_range, mapped_range;
 
 		if (*p == '~')
@@ -321,7 +316,7 @@ static void conf_ports_spec(const struct ctx *c,
 					orig_range.first, orig_range.last,
 					exclude,
 					mapped_range.first, 0);
-	} while ((p = next_chunk(p, ',')));
+	}
 
 	return;
 bad:
