@@ -888,6 +888,8 @@ static void conf_ip6_local(struct ip6_ctx *ip6)
  */
 static void usage(const char *name, FILE *f, int status)
 {
+	const char *guest, *fwd_default;
+
 	if (strstr(name, "pasta")) {
 		FPRINTF(f, "Usage: %s [OPTION]... [COMMAND] [ARGS]...\n", name);
 		FPRINTF(f, "       %s [OPTION]... PID\n", name);
@@ -897,8 +899,14 @@ static void usage(const char *name, FILE *f, int status)
 			"Without PID or --netns, run the given command or a\n"
 			"default shell in a new network and user namespace, and\n"
 			"connect it via pasta.\n");
+
+		guest = "namespace";
+		fwd_default = "auto";
 	} else {
 		FPRINTF(f, "Usage: %s [OPTION]...\n", name);
+
+		guest = "guest";
+		fwd_default = "none";
 	}
 
 	FPRINTF(f,
@@ -1023,70 +1031,50 @@ static void usage(const char *name, FILE *f, int status)
 		"  --freebind		Bind to any address for forwarding\n"
 		"  --no-map-gw		Don't map gateway address to host\n"
 		"  -4, --ipv4-only	Enable IPv4 operation only\n"
-		"  -6, --ipv6-only	Enable IPv6 operation only\n");
-
-	if (strstr(name, "pasta"))
-		goto pasta_opts;
-
-	FPRINTF(f,
-		"  -1, --one-off	Quit after handling one single client\n"
-		"  -t, --tcp-ports SPEC	TCP port forwarding to guest\n"
+		"  -6, --ipv6-only	Enable IPv6 operation only\n"
+		"  -t, --tcp-ports SPEC	TCP port forwarding to %s\n"
 		"    can be specified multiple times\n"
 		"    SPEC can be:\n"
 		"      'none': don't forward any ports\n"
-		"      'all': forward all unbound, non-ephemeral ports\n"
+		"%s"
 		"      a comma-separated list, optionally ranged with '-'\n"
 		"        and optional target ports after ':', with optional\n"
 		"        address specification suffixed by '/' and optional\n"
 		"        interface prefixed by '%%'. Ranges can be reduced by\n"
 		"        excluding ports or ranges prefixed by '~'\n"
 		"        Examples:\n"
-		"        -t 22		Forward local port 22 to 22 on guest\n"
-		"        -t 22:23	Forward local port 22 to 23 on guest\n"
+		"        -t 22		Forward local port 22 to 22 on %s\n"
+		"        -t 22:23	Forward local port 22 to 23 on %s\n"
 		"        -t 22,25	Forward ports 22, 25 to ports 22, 25\n"
 		"        -t 22-80  	Forward ports 22 to 80\n"
 		"        -t 22-80:32-90	Forward ports 22 to 80 to\n"
 		"			corresponding port numbers plus 10\n"
-		"        -t 192.0.2.1/5	Bind port 5 of 192.0.2.1 to guest\n"
+		"        -t 192.0.2.1/5	Bind port 5 of 192.0.2.1 to %s\n"
 		"        -t 5-25,~10-20	Forward ports 5 to 9, and 21 to 25\n"
 		"        -t ~25		Forward all ports except for 25\n"
-		"    default: none\n"
-		"  -u, --udp-ports SPEC	UDP port forwarding to guest\n"
+		"    default: %s\n"
+		"  -u, --udp-ports SPEC	UDP port forwarding to %s\n"
 		"    SPEC is as described for TCP above\n"
-		"    default: none\n");
+		"    default: %s\n",
+		guest,
+		strstr(name, "pasta") ?
+		"      'auto': forward all ports currently bound in namespace\n"
+		:
+		"      'all': forward all unbound, non-ephemeral ports\n",
+		guest, guest, guest, fwd_default, guest, fwd_default);
+
+	if (strstr(name, "pasta"))
+		goto pasta_opts;
+
+	FPRINTF(f,
+		"  -1, --one-off	Quit after handling one single client\n"
+		);
 
 	passt_exit(status);
 
 pasta_opts:
 
 	FPRINTF(f,
-		"  -t, --tcp-ports SPEC	TCP port forwarding to namespace\n"
-		"    can be specified multiple times\n"
-		"    SPEC can be:\n"
-		"      'none': don't forward any ports\n"
-		"      'auto': forward all ports currently bound in namespace\n"
-		"      a comma-separated list, optionally ranged with '-'\n"
-		"        and optional target ports after ':', with optional\n"
-		"        address specification suffixed by '/' and optional\n"
-		"        interface prefixed by '%%'. Examples:\n"
-		"        -t 22	Forward local port 22 to port 22 in netns\n"
-		"        -t 22:23	Forward local port 22 to port 23\n"
-		"        -t 22,25	Forward ports 22, 25 to ports 22, 25\n"
-		"        -t 22-80	Forward ports 22 to 80\n"
-		"        -t 22-80:32-90	Forward ports 22 to 80 to\n"
-		"			corresponding port numbers plus 10\n"
-		"        -t 192.0.2.1/5	Bind port 5 of 192.0.2.1 to namespace\n"
-		"        -t 5-25,~10-20	Forward ports 5 to 9, and 21 to 25\n"
-		"        -t ~25		Forward all bound ports except for 25\n"
-		"    default: auto\n"
-		"    IPv6 bound ports are also forwarded for IPv4\n"
-		"  -u, --udp-ports SPEC	UDP port forwarding to namespace\n"
-		"    SPEC is as described for TCP above\n"
-		"    default: auto\n"
-		"    IPv6 bound ports are also forwarded for IPv4\n"
-		"    unless specified, with '-t auto', UDP ports with numbers\n"
-		"    corresponding to forwarded TCP port numbers are\n"
-		"    forwarded too\n"
 		"  -T, --tcp-ns SPEC	TCP port forwarding to init namespace\n"
 		"    SPEC is as described above\n"
 		"    default: auto\n"
