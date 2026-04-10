@@ -74,7 +74,7 @@ const char *pasta_default_ifn = "tap0";
  *	   character *after* the delimiter, if no further @c is in @s,
  *	   return NULL
  */
-static char *next_chunk(const char *s, char c)
+static const char *next_chunk(const char *s, char c)
 {
 	char *sep = strchr(s, c);
 	return sep ? sep + 1 : NULL;
@@ -101,18 +101,19 @@ struct port_range {
  * Return: -EINVAL on parsing error, -ERANGE on out of range port
  *	   numbers, 0 on success
  */
-static int parse_port_range(const char *s, char **endptr,
+static int parse_port_range(const char *s, const char **endptr,
 			    struct port_range *range)
 {
 	unsigned long first, last;
+	char *ep;
 
-	last = first = strtoul(s, endptr, 10);
-	if (*endptr == s) /* Parsed nothing */
+	last = first = strtoul(s, &ep, 10);
+	if (ep == s) /* Parsed nothing */
 		return -EINVAL;
-	if (**endptr == '-') { /* we have a last value too */
-		const char *lasts = *endptr + 1;
-		last = strtoul(lasts, endptr, 10);
-		if (*endptr == lasts) /* Parsed nothing */
+	if (*ep == '-') { /* we have a last value too */
+		const char *lasts = ep + 1;
+		last = strtoul(lasts, &ep, 10);
+		if (ep == lasts) /* Parsed nothing */
 			return -EINVAL;
 	}
 
@@ -121,6 +122,7 @@ static int parse_port_range(const char *s, char **endptr,
 
 	range->first = first;
 	range->last = last;
+	*endptr = ep;
 
 	return 0;
 }
@@ -214,121 +216,25 @@ enum fwd_mode {
 };
 
 /**
- * conf_ports() - Parse port configuration options, initialise UDP/TCP sockets
+ * conf_ports_spec() - Parse port range(s) specifier
  * @c:		Execution context
  * @optname:	Short option name, t, T, u, or U
  * @optarg:	Option argument (port specification)
  * @fwd:	Forwarding table to be updated
- * @mode:	Overall port forwarding mode (updated)
+ * @addr:	Listening address for forwarding
+ * @ifname:	Interface name for listening
+ * @spec:	Port range(s) specifier
  */
-static void conf_ports(const struct ctx *c, char optname, const char *optarg,
-		       struct fwd_table *fwd, enum fwd_mode *mode)
+static void conf_ports_spec(const struct ctx *c,
+			    char optname, const char *optarg,
+			    struct fwd_table *fwd,
+			    const union inany_addr *addr, const char *ifname,
+			    const char *spec)
 {
-	union inany_addr addr_buf = inany_any6, *addr = &addr_buf;
-	char buf[BUFSIZ], *spec, *ifname = NULL, *p;
 	uint8_t exclude[PORT_BITMAP_SIZE] = { 0 };
 	bool exclude_only = true;
+	const char *p;
 	unsigned i;
-
-	if (!strcmp(optarg, "none")) {
-		if (*mode)
-			goto mode_conflict;
-
-		*mode = FWD_MODE_NONE;
-		return;
-	}
-
-	if ((optname == 't' || optname == 'T') && c->no_tcp)
-		die("TCP port forwarding requested but TCP is disabled");
-	if ((optname == 'u' || optname == 'U') && c->no_udp)
-		die("UDP port forwarding requested but UDP is disabled");
-
-	if (!strcmp(optarg, "auto")) {
-		if (*mode)
-			goto mode_conflict;
-
-		if (c->mode != MODE_PASTA)
-			die("'auto' port forwarding is only allowed for pasta");
-
-		*mode = FWD_MODE_AUTO;
-		return;
-	}
-
-	if (!strcmp(optarg, "all")) {
-		if (*mode)
-			goto mode_conflict;
-
-		if (c->mode == MODE_PASTA)
-			die("'all' port forwarding is only allowed for passt");
-
-		*mode = FWD_MODE_ALL;
-
-		/* Exclude ephemeral ports */
-		fwd_port_map_ephemeral(exclude);
-
-		conf_ports_range_except(c, optname, optarg, fwd,
-					NULL, NULL,
-					1, NUM_PORTS - 1, exclude,
-					1, FWD_WEAK);
-		return;
-	}
-
-	if (*mode > FWD_MODE_SPEC)
-		die("Specific ports cannot be specified together with all/none/auto");
-
-	*mode = FWD_MODE_SPEC;
-
-	strncpy(buf, optarg, sizeof(buf) - 1);
-
-	if ((spec = strchr(buf, '/'))) {
-		*spec = 0;
-		spec++;
-
-		if (optname != 't' && optname != 'u')
-			goto bad;
-
-		if ((ifname = strchr(buf, '%'))) {
-			*ifname = 0;
-			ifname++;
-
-			/* spec is already advanced one past the '/',
-			 * so the length of the given ifname is:
-			 * (spec - ifname - 1)
-			 */
-			if (spec - ifname - 1 >= IFNAMSIZ)
-				goto bad;
-
-		}
-
-		if (ifname == buf + 1) {	/* Interface without address */
-			addr = NULL;
-		} else {
-			p = buf;
-
-			/* Allow square brackets for IPv4 too for convenience */
-			if (*p == '[' && p[strlen(p) - 1] == ']') {
-				p[strlen(p) - 1] = '\0';
-				p++;
-			}
-
-			if (!inany_pton(p, addr))
-				goto bad;
-		}
-	} else {
-		spec = buf;
-
-		addr = NULL;
-	}
-
-	if (addr) {
-		if (!c->ifi4 && inany_v4(addr)) {
-			die("IPv4 is disabled, can't use -%c %s",
-			    optname, optarg);
-		} else if (!c->ifi6 && !inany_v4(addr)) {
-			die("IPv6 is disabled, can't use -%c %s",
-			    optname, optarg);
-		}
-	}
 
 	/* Mark all exclusions first, they might be given after base ranges */
 	p = spec;
@@ -350,15 +256,6 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		for (i = xrange.first; i <= xrange.last; i++)
 			bitmap_set(exclude, i);
 	} while ((p = next_chunk(p, ',')));
-
-	if (ifname && c->no_bindtodevice) {
-		die(
-"Device binding for '-%c %s' unsupported (requires kernel 5.7+)",
-		    optname, optarg);
-	}
-	/* Outbound forwards come from guest loopback */
-	if ((optname == 'T' || optname == 'U') && !ifname)
-		ifname = "lo";
 
 	if (exclude_only) {
 		/* Exclude ephemeral ports */
@@ -411,6 +308,138 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 	return;
 bad:
 	die("Invalid port specifier %s", optarg);
+}
+
+/**
+ * conf_ports() - Parse port configuration options, initialise UDP/TCP sockets
+ * @c:		Execution context
+ * @optname:	Short option name, t, T, u, or U
+ * @optarg:	Option argument (port specification)
+ * @fwd:	Forwarding table to be updated
+ * @mode:	Overall port forwarding mode (updated)
+ */
+static void conf_ports(const struct ctx *c, char optname, const char *optarg,
+		       struct fwd_table *fwd, enum fwd_mode *mode)
+{
+	union inany_addr addr_buf = inany_any6, *addr = &addr_buf;
+	char buf[BUFSIZ], *spec, *ifname = NULL, *p;
+
+	if (!strcmp(optarg, "none")) {
+		if (*mode)
+			goto mode_conflict;
+
+		*mode = FWD_MODE_NONE;
+		return;
+	}
+
+	if ((optname == 't' || optname == 'T') && c->no_tcp)
+		die("TCP port forwarding requested but TCP is disabled");
+	if ((optname == 'u' || optname == 'U') && c->no_udp)
+		die("UDP port forwarding requested but UDP is disabled");
+
+	if (!strcmp(optarg, "auto")) {
+		if (*mode)
+			goto mode_conflict;
+
+		if (c->mode != MODE_PASTA)
+			die("'auto' port forwarding is only allowed for pasta");
+
+		*mode = FWD_MODE_AUTO;
+		return;
+	}
+
+	if (!strcmp(optarg, "all")) {
+		uint8_t exclude[PORT_BITMAP_SIZE] = { 0 };
+
+		if (*mode)
+			goto mode_conflict;
+
+		if (c->mode == MODE_PASTA)
+			die("'all' port forwarding is only allowed for passt");
+
+		*mode = FWD_MODE_ALL;
+
+		/* Exclude ephemeral ports */
+		fwd_port_map_ephemeral(exclude);
+
+		conf_ports_range_except(c, optname, optarg, fwd,
+					NULL, NULL,
+					1, NUM_PORTS - 1, exclude,
+					1, FWD_WEAK);
+		return;
+	}
+
+	if (*mode > FWD_MODE_SPEC)
+		die("Specific ports cannot be specified together with all/none/auto");
+
+	*mode = FWD_MODE_SPEC;
+
+	strncpy(buf, optarg, sizeof(buf) - 1);
+
+	if ((spec = strchr(buf, '/'))) {
+		*spec = 0;
+		spec++;
+
+		if (optname != 't' && optname != 'u')
+			die("Listening address not allowed for -%c %s",
+			    optname, optarg);
+
+		if ((ifname = strchr(buf, '%'))) {
+			*ifname = 0;
+			ifname++;
+
+			/* spec is already advanced one past the '/',
+			 * so the length of the given ifname is:
+			 * (spec - ifname - 1)
+			 */
+			if (spec - ifname - 1 >= IFNAMSIZ) {
+				die("Interface name '%s' is too long (max %u)",
+				    ifname, IFNAMSIZ - 1);
+			}
+		}
+
+		if (ifname == buf + 1) {	/* Interface without address */
+			addr = NULL;
+		} else {
+			p = buf;
+
+			/* Allow square brackets for IPv4 too for convenience */
+			if (*p == '[' && p[strlen(p) - 1] == ']') {
+				p[strlen(p) - 1] = '\0';
+				p++;
+			}
+
+			if (!inany_pton(p, addr))
+				die("Bad forwarding address '%s'", p);
+		}
+	} else {
+		spec = buf;
+
+		addr = NULL;
+	}
+
+	if (addr) {
+		if (!c->ifi4 && inany_v4(addr)) {
+			die("IPv4 is disabled, can't use -%c %s",
+			    optname, optarg);
+		} else if (!c->ifi6 && !inany_v4(addr)) {
+			die("IPv6 is disabled, can't use -%c %s",
+			    optname, optarg);
+		}
+	}
+
+	if (ifname && c->no_bindtodevice) {
+		die(
+"Device binding for '-%c %s' unsupported (requires kernel 5.7+)",
+		    optname, optarg);
+	}
+	/* Outbound forwards come from guest loopback */
+	if ((optname == 'T' || optname == 'U') && !ifname)
+		ifname = "lo";
+
+	conf_ports_spec(c, optname, optarg, fwd, addr, ifname, spec);
+	return;
+
 mode_conflict:
 	die("Port forwarding mode '%s' conflicts with previous mode", optarg);
 }
