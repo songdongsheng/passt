@@ -358,9 +358,6 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		if (*mode)
 			goto mode_conflict;
 
-		if (c->mode == MODE_PASTA)
-			die("'all' port forwarding is only allowed for passt");
-
 		*mode = FWD_MODE_ALL;
 
 		/* Exclude ephemeral ports */
@@ -1036,6 +1033,7 @@ static void usage(const char *name, FILE *f, int status)
 		"    can be specified multiple times\n"
 		"    SPEC can be:\n"
 		"      'none': don't forward any ports\n"
+		"      'all': forward all unbound, non-ephemeral ports\n"
 		"%s"
 		"      a comma-separated list, optionally ranged with '-'\n"
 		"        and optional target ports after ':', with optional\n"
@@ -1059,8 +1057,7 @@ static void usage(const char *name, FILE *f, int status)
 		guest,
 		strstr(name, "pasta") ?
 		"      'auto': forward all ports currently bound in namespace\n"
-		:
-		"      'all': forward all unbound, non-ephemeral ports\n",
+		: "",
 		guest, guest, guest, fwd_default, guest, fwd_default);
 
 	if (strstr(name, "pasta"))
