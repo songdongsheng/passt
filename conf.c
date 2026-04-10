@@ -151,8 +151,25 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 				    const uint8_t *exclude, uint16_t to,
 				    uint8_t flags)
 {
+	struct fwd_rule rule = {
+		.addr = addr ? *addr : inany_any6,
+		.ifname = { 0 },
+		.proto = proto,
+		.flags = flags,
+	};
 	unsigned delta = to - first;
 	unsigned base, i;
+
+	if (!addr)
+		rule.flags |= FWD_DUAL_STACK_ANY;
+	if (ifname) {
+		int ret;
+
+		ret = snprintf(rule.ifname, sizeof(rule.ifname),
+			       "%s", ifname);
+		if (ret <= 0 || (size_t)ret >= sizeof(rule.ifname))
+			die("Invalid interface name: %s", ifname);
+	}
 
 	assert(first != 0);
 
@@ -165,28 +182,37 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 				break;
 		}
 
+		rule.first = base;
+		rule.last = i - 1;
+		rule.to = base + delta;
+
 		if ((optname == 'T' || optname == 'U') && c->no_bindtodevice) {
 			/* FIXME: Once the fwd bitmaps are removed, move this
 			 * workaround to the caller
 			 */
+			struct fwd_rule rulev = {
+				.ifname = { 0 },
+				.flags = flags,
+				.first = base,
+				.last = i - 1,
+				.to = base + delta,
+			};
+
 			assert(!addr && ifname && !strcmp(ifname, "lo"));
 			warn(
 "SO_BINDTODEVICE unavailable, forwarding only 127.0.0.1 and ::1 for '-%c %s'",
 			     optname, optarg);
 
 			if (c->ifi4) {
-				fwd_rule_add(fwd, proto, flags,
-					     &inany_loopback4, NULL,
-					     base, i - 1, base + delta);
+				rulev.addr = inany_loopback4;
+				fwd_rule_add(fwd, &rulev);
 			}
 			if (c->ifi6) {
-				fwd_rule_add(fwd, proto, flags,
-					     &inany_loopback6, NULL,
-					     base, i - 1, base + delta);
+				rulev.addr = inany_loopback6;
+				fwd_rule_add(fwd, &rulev);
 			}
 		} else {
-			fwd_rule_add(fwd, proto, flags, addr, ifname,
-				     base, i - 1, base + delta);
+			fwd_rule_add(fwd, &rule);
 		}
 		base = i - 1;
 	}

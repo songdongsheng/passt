@@ -332,30 +332,22 @@ void fwd_rule_init(struct ctx *c)
 }
 
 /**
- * fwd_rule_add() - Add a rule to a forwarding table
+ * fwd_rule_add() - Validate and add a rule to a forwarding table
  * @fwd:	Table to add to
- * @proto:	Protocol to forward
- * @flags:	Flags for this entry
- * @addr:	Our address to forward (NULL for both 0.0.0.0 and ::)
- * @ifname:	Only forward from this interface name, if non-empty
- * @first:	First port number to forward
- * @last:	Last port number to forward
- * @to:		First port of target port range to map to
+ * @new:	Rule to add
  */
-void fwd_rule_add(struct fwd_table *fwd, uint8_t proto, uint8_t flags,
-		  const union inany_addr *addr, const char *ifname,
-		  in_port_t first, in_port_t last, in_port_t to)
+void fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new)
 {
 	/* Flags which can be set from the caller */
 	const uint8_t allowed_flags = FWD_WEAK | FWD_SCAN | FWD_DUAL_STACK_ANY;
-	unsigned num = (unsigned)last - first + 1;
-	struct fwd_rule *new;
+	unsigned num = (unsigned)new->last - new->first + 1;
 	unsigned i, port;
 
-	assert(!(flags & ~allowed_flags));
+	assert(!(new->flags & ~allowed_flags));
 	/* Passing a non-wildcard address with DUAL_STACK_ANY is a bug */
-	assert(!(flags & FWD_DUAL_STACK_ANY) || !addr ||
-	       inany_equals(addr, &inany_any6));
+	assert(!(new->flags & FWD_DUAL_STACK_ANY) ||
+	       inany_equals(&new->addr, &inany_any6));
+	assert(new->first <= new->last);
 
 	if (fwd->count >= ARRAY_SIZE(fwd->rules))
 		die("Too many port forwarding ranges");
@@ -367,55 +359,30 @@ void fwd_rule_add(struct fwd_table *fwd, uint8_t proto, uint8_t flags,
 		char newstr[INANY_ADDRSTRLEN], rulestr[INANY_ADDRSTRLEN];
 		const struct fwd_rule *rule = &fwd->rules[i];
 
-		if (proto != rule->proto)
+		if (new->proto != rule->proto)
 			/* Non-conflicting protocols */
 			continue;
 
-		if (!inany_matches(addr, fwd_rule_addr(rule)))
+		if (!inany_matches(fwd_rule_addr(new), fwd_rule_addr(rule)))
 			/* Non-conflicting addresses */
 			continue;
 
-		if (last < rule->first || rule->last < first)
+		if (new->last < rule->first || rule->last < new->first)
 			/* Port ranges don't overlap */
 			continue;
 
 		die("Forwarding configuration conflict: %s/%u-%u versus %s/%u-%u",
-		    inany_ntop(addr, newstr, sizeof(newstr)), first, last,
+		    inany_ntop(fwd_rule_addr(new), newstr, sizeof(newstr)),
+		    new->first, new->last,
 		    inany_ntop(fwd_rule_addr(rule), rulestr, sizeof(rulestr)),
 		    rule->first, rule->last);
 	}
-
-	new = &fwd->rules[fwd->count];
-	new->proto = proto;
-	new->flags = flags;
-
-	if (addr) {
-		new->addr = *addr;
-	} else {
-		new->addr = inany_any6;
-		new->flags |= FWD_DUAL_STACK_ANY;
-	}
-
-	memset(new->ifname, 0, sizeof(new->ifname));
-	if (ifname) {
-		int ret;
-
-		ret = snprintf(new->ifname, sizeof(new->ifname),
-			       "%s", ifname);
-		if (ret <= 0 || (size_t)ret >= sizeof(new->ifname))
-			die("Invalid interface name: %s", ifname);
-	}
-
-	assert(first <= last);
-	new->first = first;
-	new->last = last;
-	new->to = to;
 
 	fwd->rulesocks[fwd->count] = &fwd->socks[fwd->sock_count];
 	for (port = new->first; port <= new->last; port++)
 		fwd->rulesocks[fwd->count][port - new->first] = -1;
 
-	fwd->count++;
+	fwd->rules[fwd->count++] = *new;
 	fwd->sock_count += num;
 }
 
