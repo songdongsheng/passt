@@ -134,6 +134,7 @@ static int parse_port_range(const char *s, const char **endptr,
  * @optname:	Short option name, t, T, u, or U
  * @optarg:	Option argument (port specification)
  * @fwd:	Forwarding table to be updated
+ * @proto:	Protocol to forward
  * @addr:	Listening address
  * @ifname:	Listening interface
  * @first:	First port to forward
@@ -144,7 +145,7 @@ static int parse_port_range(const char *s, const char **endptr,
  */
 static void conf_ports_range_except(const struct ctx *c, char optname,
 				    const char *optarg, struct fwd_table *fwd,
-				    const union inany_addr *addr,
+				    uint8_t proto, const union inany_addr *addr,
 				    const char *ifname,
 				    uint16_t first, uint16_t last,
 				    const uint8_t *exclude, uint16_t to,
@@ -152,16 +153,8 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 {
 	unsigned delta = to - first;
 	unsigned base, i;
-	uint8_t proto;
 
 	assert(first != 0);
-
-	if (optname == 't' || optname == 'T')
-		proto = IPPROTO_TCP;
-	else if (optname == 'u' || optname == 'U')
-		proto = IPPROTO_UDP;
-	else
-		assert(0);
 
 	for (base = first; base <= last; base++) {
 		if (exclude && bitmap_isset(exclude, base))
@@ -221,13 +214,14 @@ enum fwd_mode {
  * @optname:	Short option name, t, T, u, or U
  * @optarg:	Option argument (port specification)
  * @fwd:	Forwarding table to be updated
+ * @proto:	Protocol to forward
  * @addr:	Listening address for forwarding
  * @ifname:	Interface name for listening
  * @spec:	Port range(s) specifier
  */
 static void conf_ports_spec(const struct ctx *c,
 			    char optname, const char *optarg,
-			    struct fwd_table *fwd,
+			    struct fwd_table *fwd, uint8_t proto,
 			    const union inany_addr *addr, const char *ifname,
 			    const char *spec)
 {
@@ -262,7 +256,7 @@ static void conf_ports_spec(const struct ctx *c,
 		fwd_port_map_ephemeral(exclude);
 
 		conf_ports_range_except(c, optname, optarg, fwd,
-					addr, ifname,
+					proto, addr, ifname,
 					1, NUM_PORTS - 1, exclude,
 					1, FWD_WEAK);
 		return;
@@ -299,7 +293,7 @@ static void conf_ports_spec(const struct ctx *c,
 		}
 
 		conf_ports_range_except(c, optname, optarg, fwd,
-					addr, ifname,
+					proto, addr, ifname,
 					orig_range.first, orig_range.last,
 					exclude,
 					mapped_range.first, 0);
@@ -323,6 +317,14 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 {
 	union inany_addr addr_buf = inany_any6, *addr = &addr_buf;
 	char buf[BUFSIZ], *spec, *ifname = NULL, *p;
+	uint8_t proto;
+
+	if (optname == 't' || optname == 'T')
+		proto = IPPROTO_TCP;
+	else if (optname == 'u' || optname == 'U')
+		proto = IPPROTO_UDP;
+	else
+		assert(0);
 
 	if (!strcmp(optarg, "none")) {
 		if (*mode)
@@ -332,9 +334,9 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		return;
 	}
 
-	if ((optname == 't' || optname == 'T') && c->no_tcp)
+	if (proto == IPPROTO_TCP && c->no_tcp)
 		die("TCP port forwarding requested but TCP is disabled");
-	if ((optname == 'u' || optname == 'U') && c->no_udp)
+	if (proto == IPPROTO_UDP && c->no_udp)
 		die("UDP port forwarding requested but UDP is disabled");
 
 	if (!strcmp(optarg, "auto")) {
@@ -346,7 +348,8 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 
 		*mode = FWD_MODE_AUTO;
 
-		conf_ports_range_except(c, optname, optarg, fwd, NULL, NULL,
+		conf_ports_range_except(c, optname, optarg, fwd,
+					proto, NULL, NULL,
 					1, NUM_PORTS - 1, NULL, 1, FWD_SCAN);
 
 		return;
@@ -364,7 +367,7 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		fwd_port_map_ephemeral(exclude);
 
 		conf_ports_range_except(c, optname, optarg, fwd,
-					NULL, NULL,
+					proto, NULL, NULL,
 					1, NUM_PORTS - 1, exclude,
 					1, FWD_WEAK);
 		return;
@@ -438,7 +441,7 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 	if ((optname == 'T' || optname == 'U') && !ifname)
 		ifname = "lo";
 
-	conf_ports_spec(c, optname, optarg, fwd, addr, ifname, spec);
+	conf_ports_spec(c, optname, optarg, fwd, proto, addr, ifname, spec);
 	return;
 
 mode_conflict:
