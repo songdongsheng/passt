@@ -85,7 +85,7 @@ struct fwd_scan {
 #define FWD_PORT_SCAN_INTERVAL		1000	/* ms */
 
 void fwd_rule_init(struct ctx *c);
-void fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new);
+int fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new);
 const struct fwd_rule *fwd_rule_search(const struct fwd_table *fwd,
 				       const struct flowside *ini,
 				       uint8_t proto, int hint);

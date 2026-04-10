@@ -157,6 +157,7 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 		.proto = proto,
 		.flags = flags,
 	};
+	char rulestr[FWD_RULE_STRLEN];
 	unsigned delta = to - first;
 	unsigned base, i;
 
@@ -207,20 +208,28 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 				rulev.addr = inany_loopback4;
 				fwd_rule_conflict_check(&rulev,
 							fwd->rules, fwd->count);
-				fwd_rule_add(fwd, &rulev);
+				if (fwd_rule_add(fwd, &rulev) < 0)
+					goto fail;
 			}
 			if (c->ifi6) {
 				rulev.addr = inany_loopback6;
 				fwd_rule_conflict_check(&rulev,
 							fwd->rules, fwd->count);
-				fwd_rule_add(fwd, &rulev);
+				if (fwd_rule_add(fwd, &rulev) < 0)
+					goto fail;
 			}
 		} else {
 			fwd_rule_conflict_check(&rule, fwd->rules, fwd->count);
-			fwd_rule_add(fwd, &rule);
+			if (fwd_rule_add(fwd, &rule) < 0)
+				goto fail;
 		}
 		base = i - 1;
 	}
+	return;
+
+fail:
+	die("Unable to add rule %s",
+	    fwd_rule_fmt(&rule, rulestr, sizeof(rulestr)));
 }
 
 /**

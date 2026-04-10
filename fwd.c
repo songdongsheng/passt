@@ -335,24 +335,44 @@ void fwd_rule_init(struct ctx *c)
  * fwd_rule_add() - Validate and add a rule to a forwarding table
  * @fwd:	Table to add to
  * @new:	Rule to add
+ *
+ * Return: 0 on success, negative error code on failure
  */
-void fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new)
+int fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new)
 {
 	/* Flags which can be set from the caller */
 	const uint8_t allowed_flags = FWD_WEAK | FWD_SCAN | FWD_DUAL_STACK_ANY;
 	unsigned num = (unsigned)new->last - new->first + 1;
 	unsigned port;
 
-	assert(!(new->flags & ~allowed_flags));
-	/* Passing a non-wildcard address with DUAL_STACK_ANY is a bug */
-	assert(!(new->flags & FWD_DUAL_STACK_ANY) ||
-	       inany_equals(&new->addr, &inany_any6));
-	assert(new->first <= new->last);
+	if (new->first > new->last) {
+		warn("Rule has invalid port range %u-%u",
+		     new->first, new->last);
+		return -EINVAL;
+	}
+	if (new->flags & ~allowed_flags) {
+		warn("Rule has invalid flags 0x%hhx",
+		     new->flags & ~allowed_flags);
+		return -EINVAL;
+	}
+	if (new->flags & FWD_DUAL_STACK_ANY &&
+	    !inany_equals(&new->addr, &inany_any6)) {
+		char astr[INANY_ADDRSTRLEN];
 
-	if (fwd->count >= ARRAY_SIZE(fwd->rules))
-		die("Too many port forwarding ranges");
-	if ((fwd->sock_count + num) > ARRAY_SIZE(fwd->socks))
-		die("Too many listening sockets");
+		warn("Dual stack rule has non-wildcard address %s",
+		     inany_ntop(&new->addr, astr, sizeof(astr)));
+		return -EINVAL;
+	}
+
+	if (fwd->count >= ARRAY_SIZE(fwd->rules)) {
+		warn("Too many rules (maximum %u)", ARRAY_SIZE(fwd->rules));
+		return -ENOSPC;
+	}
+	if ((fwd->sock_count + num) > ARRAY_SIZE(fwd->socks)) {
+		warn("Rules require too many listening sockets (maximum %u)",
+		     ARRAY_SIZE(fwd->socks));
+		return -ENOSPC;
+	}
 
 	fwd->rulesocks[fwd->count] = &fwd->socks[fwd->sock_count];
 	for (port = new->first; port <= new->last; port++)
@@ -360,6 +380,7 @@ void fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new)
 
 	fwd->rules[fwd->count++] = *new;
 	fwd->sock_count += num;
+	return 0;
 }
 
 /**

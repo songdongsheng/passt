@@ -45,8 +45,7 @@ const union inany_addr *fwd_rule_addr(const struct fwd_rule *rule)
  */
 __attribute__((noinline))
 #endif
-static const char *fwd_rule_fmt(const struct fwd_rule *rule,
-				char *dst, size_t size)
+const char *fwd_rule_fmt(const struct fwd_rule *rule, char *dst, size_t size)
 {
 	const char *percent = *rule->ifname ? "%" : "";
 	const char *weak = "", *scan = "";

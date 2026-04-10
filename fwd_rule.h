@@ -51,6 +51,7 @@ struct fwd_rule {
 	 + sizeof(" []%:-  =>  - (best effort) (auto-scan)"))
 
 const union inany_addr *fwd_rule_addr(const struct fwd_rule *rule);
+const char *fwd_rule_fmt(const struct fwd_rule *rule, char *dst, size_t size);
 void fwd_rules_info(const struct fwd_rule *rules, size_t count);
 void fwd_rule_conflict_check(const struct fwd_rule *new,
 			     const struct fwd_rule *rules, size_t count);
