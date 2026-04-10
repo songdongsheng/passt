@@ -305,20 +305,6 @@ parse_err:
 }
 
 /**
- * fwd_rule_addr() - Return match address for a rule
- * @rule:	Forwarding rule
- *
- * Return: matching address for rule, NULL if it matches all addresses
- */
-static const union inany_addr *fwd_rule_addr(const struct fwd_rule *rule)
-{
-	if (rule->flags & FWD_DUAL_STACK_ANY)
-		return NULL;
-
-	return &rule->addr;
-}
-
-/**
  * fwd_port_map_ephemeral() - Mark ephemeral ports in a bitmap
  * @map:	Bitmap to update
  */
@@ -485,40 +471,6 @@ const struct fwd_rule *fwd_rule_search(const struct fwd_table *fwd,
 	}
 
 	return NULL;
-}
-
-/**
- * fwd_rules_print() - Print forwarding rules for debugging
- * @fwd:	Table to print
- */
-void fwd_rules_print(const struct fwd_table *fwd)
-{
-	unsigned i;
-
-	for (i = 0; i < fwd->count; i++) {
-		const struct fwd_rule *rule = &fwd->rules[i];
-		const char *percent = *rule->ifname ? "%" : "";
-		const char *weak = "", *scan = "";
-		char addr[INANY_ADDRSTRLEN];
-
-		inany_ntop(fwd_rule_addr(rule), addr, sizeof(addr));
-		if (rule->flags & FWD_WEAK)
-			weak = " (best effort)";
-		if (rule->flags & FWD_SCAN)
-			scan = " (auto-scan)";
-
-		if (rule->first == rule->last) {
-			info("    %s [%s]%s%s:%hu  =>  %hu %s%s",
-			     ipproto_name(rule->proto), addr, percent,
-			     rule->ifname, rule->first, rule->to, weak, scan);
-		} else {
-			info("    %s [%s]%s%s:%hu-%hu  =>  %hu-%hu %s%s",
-			     ipproto_name(rule->proto), addr, percent,
-			     rule->ifname, rule->first, rule->last,
-			     rule->to, rule->last - rule->first + rule->to,
-			     weak, scan);
-		}
-	}
 }
 
 /** fwd_sync_one() - Create or remove listening sockets for a forward entry

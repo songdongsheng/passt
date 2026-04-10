@@ -91,7 +91,6 @@ void fwd_rule_add(struct fwd_table *fwd, uint8_t proto, uint8_t flags,
 const struct fwd_rule *fwd_rule_search(const struct fwd_table *fwd,
 				       const struct flowside *ini,
 				       uint8_t proto, int hint);
-void fwd_rules_print(const struct fwd_table *fwd);
 
 void fwd_scan_ports_init(struct ctx *c);
 void fwd_scan_ports_timer(struct ctx * c, const struct timespec *now);

@@ -13,7 +13,9 @@
 #include <net/if.h>
 #include <netinet/in.h>
 
+#include "ip.h"
 #include "inany.h"
+#include "bitmap.h"
 
 /**
  * struct fwd_rule - Forwarding rule governing a range of ports
@@ -40,5 +42,15 @@ struct fwd_rule {
 #define FWD_SCAN		BIT(2)
 	uint8_t flags;
 };
+
+#define FWD_RULE_STRLEN					    \
+	(IPPROTO_STRLEN - 1				    \
+	 + INANY_ADDRSTRLEN - 1				    \
+	 + IFNAMSIZ - 1					    \
+	 + 4 * (UINT16_STRLEN - 1)			    \
+	 + sizeof(" []%:-  =>  - (best effort) (auto-scan)"))
+
+const union inany_addr *fwd_rule_addr(const struct fwd_rule *rule);
+void fwd_rules_info(const struct fwd_rule *rules, size_t count);
 
 #endif /* FWD_RULE_H */
