@@ -345,6 +345,10 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 			die("'auto' port forwarding is only allowed for pasta");
 
 		*mode = FWD_MODE_AUTO;
+
+		conf_ports_range_except(c, optname, optarg, fwd, NULL, NULL,
+					1, NUM_PORTS - 1, NULL, 1, FWD_SCAN);
+
 		return;
 	}
 
@@ -1576,7 +1580,6 @@ void conf(struct ctx *c, int argc, char **argv)
 	enum fwd_mode udp_out_mode = FWD_MODE_UNSET;
 	enum fwd_mode tcp_in_mode = FWD_MODE_UNSET;
 	enum fwd_mode udp_in_mode = FWD_MODE_UNSET;
-	enum fwd_mode fwd_default = FWD_MODE_NONE;
 	bool v4_only = false, v6_only = false;
 	unsigned dns4_idx = 0, dns6_idx = 0;
 	unsigned long max_mtu = IP_MAX_MTU;
@@ -1593,10 +1596,8 @@ void conf(struct ctx *c, int argc, char **argv)
 	gid_t gid;
 	
 
-	if (c->mode == MODE_PASTA) {
+	if (c->mode == MODE_PASTA)
 		c->no_dhcp_dns = c->no_dhcp_dns_search = 1;
-		fwd_default = FWD_MODE_AUTO;
-	}
 
 	if (tap_l2_max_len(c) - ETH_HLEN < max_mtu)
 		max_mtu = tap_l2_max_len(c) - ETH_HLEN;
@@ -2244,34 +2245,23 @@ void conf(struct ctx *c, int argc, char **argv)
 			if_indextoname(c->ifi6, c->pasta_ifn);
 	}
 
-	if (!tcp_in_mode)
-		tcp_in_mode = fwd_default;
-	if (!tcp_out_mode)
-		tcp_out_mode = fwd_default;
-	if (!udp_in_mode)
-		udp_in_mode = fwd_default;
-	if (!udp_out_mode)
-		udp_out_mode = fwd_default;
-
-	if (tcp_in_mode == FWD_MODE_AUTO) {
-		conf_ports_range_except(c, 't', "auto", c->fwd[PIF_HOST],
-					NULL, NULL, 1, NUM_PORTS - 1, NULL, 1,
-					FWD_SCAN);
-	}
-	if (tcp_out_mode == FWD_MODE_AUTO) {
-		conf_ports_range_except(c, 'T', "auto", c->fwd[PIF_SPLICE],
-					NULL, "lo", 1, NUM_PORTS - 1, NULL, 1,
-					FWD_SCAN);
-	}
-	if (udp_in_mode == FWD_MODE_AUTO) {
-		conf_ports_range_except(c, 'u', "auto", c->fwd[PIF_HOST],
-					NULL, NULL, 1, NUM_PORTS - 1, NULL, 1,
-					FWD_SCAN);
-	}
-	if (udp_out_mode == FWD_MODE_AUTO) {
-		conf_ports_range_except(c, 'U', "auto", c->fwd[PIF_SPLICE],
-					NULL, "lo", 1, NUM_PORTS - 1, NULL, 1,
-					FWD_SCAN);
+	if (c->mode == MODE_PASTA) {
+		if (!tcp_in_mode) {
+			conf_ports(c, 't', "auto",
+				   c->fwd[PIF_HOST], &tcp_in_mode);
+		}
+		if (!tcp_out_mode) {
+			conf_ports(c, 'T', "auto",
+				   c->fwd[PIF_SPLICE], &tcp_out_mode);
+		}
+		if (!udp_in_mode) {
+			conf_ports(c, 'u', "auto",
+				   c->fwd[PIF_HOST], &udp_in_mode);
+		}
+		if (!udp_out_mode) {
+			conf_ports(c, 'U', "auto",
+				   c->fwd[PIF_SPLICE], &udp_out_mode);
+		}
 	}
 
 	if (!c->quiet)
