@@ -233,22 +233,6 @@ fail:
 }
 
 /**
- * enum fwd_mode - Overall forwarding mode for a direction and protocol
- * @FWD_MODE_UNSET	Initial value, not parsed/configured yet
- * @FWD_MODE_SPEC	Forward specified ports
- * @FWD_MODE_NONE	No forwarded ports
- * @FWD_MODE_AUTO	Automatic detection and forwarding based on bound ports
- * @FWD_MODE_ALL	Bind all free ports
- */
-enum fwd_mode {
-	FWD_MODE_UNSET = 0,
-	FWD_MODE_SPEC,
-	FWD_MODE_NONE,
-	FWD_MODE_AUTO,
-	FWD_MODE_ALL,
-};
-
-/**
  * conf_ports_spec() - Parse port range(s) specifier
  * @c:		Execution context
  * @optname:	Short option name, t, T, u, or U
@@ -350,13 +334,12 @@ bad:
  * @optname:	Short option name, t, T, u, or U
  * @optarg:	Option argument (port specification)
  * @fwd:	Forwarding table to be updated
- * @mode:	Overall port forwarding mode (updated)
  */
 static void conf_ports(const struct ctx *c, char optname, const char *optarg,
-		       struct fwd_table *fwd, enum fwd_mode *mode)
+		       struct fwd_table *fwd)
 {
 	union inany_addr addr_buf = inany_any6, *addr = &addr_buf;
-	char buf[BUFSIZ], *spec, *ifname = NULL, *p;
+	char buf[BUFSIZ], *spec, *ifname = NULL;
 	uint8_t proto;
 
 	if (optname == 't' || optname == 'T')
@@ -367,10 +350,14 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		assert(0);
 
 	if (!strcmp(optarg, "none")) {
-		if (*mode)
-			goto mode_conflict;
+		unsigned i;
 
-		*mode = FWD_MODE_NONE;
+		for (i = 0; i < fwd->count; i++) {
+			if (fwd->rules[i].proto == proto) {
+				die("-%c none conflicts with previous options",
+					optname);
+			}
+		}
 		return;
 	}
 
@@ -380,13 +367,8 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		die("UDP port forwarding requested but UDP is disabled");
 
 	if (!strcmp(optarg, "auto")) {
-		if (*mode)
-			goto mode_conflict;
-
 		if (c->mode != MODE_PASTA)
 			die("'auto' port forwarding is only allowed for pasta");
-
-		*mode = FWD_MODE_AUTO;
 
 		conf_ports_range_except(c, optname, optarg, fwd,
 					proto, NULL, NULL,
@@ -398,11 +380,6 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 	if (!strcmp(optarg, "all")) {
 		uint8_t exclude[PORT_BITMAP_SIZE] = { 0 };
 
-		if (*mode)
-			goto mode_conflict;
-
-		*mode = FWD_MODE_ALL;
-
 		/* Exclude ephemeral ports */
 		fwd_port_map_ephemeral(exclude);
 
@@ -412,11 +389,6 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 					1, FWD_WEAK);
 		return;
 	}
-
-	if (*mode > FWD_MODE_SPEC)
-		die("Specific ports cannot be specified together with all/none/auto");
-
-	*mode = FWD_MODE_SPEC;
 
 	strncpy(buf, optarg, sizeof(buf) - 1);
 
@@ -445,7 +417,7 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		if (ifname == buf + 1) {	/* Interface without address */
 			addr = NULL;
 		} else {
-			p = buf;
+			char *p = buf;
 
 			/* Allow square brackets for IPv4 too for convenience */
 			if (*p == '[' && p[strlen(p) - 1] == ']') {
@@ -482,10 +454,6 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		ifname = "lo";
 
 	conf_ports_spec(c, optname, optarg, fwd, proto, addr, ifname, spec);
-	return;
-
-mode_conflict:
-	die("Port forwarding mode '%s' conflicts with previous mode", optarg);
 }
 
 /**
@@ -1602,12 +1570,9 @@ void conf(struct ctx *c, int argc, char **argv)
 	};
 	const char *optstring = "+dqfel:hs:F:I:p:P:m:a:n:M:g:i:o:D:S:H:461t:u:T:U:";
 	const char *logname = (c->mode == MODE_PASTA) ? "pasta" : "passt";
+	bool opt_t = false, opt_T = false, opt_u = false, opt_U = false;
 	char userns[PATH_MAX] = { 0 }, netns[PATH_MAX] = { 0 };
 	bool copy_addrs_opt = false, copy_routes_opt = false;
-	enum fwd_mode tcp_out_mode = FWD_MODE_UNSET;
-	enum fwd_mode udp_out_mode = FWD_MODE_UNSET;
-	enum fwd_mode tcp_in_mode = FWD_MODE_UNSET;
-	enum fwd_mode udp_in_mode = FWD_MODE_UNSET;
 	bool v4_only = false, v6_only = false;
 	unsigned dns4_idx = 0, dns6_idx = 0;
 	unsigned long max_mtu = IP_MAX_MTU;
@@ -2212,17 +2177,17 @@ void conf(struct ctx *c, int argc, char **argv)
 		name = getopt_long(argc, argv, optstring, options, NULL);
 
 		if (name == 't') {
-			conf_ports(c, name, optarg, c->fwd[PIF_HOST],
-				   &tcp_in_mode);
+			opt_t = true;
+			conf_ports(c, name, optarg, c->fwd[PIF_HOST]);
 		} else if (name == 'u') {
-			conf_ports(c, name, optarg, c->fwd[PIF_HOST],
-				   &udp_in_mode);
+			opt_u = true;
+			conf_ports(c, name, optarg, c->fwd[PIF_HOST]);
 		} else if (name == 'T') {
-			conf_ports(c, name, optarg, c->fwd[PIF_SPLICE],
-				   &tcp_out_mode);
+			opt_T = true;
+			conf_ports(c, name, optarg, c->fwd[PIF_SPLICE]);
 		} else if (name == 'U') {
-			conf_ports(c, name, optarg, c->fwd[PIF_SPLICE],
-				   &udp_out_mode);
+			opt_U = true;
+			conf_ports(c, name, optarg, c->fwd[PIF_SPLICE]);
 		}
 	} while (name != -1);
 
@@ -2273,22 +2238,14 @@ void conf(struct ctx *c, int argc, char **argv)
 	}
 
 	if (c->mode == MODE_PASTA) {
-		if (!tcp_in_mode) {
-			conf_ports(c, 't', "auto",
-				   c->fwd[PIF_HOST], &tcp_in_mode);
-		}
-		if (!tcp_out_mode) {
-			conf_ports(c, 'T', "auto",
-				   c->fwd[PIF_SPLICE], &tcp_out_mode);
-		}
-		if (!udp_in_mode) {
-			conf_ports(c, 'u', "auto",
-				   c->fwd[PIF_HOST], &udp_in_mode);
-		}
-		if (!udp_out_mode) {
-			conf_ports(c, 'U', "auto",
-				   c->fwd[PIF_SPLICE], &udp_out_mode);
-		}
+		if (!opt_t)
+			conf_ports(c, 't', "auto", c->fwd[PIF_HOST]);
+		if (!opt_T)
+			conf_ports(c, 'T', "auto", c->fwd[PIF_SPLICE]);
+		if (!opt_u)
+			conf_ports(c, 'u', "auto", c->fwd[PIF_HOST]);
+		if (!opt_U)
+			conf_ports(c, 'U', "auto", c->fwd[PIF_SPLICE]);
 	}
 
 	if (!c->quiet)
