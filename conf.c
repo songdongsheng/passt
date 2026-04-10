@@ -2024,6 +2024,12 @@ void conf(struct ctx *c, int argc, char **argv)
 
 			c->one_off = true;
 			break;
+		case 'T':
+		case 'U':
+			if (c->mode != MODE_PASTA)
+				die("-%c is for pasta mode only", name);
+
+			/* fall through */
 		case 't':
 		case 'u':
 			/* Handle these later, once addresses are configured */
@@ -2063,13 +2069,6 @@ void conf(struct ctx *c, int argc, char **argv)
 
 			die("Cannot use DNS address %s", optarg);
 		}
-			break;
-		case 'T':
-		case 'U':
-			if (c->mode != MODE_PASTA)
-				die("-%c is for pasta mode only", name);
-
-			/* Handle properly later, once addresses are configured */
 			break;
 		case 'h':
 			usage(argv[0], stdout, EXIT_SUCCESS);
