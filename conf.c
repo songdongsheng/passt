@@ -264,7 +264,7 @@ static void conf_ports_spec(const struct ctx *c,
 
 		if (parse_port_range(p, &p, &xrange))
 			goto bad;
-		if ((*p != '\0')  && (*p != ',')) /* Garbage after the range */
+		if (p != ep) /* Garbage after the range */
 			goto bad;
 
 		for (i = xrange.first; i <= xrange.last; i++)
@@ -303,7 +303,7 @@ static void conf_ports_spec(const struct ctx *c,
 			mapped_range = orig_range;
 		}
 
-		if ((*p != '\0')  && (*p != ',')) /* Garbage after the ranges */
+		if (p != ep) /* Garbage after the ranges */
 			goto bad;
 
 		if (orig_range.first == 0) {
