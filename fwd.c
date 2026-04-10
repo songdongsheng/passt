@@ -341,7 +341,7 @@ void fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new)
 	/* Flags which can be set from the caller */
 	const uint8_t allowed_flags = FWD_WEAK | FWD_SCAN | FWD_DUAL_STACK_ANY;
 	unsigned num = (unsigned)new->last - new->first + 1;
-	unsigned i, port;
+	unsigned port;
 
 	assert(!(new->flags & ~allowed_flags));
 	/* Passing a non-wildcard address with DUAL_STACK_ANY is a bug */
@@ -353,30 +353,6 @@ void fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new)
 		die("Too many port forwarding ranges");
 	if ((fwd->sock_count + num) > ARRAY_SIZE(fwd->socks))
 		die("Too many listening sockets");
-
-	/* Check for any conflicting entries */
-	for (i = 0; i < fwd->count; i++) {
-		char newstr[INANY_ADDRSTRLEN], rulestr[INANY_ADDRSTRLEN];
-		const struct fwd_rule *rule = &fwd->rules[i];
-
-		if (new->proto != rule->proto)
-			/* Non-conflicting protocols */
-			continue;
-
-		if (!inany_matches(fwd_rule_addr(new), fwd_rule_addr(rule)))
-			/* Non-conflicting addresses */
-			continue;
-
-		if (new->last < rule->first || rule->last < new->first)
-			/* Port ranges don't overlap */
-			continue;
-
-		die("Forwarding configuration conflict: %s/%u-%u versus %s/%u-%u",
-		    inany_ntop(fwd_rule_addr(new), newstr, sizeof(newstr)),
-		    new->first, new->last,
-		    inany_ntop(fwd_rule_addr(rule), rulestr, sizeof(rulestr)),
-		    rule->first, rule->last);
-	}
 
 	fwd->rulesocks[fwd->count] = &fwd->socks[fwd->sock_count];
 	for (port = new->first; port <= new->last; port++)

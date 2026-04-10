@@ -205,13 +205,18 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 
 			if (c->ifi4) {
 				rulev.addr = inany_loopback4;
+				fwd_rule_conflict_check(&rulev,
+							fwd->rules, fwd->count);
 				fwd_rule_add(fwd, &rulev);
 			}
 			if (c->ifi6) {
 				rulev.addr = inany_loopback6;
+				fwd_rule_conflict_check(&rulev,
+							fwd->rules, fwd->count);
 				fwd_rule_add(fwd, &rulev);
 			}
 		} else {
+			fwd_rule_conflict_check(&rule, fwd->rules, fwd->count);
 			fwd_rule_add(fwd, &rule);
 		}
 		base = i - 1;

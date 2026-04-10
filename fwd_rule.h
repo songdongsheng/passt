@@ -52,5 +52,7 @@ struct fwd_rule {
 
 const union inany_addr *fwd_rule_addr(const struct fwd_rule *rule);
 void fwd_rules_info(const struct fwd_rule *rules, size_t count);
+void fwd_rule_conflict_check(const struct fwd_rule *new,
+			     const struct fwd_rule *rules, size_t count);
 
 #endif /* FWD_RULE_H */

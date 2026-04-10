@@ -93,3 +93,48 @@ void fwd_rules_info(const struct fwd_rule *rules, size_t count)
 		info("    %s", fwd_rule_fmt(&rules[i], buf, sizeof(buf)));
 	}
 }
+
+/**
+ * fwd_rule_conflicts() - Test if two rules conflict with each other
+ * @a, @b:	Rules to test
+ */
+static bool fwd_rule_conflicts(const struct fwd_rule *a, const struct fwd_rule *b)
+{
+	if (a->proto != b->proto)
+		/* Non-conflicting protocols */
+		return false;
+
+	if (!inany_matches(fwd_rule_addr(a), fwd_rule_addr(b)))
+		/* Non-conflicting addresses */
+		return false;
+
+	assert(a->first <= a->last && b->first <= b->last);
+	if (a->last < b->first || b->last < a->first)
+		/* Port ranges don't overlap */
+		return false;
+
+	return true;
+}
+
+/**
+ * fwd_rule_conflict_check() - Die if given rule conflicts with any in list
+ * @new:	New rule
+ * @rules:	Existing rules against which to test
+ * @count:	Number of rules in @rules
+ */
+void fwd_rule_conflict_check(const struct fwd_rule *new,
+			     const struct fwd_rule *rules, size_t count)
+{
+	unsigned i;
+
+	for (i = 0; i < count; i++) {
+		char newstr[FWD_RULE_STRLEN], rulestr[FWD_RULE_STRLEN];
+
+		if (!fwd_rule_conflicts(new, &rules[i]))
+			continue;
+
+		die("Forwarding configuration conflict: %s versus %s",
+		    fwd_rule_fmt(new, newstr, sizeof(newstr)),
+		    fwd_rule_fmt(&rules[i], rulestr, sizeof(rulestr)));
+	}
+}
