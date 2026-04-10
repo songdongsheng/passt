@@ -26,16 +26,6 @@ struct flowside;
 void fwd_probe_ephemeral(void);
 void fwd_port_map_ephemeral(uint8_t *map);
 
-/**
- * struct fwd_rule_state - Forwarding rule and associated state
- * @rule:	Rule specification
- * @socks:	Array of listening sockets for this entry
- */
-struct fwd_rule_state {
-	struct fwd_rule rule;
-	int *socks;
-};
-
 #define FWD_RULE_BITS	8
 #define MAX_FWD_RULES	MAX_FROM_BITS(FWD_RULE_BITS)
 #define FWD_NO_HINT	(-1)
@@ -61,15 +51,19 @@ struct fwd_listen_ref {
 #define MAX_LISTEN_SOCKS	(NUM_PORTS * 5)
 
 /**
- * struct fwd_table - Table of forwarding rules (per initiating pif)
+ * struct fwd_table - Forwarding state (per initiating pif)
  * @count:	Number of forwarding rules
  * @rules:	Array of forwarding rules
- * @sock_count:	Number of entries used in @socks
+ * @rulesocks:	Parallel array of @rules (@count valid entries) of pointers to
+ *		@socks entries giving the start of the corresponding rule's
+ *		sockets within the larger array
+ * @sock_count:	Number of entries used in @socks (for all rules combined)
  * @socks:	Listening sockets for forwarding
  */
 struct fwd_table {
 	unsigned count;
-	struct fwd_rule_state rules[MAX_FWD_RULES];
+	struct fwd_rule rules[MAX_FWD_RULES];
+	int *rulesocks[MAX_FWD_RULES];
 	unsigned sock_count;
 	int socks[MAX_LISTEN_SOCKS];
 };
