@@ -103,6 +103,7 @@ static void udp_vu_prepare(const struct ctx *c, struct iov_tail *data,
 	bool ipv4 = inany_v4(&toside->eaddr) && inany_v4(&toside->oaddr);
 	struct ethhdr eh;
 	struct udphdr uh;
+	bool no_csum;
 
 	/* ethernet header */
 	memcpy(eh.h_dest, c->guest_mac, sizeof(eh.h_dest));
@@ -114,17 +115,19 @@ static void udp_vu_prepare(const struct ctx *c, struct iov_tail *data,
 		eh.h_proto = htons(ETH_P_IPV6);
 	IOV_PUSH_HEADER(data, eh);
 
+	no_csum = vu_has_feature(c->vdev, VIRTIO_NET_F_GUEST_CSUM) && !*c->pcap;
+
 	/* initialize header */
 	if (ipv4) {
 		struct iphdr iph = (struct iphdr)L2_BUF_IP4_INIT(IPPROTO_UDP);
 
-		udp_update_hdr4(&iph, &uh, payload, toside, dlen, !*c->pcap);
+		udp_update_hdr4(&iph, &uh, payload, toside, dlen, no_csum);
 
 		IOV_PUSH_HEADER(data, iph);
 	} else {
 		struct ipv6hdr ip6h = (struct ipv6hdr)L2_BUF_IP6_INIT(IPPROTO_UDP);
 
-		udp_update_hdr6(&ip6h, &uh, payload, toside, dlen, !*c->pcap);
+		udp_update_hdr6(&ip6h, &uh, payload, toside, dlen, no_csum);
 
 		IOV_PUSH_HEADER(data, ip6h);
 	}

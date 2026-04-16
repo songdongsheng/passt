@@ -129,6 +129,7 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	struct vu_virtq_element flags_elem[2];
 	struct iov_tail payload, l2frame;
 	int elem_cnt, dup_elem_cnt = 0;
+	uint32_t csum_flags = IP4_CSUM;
 	struct iovec flags_iov[64];
 	struct tcp_syn_opts opts;
 	struct tcphdr th = { 0 };
@@ -137,6 +138,9 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	struct ethhdr eh;
 	uint32_t seq;
 	int ret;
+
+	if (*c->pcap || !vu_has_feature(vdev, VIRTIO_NET_F_GUEST_CSUM))
+		csum_flags |= TCP_CSUM;
 
 	hdrlen = tcp_vu_hdrlen(CONN_V6(conn));
 
@@ -174,7 +178,7 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	iov_from_buf(payload.iov, payload.cnt, payload.off, &opts, optlen);
 	tcp_fill_headers(c, conn, &eh, CONN_V4(conn) ? &ip4h : NULL,
 			 CONN_V6(conn) ? &ip6h : NULL, &th, &payload,
-			 optlen, IP4_CSUM | (*c->pcap ? TCP_CSUM : 0), seq);
+			 optlen, csum_flags, seq);
 
 	vu_pad(flags_elem[0].in_sg, iov_cnt, hdrlen + optlen);
 
@@ -520,7 +524,7 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 
 	hdrlen = tcp_vu_hdrlen(v6);
 	check = IP4_CSUM;
-	if (*c->pcap)
+	if (*c->pcap || !vu_has_feature(vdev, VIRTIO_NET_F_GUEST_CSUM))
 		check |= TCP_CSUM;
 	for (i = 0, previous_dlen = -1; i < frame_cnt; i++) {
 		struct iovec *iov = &iov_vu[frame[i].idx_iovec];
