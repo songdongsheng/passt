@@ -447,16 +447,28 @@ periodically derived (every second) from listening sockets reported by
 \fI/proc/net/tcp\fR and \fI/proc/net/tcp6\fR, see \fBproc\fR(5).
 
 .TP
-.BR ports
-A comma-separated list of ports, optionally ranged with \fI-\fR, and,
-optionally, with target ports after \fI:\fR, if they differ. Specific addresses
-can be bound as well, separated by \fI/\fR, and also, since Linux 5.7, limited
-to specific interfaces, prefixed by \fI%\fR. Within given ranges, selected ports
-and ranges can be excluded by an additional specification prefixed by \fI~\fR.
+[\fIaddress\fR[\fB%\fR\fIinterface\fR]\fB/\fR]\fIports\fR ...
+Specific ports to forward.  Optionally, a specific listening address
+and interface name (since Linux 5.7) can be specified.  \fIports\fR is
+a comma-separated list of entries which may be any of:
+.RS
+.TP
+\fIfirst\fR[\fB-\fR\fIlast\fR][\fB:\fR\fItofirst\fR[\fB-\fR\fItolast\fR]]
+Include range. Forward port numbers between \fIfirst\fR and \fIlast\fR
+(inclusive) to ports between \fItofirst\fR and \fItolast\fR.  If
+\fItofirst\fR and \fItolast\fR are omitted, assume the same as
+\fIfirst\fR and \fIlast\fR.  If \fIlast\fR is omitted, assume the same
+as \fIfirst\fR.
 
-Specifying excluded ranges only implies that all other ports are forwarded. In
-this case, no failures are reported for unavailable ports, unless no ports could
-be forwarded at all.
+.TP
+\fB~\fR\fIfirst\fR[\fB-\fR\fIlast\fR]
+Exclude range.  Don't forward port numbers between \fIfirst\fR and
+\fIlast\fR.  This takes precedences over include ranges.
+.RE
+
+Specifying excluded ranges only implies that all other non-ephemeral
+ports are forwarded. In this case, no failures are reported for
+unavailable ports, unless no ports could be forwarded at all.
 
 Examples:
 .RS
