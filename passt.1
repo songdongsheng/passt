@@ -435,12 +435,6 @@ Configure TCP port forwarding to guest or namespace. \fIspec\fR can be one of:
 Don't forward any ports
 
 .TP
-.BR all
-Forward all unbound, non-ephemeral ports, as permitted by current capabilities.
-For low (< 1024) ports, see \fBNOTES\fR. No failures are reported for
-unavailable ports, unless no ports could be forwarded at all.
-
-.TP
 .BR auto " " (\fBpasta\fR " " only)
 Dynamically forward ports bound in the namespace. The list of ports is
 periodically derived (every second) from listening sockets reported by
@@ -449,9 +443,19 @@ periodically derived (every second) from listening sockets reported by
 .TP
 [\fIaddress\fR[\fB%\fR\fIinterface\fR]\fB/\fR]\fIports\fR ...
 Specific ports to forward.  Optionally, a specific listening address
-and interface name (since Linux 5.7) can be specified.  \fIports\fR is
-a comma-separated list of entries which may be any of:
+and interface name (since Linux 5.7) can be specified.  \fIports\fR
+may be either:
 .RS
+.TP
+\fBall\fR
+Forward all unbound, non-ephemeral ports, as permitted by current
+capabilities.  For low (< 1024) ports, see \fBNOTES\fR. No failures
+are reported for unavailable ports, unless no ports could be forwarded
+at all.
+.RE
+
+.RS
+or a comma-separated list of entries which may be any of:
 .TP
 \fIfirst\fR[\fB-\fR\fIlast\fR][\fB:\fR\fItofirst\fR[\fB-\fR\fItolast\fR]]
 Include range. Forward port numbers between \fIfirst\fR and \fIlast\fR
@@ -472,6 +476,14 @@ unavailable ports, unless no ports could be forwarded at all.
 
 Examples:
 .RS
+.TP
+-t all
+Forward all unbound, non-ephemeral ports as permitted by current
+capabilities to the corresponding port on the guest or namespace
+.TP
+-t ::1/all
+For the local address ::1, forward all unbound, non-ephemeral ports as
+permitted by current capabilities
 .TP
 -t 22
 Forward local port 22 to port 22 on the guest or namespace

@@ -251,6 +251,11 @@ static void conf_ports_spec(const struct ctx *c,
 	const char *p, *ep;
 	unsigned i;
 
+	if (!strcmp(spec, "all")) {
+		/* Treat "all" as equivalent to "": all non-ephemeral ports */
+		spec = "";
+	}
+
 	/* Mark all exclusions first, they might be given after base ranges */
 	for_each_chunk(p, ep, spec, ",") {
 		struct port_range xrange;
@@ -369,19 +374,6 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 					proto, NULL, NULL,
 					1, NUM_PORTS - 1, NULL, 1, FWD_SCAN);
 
-		return;
-	}
-
-	if (!strcmp(optarg, "all")) {
-		uint8_t exclude[PORT_BITMAP_SIZE] = { 0 };
-
-		/* Exclude ephemeral ports */
-		fwd_port_map_ephemeral(exclude);
-
-		conf_ports_range_except(c, optname, optarg, fwd,
-					proto, NULL, NULL,
-					1, NUM_PORTS - 1, exclude,
-					1, FWD_WEAK);
 		return;
 	}
 
@@ -1039,14 +1031,16 @@ static void usage(const char *name, FILE *f, int status)
 		"    can be specified multiple times\n"
 		"    SPEC can be:\n"
 		"      'none': don't forward any ports\n"
-		"      'all': forward all unbound, non-ephemeral ports\n"
 		"%s"
 		"      [ADDR[%%IFACE]/]PORTS: forward specific ports\n"
-		"        PORTS is a comma-separated list of ports, optionally\n"
+		"        PORTS is either 'all' (forward all unbound, non-ephemeral\n"
+		"        ports), or a comma-separated list of ports, optionally\n"
 		"        ranged with '-' and optional target ports after ':'.\n"
 		"        Ranges can be reduced by excluding ports or ranges\n"
 		"        prefixed by '~'\n"
 		"        Examples:\n"
+		"        -t all		Forward all ports\n"
+		"        -t ::1/all	Forward all ports from local address ::1\n"
 		"        -t 22		Forward local port 22 to 22 on %s\n"
 		"        -t 22:23	Forward local port 22 to 23 on %s\n"
 		"        -t 22,25	Forward ports 22, 25 to ports 22, 25\n"
