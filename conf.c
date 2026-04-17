@@ -13,6 +13,7 @@
  */
 
 #include <arpa/inet.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
@@ -109,6 +110,28 @@ static int parse_port_range(const char *s, const char **endptr,
 	range->last = last;
 	*endptr = ep;
 
+	return 0;
+}
+
+/**
+ * parse_keyword() - Parse a literal keyword
+ * @s:		String to parse
+ * @endptr:	Update to the character after the keyword
+ * @kw:		Keyword to accept
+ *
+ * Return: 0, if @s starts with @kw, -EINVAL if it does not
+ */
+static int parse_keyword(const char *s, const char **endptr, const char *kw)
+{
+	size_t len = strlen(kw);
+
+	if (strlen(s) < len)
+		return -EINVAL;
+
+	if (memcmp(s, kw, len))
+		return -EINVAL;
+
+	*endptr = s + len;
 	return 0;
 }
 
@@ -249,6 +272,7 @@ static void conf_ports_spec(const struct ctx *c,
 	uint8_t exclude[PORT_BITMAP_SIZE] = { 0 };
 	bool exclude_only = true;
 	const char *p, *ep;
+	uint8_t flags = 0;
 	unsigned i;
 
 	if (!strcmp(spec, "all")) {
@@ -256,15 +280,32 @@ static void conf_ports_spec(const struct ctx *c,
 		spec = "";
 	}
 
-	/* Mark all exclusions first, they might be given after base ranges */
+	/* Parse excluded ranges and "auto" in the first pass */
 	for_each_chunk(p, ep, spec, ",") {
 		struct port_range xrange;
 
-		if (*p != '~') {
-			/* Not an exclude range, parse later */
+		if (isdigit(*p)) {
+			/* Include range, parse later */
 			exclude_only = false;
 			continue;
 		}
+
+		if (parse_keyword(p, &p, "auto") == 0) {
+			if (p != ep) /* Garbage after the keyword */
+				goto bad;
+
+			if (c->mode != MODE_PASTA) {
+				die(
+"'auto' port forwarding is only allowed for pasta");
+			}
+
+			flags |= FWD_SCAN;
+			continue;
+		}
+
+		/* Should be an exclude range */
+		if (*p != '~')
+			goto bad;
 		p++;
 
 		if (parse_port_range(p, &p, &xrange))
@@ -283,7 +324,7 @@ static void conf_ports_spec(const struct ctx *c,
 		conf_ports_range_except(c, optname, optarg, fwd,
 					proto, addr, ifname,
 					1, NUM_PORTS - 1, exclude,
-					1, FWD_WEAK);
+					1, flags | FWD_WEAK);
 		return;
 	}
 
@@ -291,8 +332,8 @@ static void conf_ports_spec(const struct ctx *c,
 	for_each_chunk(p, ep, spec, ",") {
 		struct port_range orig_range, mapped_range;
 
-		if (*p == '~')
-			/* Exclude range, already parsed */
+		if (!isdigit(*p))
+			/* Already parsed */
 			continue;
 
 		if (parse_port_range(p, &p, &orig_range))
@@ -320,7 +361,7 @@ static void conf_ports_spec(const struct ctx *c,
 					proto, addr, ifname,
 					orig_range.first, orig_range.last,
 					exclude,
-					mapped_range.first, 0);
+					mapped_range.first, flags);
 	}
 
 	return;
@@ -365,17 +406,6 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		die("TCP port forwarding requested but TCP is disabled");
 	if (proto == IPPROTO_UDP && c->no_udp)
 		die("UDP port forwarding requested but UDP is disabled");
-
-	if (!strcmp(optarg, "auto")) {
-		if (c->mode != MODE_PASTA)
-			die("'auto' port forwarding is only allowed for pasta");
-
-		conf_ports_range_except(c, optname, optarg, fwd,
-					proto, NULL, NULL,
-					1, NUM_PORTS - 1, NULL, 1, FWD_SCAN);
-
-		return;
-	}
 
 	strncpy(buf, optarg, sizeof(buf) - 1);
 
@@ -1031,13 +1061,13 @@ static void usage(const char *name, FILE *f, int status)
 		"    can be specified multiple times\n"
 		"    SPEC can be:\n"
 		"      'none': don't forward any ports\n"
-		"%s"
 		"      [ADDR[%%IFACE]/]PORTS: forward specific ports\n"
 		"        PORTS is either 'all' (forward all unbound, non-ephemeral\n"
 		"        ports), or a comma-separated list of ports, optionally\n"
 		"        ranged with '-' and optional target ports after ':'.\n"
 		"        Ranges can be reduced by excluding ports or ranges\n"
-		"        prefixed by '~'\n"
+		"        prefixed by '~'.\n"
+		"%s"
 		"        Examples:\n"
 		"        -t all		Forward all ports\n"
 		"        -t ::1/all	Forward all ports from local address ::1\n"
@@ -1050,15 +1080,26 @@ static void usage(const char *name, FILE *f, int status)
 		"        -t 192.0.2.1/5	Bind port 5 of 192.0.2.1 to %s\n"
 		"        -t 5-25,~10-20	Forward ports 5 to 9, and 21 to 25\n"
 		"        -t ~25		Forward all ports except for 25\n"
+		"%s"
 		"    default: %s\n"
 		"  -u, --udp-ports SPEC	UDP port forwarding to %s\n"
 		"    SPEC is as described for TCP above\n"
 		"    default: %s\n",
 		guest,
 		strstr(name, "pasta") ?
-		"      'auto': forward all ports currently bound in namespace\n"
+		"        The 'auto' keyword may be given to only forward\n"
+		"        ports which are bound in the target namespace\n"
 		: "",
-		guest, guest, guest, fwd_default, guest, fwd_default);
+		guest, guest, guest,
+		strstr(name, "pasta") ?
+		"        -t auto\t	Forward all ports bound in namespace\n"
+		"        -t ::1/auto	Forward ports from ::1 if they are\n"
+		"        		bound in the namespace\n"
+		"        -t 80-82,auto	Forward ports 80-82 if they are bound\n"
+		"        		in the namespace\n"
+		: "",
+
+		fwd_default, guest, fwd_default);
 
 	if (strstr(name, "pasta"))
 		goto pasta_opts;

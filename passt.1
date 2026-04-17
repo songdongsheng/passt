@@ -435,12 +435,6 @@ Configure TCP port forwarding to guest or namespace. \fIspec\fR can be one of:
 Don't forward any ports
 
 .TP
-.BR auto " " (\fBpasta\fR " " only)
-Dynamically forward ports bound in the namespace. The list of ports is
-periodically derived (every second) from listening sockets reported by
-\fI/proc/net/tcp\fR and \fI/proc/net/tcp6\fR, see \fBproc\fR(5).
-
-.TP
 [\fIaddress\fR[\fB%\fR\fIinterface\fR]\fB/\fR]\fIports\fR ...
 Specific ports to forward.  Optionally, a specific listening address
 and interface name (since Linux 5.7) can be specified.  \fIports\fR
@@ -468,11 +462,20 @@ as \fIfirst\fR.
 \fB~\fR\fIfirst\fR[\fB-\fR\fIlast\fR]
 Exclude range.  Don't forward port numbers between \fIfirst\fR and
 \fIlast\fR.  This takes precedences over include ranges.
+
+.TP
+.BR auto
+\fBpasta\fR only.  Only forward ports in the specified set if the
+target ports are bound in the namespace. The list of ports is
+periodically derived (every second) from listening sockets reported by
+\fI/proc/net/tcp\fR and \fI/proc/net/tcp6\fR, see \fBproc\fR(5).
 .RE
 
 Specifying excluded ranges only implies that all other non-ephemeral
-ports are forwarded. In this case, no failures are reported for
-unavailable ports, unless no ports could be forwarded at all.
+ports are forwarded. Specifying no ranges at all implies forwarding
+all non-ephemeral ports permitted by current capabilities.  In this
+case, no failures are reported for unavailable ports, unless no ports
+could be forwarded at all.
 
 Examples:
 .RS
@@ -519,6 +522,17 @@ and 30
 .TP
 -t ~20000-20010
 Forward all ports to the guest, except for the range from 20000 to 20010
+.TP
+-t auto
+Automatically forward any ports which are bound in the namespace
+.TP
+-t ::1/auto
+Automatically forward any ports which are bound in the namespace,
+listening only on local port ::1
+.TP
+-t 8000-8010,auto
+Forward ports in the range 8000-8010 if and only if they are bound in
+the namespace
 .RE
 
 Default is \fBnone\fR for \fBpasst\fR and \fBauto\fR for \fBpasta\fR.
