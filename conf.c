@@ -138,9 +138,6 @@ static int parse_keyword(const char *s, const char **endptr, const char *kw)
 /**
  * conf_ports_range_except() - Set up forwarding for a range of ports minus a
  *                             bitmap of exclusions
- * @c:		Execution context
- * @optname:	Short option name, t, T, u, or U
- * @optarg:	Option argument (port specification)
  * @fwd:	Forwarding table to be updated
  * @proto:	Protocol to forward
  * @addr:	Listening address
@@ -151,9 +148,8 @@ static int parse_keyword(const char *s, const char **endptr, const char *kw)
  * @to:		Port to translate @first to when forwarding
  * @flags:	Flags for forwarding entries
  */
-static void conf_ports_range_except(const struct ctx *c, char optname,
-				    const char *optarg, struct fwd_table *fwd,
-				    uint8_t proto, const union inany_addr *addr,
+static void conf_ports_range_except(struct fwd_table *fwd, uint8_t proto,
+				    const union inany_addr *addr,
 				    const char *ifname,
 				    uint16_t first, uint16_t last,
 				    const uint8_t *exclude, uint16_t to,
@@ -195,42 +191,10 @@ static void conf_ports_range_except(const struct ctx *c, char optname,
 		rule.last = i - 1;
 		rule.to = base + delta;
 
-		if ((optname == 'T' || optname == 'U') && c->no_bindtodevice) {
-			/* FIXME: Once the fwd bitmaps are removed, move this
-			 * workaround to the caller
-			 */
-			struct fwd_rule rulev = {
-				.ifname = { 0 },
-				.flags = flags,
-				.first = base,
-				.last = i - 1,
-				.to = base + delta,
-			};
+		fwd_rule_conflict_check(&rule, fwd->rules, fwd->count);
+		if (fwd_rule_add(fwd, &rule) < 0)
+			goto fail;
 
-			assert(!addr && ifname && !strcmp(ifname, "lo"));
-			warn(
-"SO_BINDTODEVICE unavailable, forwarding only 127.0.0.1 and ::1 for '-%c %s'",
-			     optname, optarg);
-
-			if (c->ifi4) {
-				rulev.addr = inany_loopback4;
-				fwd_rule_conflict_check(&rulev,
-							fwd->rules, fwd->count);
-				if (fwd_rule_add(fwd, &rulev) < 0)
-					goto fail;
-			}
-			if (c->ifi6) {
-				rulev.addr = inany_loopback6;
-				fwd_rule_conflict_check(&rulev,
-							fwd->rules, fwd->count);
-				if (fwd_rule_add(fwd, &rulev) < 0)
-					goto fail;
-			}
-		} else {
-			fwd_rule_conflict_check(&rule, fwd->rules, fwd->count);
-			if (fwd_rule_add(fwd, &rule) < 0)
-				goto fail;
-		}
 		base = i - 1;
 	}
 	return;
@@ -321,8 +285,7 @@ static void conf_ports_spec(const struct ctx *c,
 		/* Exclude ephemeral ports */
 		fwd_port_map_ephemeral(exclude);
 
-		conf_ports_range_except(c, optname, optarg, fwd,
-					proto, addr, ifname,
+		conf_ports_range_except(fwd, proto, addr, ifname,
 					1, NUM_PORTS - 1, exclude,
 					1, flags | FWD_WEAK);
 		return;
@@ -357,8 +320,7 @@ static void conf_ports_spec(const struct ctx *c,
 			    optname, optarg);
 		}
 
-		conf_ports_range_except(c, optname, optarg, fwd,
-					proto, addr, ifname,
+		conf_ports_range_except(fwd, proto, addr, ifname,
 					orig_range.first, orig_range.last,
 					exclude,
 					mapped_range.first, flags);
@@ -461,14 +423,33 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		}
 	}
 
+	if (optname == 'T' || optname == 'U') {
+		assert(!addr && !ifname);
+
+		if (c->no_bindtodevice) {
+			warn(
+"SO_BINDTODEVICE unavailable, forwarding only 127.0.0.1 and ::1 for '-%c %s'",
+			     optname, optarg);
+
+			if (c->ifi4) {
+				conf_ports_spec(c, optname, optarg, fwd, proto,
+						&inany_loopback4, NULL, spec);
+			}
+			if (c->ifi6) {
+				conf_ports_spec(c, optname, optarg, fwd, proto,
+						&inany_loopback6, NULL, spec);
+			}
+			return;
+		}
+
+		ifname = "lo";
+	}
+
 	if (ifname && c->no_bindtodevice) {
 		die(
 "Device binding for '-%c %s' unsupported (requires kernel 5.7+)",
 		    optname, optarg);
 	}
-	/* Outbound forwards come from guest loopback */
-	if ((optname == 'T' || optname == 'U') && !ifname)
-		ifname = "lo";
 
 	conf_ports_spec(c, optname, optarg, fwd, proto, addr, ifname, spec);
 }
