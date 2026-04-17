@@ -219,8 +219,6 @@ fail:
 /**
  * conf_ports_spec() - Parse port range(s) specifier
  * @c:		Execution context
- * @optname:	Short option name, t, T, u, or U
- * @optarg:	Option argument (port specification)
  * @fwd:	Forwarding table to be updated
  * @proto:	Protocol to forward
  * @addr:	Listening address for forwarding
@@ -228,7 +226,6 @@ fail:
  * @spec:	Port range(s) specifier
  */
 static void conf_ports_spec(const struct ctx *c,
-			    char optname, const char *optarg,
 			    struct fwd_table *fwd, uint8_t proto,
 			    const union inany_addr *addr, const char *ifname,
 			    const char *spec)
@@ -316,8 +313,7 @@ static void conf_ports_spec(const struct ctx *c,
 			goto bad;
 
 		if (orig_range.first == 0) {
-			die("Can't forward port 0 for option '-%c %s'",
-			    optname, optarg);
+			die("Can't forward port 0 included in '%s'", spec);
 		}
 
 		conf_ports_range_except(fwd, proto, addr, ifname,
@@ -328,7 +324,7 @@ static void conf_ports_spec(const struct ctx *c,
 
 	return;
 bad:
-	die("Invalid port specifier %s", optarg);
+	die("Invalid port specifier '%s'", spec);
 }
 
 /**
@@ -432,11 +428,11 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 			     optname, optarg);
 
 			if (c->ifi4) {
-				conf_ports_spec(c, optname, optarg, fwd, proto,
+				conf_ports_spec(c, fwd, proto,
 						&inany_loopback4, NULL, spec);
 			}
 			if (c->ifi6) {
-				conf_ports_spec(c, optname, optarg, fwd, proto,
+				conf_ports_spec(c, fwd, proto,
 						&inany_loopback6, NULL, spec);
 			}
 			return;
@@ -451,7 +447,7 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		    optname, optarg);
 	}
 
-	conf_ports_spec(c, optname, optarg, fwd, proto, addr, ifname, spec);
+	conf_ports_spec(c, fwd, proto, addr, ifname, spec);
 }
 
 /**
