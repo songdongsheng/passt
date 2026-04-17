@@ -218,15 +218,13 @@ fail:
 
 /**
  * conf_ports_spec() - Parse port range(s) specifier
- * @c:		Execution context
  * @fwd:	Forwarding table to be updated
  * @proto:	Protocol to forward
  * @addr:	Listening address for forwarding
  * @ifname:	Interface name for listening
  * @spec:	Port range(s) specifier
  */
-static void conf_ports_spec(const struct ctx *c,
-			    struct fwd_table *fwd, uint8_t proto,
+static void conf_ports_spec(struct fwd_table *fwd, uint8_t proto,
 			    const union inany_addr *addr, const char *ifname,
 			    const char *spec)
 {
@@ -255,7 +253,7 @@ static void conf_ports_spec(const struct ctx *c,
 			if (p != ep) /* Garbage after the keyword */
 				goto bad;
 
-			if (c->mode != MODE_PASTA) {
+			if (!(fwd->caps & FWD_CAP_SCAN)) {
 				die(
 "'auto' port forwarding is only allowed for pasta");
 			}
@@ -329,13 +327,11 @@ bad:
 
 /**
  * conf_ports() - Parse port configuration options, initialise UDP/TCP sockets
- * @c:		Execution context
  * @optname:	Short option name, t, T, u, or U
  * @optarg:	Option argument (port specification)
  * @fwd:	Forwarding table to be updated
  */
-static void conf_ports(const struct ctx *c, char optname, const char *optarg,
-		       struct fwd_table *fwd)
+static void conf_ports(char optname, const char *optarg, struct fwd_table *fwd)
 {
 	union inany_addr addr_buf = inany_any6, *addr = &addr_buf;
 	char buf[BUFSIZ], *spec, *ifname = NULL;
@@ -360,9 +356,9 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		return;
 	}
 
-	if (proto == IPPROTO_TCP && c->no_tcp)
+	if (proto == IPPROTO_TCP && !(fwd->caps & FWD_CAP_TCP))
 		die("TCP port forwarding requested but TCP is disabled");
-	if (proto == IPPROTO_UDP && c->no_udp)
+	if (proto == IPPROTO_UDP && !(fwd->caps & FWD_CAP_UDP))
 		die("UDP port forwarding requested but UDP is disabled");
 
 	strncpy(buf, optarg, sizeof(buf) - 1);
@@ -410,10 +406,10 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 	}
 
 	if (addr) {
-		if (!c->ifi4 && inany_v4(addr)) {
+		if (!(fwd->caps & FWD_CAP_IPV4) && inany_v4(addr)) {
 			die("IPv4 is disabled, can't use -%c %s",
 			    optname, optarg);
-		} else if (!c->ifi6 && !inany_v4(addr)) {
+		} else if (!(fwd->caps & FWD_CAP_IPV6) && !inany_v4(addr)) {
 			die("IPv6 is disabled, can't use -%c %s",
 			    optname, optarg);
 		}
@@ -422,17 +418,17 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 	if (optname == 'T' || optname == 'U') {
 		assert(!addr && !ifname);
 
-		if (c->no_bindtodevice) {
+		if (!(fwd->caps & FWD_CAP_IFNAME)) {
 			warn(
 "SO_BINDTODEVICE unavailable, forwarding only 127.0.0.1 and ::1 for '-%c %s'",
 			     optname, optarg);
 
-			if (c->ifi4) {
-				conf_ports_spec(c, fwd, proto,
+			if (fwd->caps & FWD_CAP_IPV4) {
+				conf_ports_spec(fwd, proto,
 						&inany_loopback4, NULL, spec);
 			}
-			if (c->ifi6) {
-				conf_ports_spec(c, fwd, proto,
+			if (fwd->caps & FWD_CAP_IPV6) {
+				conf_ports_spec(fwd, proto,
 						&inany_loopback6, NULL, spec);
 			}
 			return;
@@ -441,13 +437,13 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		ifname = "lo";
 	}
 
-	if (ifname && c->no_bindtodevice) {
+	if (ifname && !(fwd->caps & FWD_CAP_IFNAME)) {
 		die(
 "Device binding for '-%c %s' unsupported (requires kernel 5.7+)",
 		    optname, optarg);
 	}
 
-	conf_ports_spec(c, fwd, proto, addr, ifname, spec);
+	conf_ports_spec(fwd, proto, addr, ifname, spec);
 }
 
 /**
@@ -2185,16 +2181,16 @@ void conf(struct ctx *c, int argc, char **argv)
 
 		if (name == 't') {
 			opt_t = true;
-			conf_ports(c, name, optarg, c->fwd[PIF_HOST]);
+			conf_ports(name, optarg, c->fwd[PIF_HOST]);
 		} else if (name == 'u') {
 			opt_u = true;
-			conf_ports(c, name, optarg, c->fwd[PIF_HOST]);
+			conf_ports(name, optarg, c->fwd[PIF_HOST]);
 		} else if (name == 'T') {
 			opt_T = true;
-			conf_ports(c, name, optarg, c->fwd[PIF_SPLICE]);
+			conf_ports(name, optarg, c->fwd[PIF_SPLICE]);
 		} else if (name == 'U') {
 			opt_U = true;
-			conf_ports(c, name, optarg, c->fwd[PIF_SPLICE]);
+			conf_ports(name, optarg, c->fwd[PIF_SPLICE]);
 		}
 	} while (name != -1);
 
@@ -2246,13 +2242,13 @@ void conf(struct ctx *c, int argc, char **argv)
 
 	if (c->mode == MODE_PASTA) {
 		if (!opt_t)
-			conf_ports(c, 't', "auto", c->fwd[PIF_HOST]);
+			conf_ports('t', "auto", c->fwd[PIF_HOST]);
 		if (!opt_T)
-			conf_ports(c, 'T', "auto", c->fwd[PIF_SPLICE]);
+			conf_ports('T', "auto", c->fwd[PIF_SPLICE]);
 		if (!opt_u)
-			conf_ports(c, 'u', "auto", c->fwd[PIF_HOST]);
+			conf_ports('u', "auto", c->fwd[PIF_HOST]);
 		if (!opt_U)
-			conf_ports(c, 'U', "auto", c->fwd[PIF_SPLICE]);
+			conf_ports('U', "auto", c->fwd[PIF_SPLICE]);
 	}
 
 	if (!c->quiet)
