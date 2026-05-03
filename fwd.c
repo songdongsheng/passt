@@ -367,17 +367,59 @@ int fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new)
 		     new->first, new->last);
 		return -EINVAL;
 	}
+	if (!new->first) {
+		warn("Forwarding rule attempts to map from port 0");
+		return -EINVAL;
+	}
+	if (!new->to ||
+	    (in_port_t)(new->to + new->last - new->first) < new->to) {
+		warn("Forwarding rule attempts to map to port 0");
+		return -EINVAL;
+	}
 	if (new->flags & ~allowed_flags) {
 		warn("Rule has invalid flags 0x%hhx",
 		     new->flags & ~allowed_flags);
 		return -EINVAL;
 	}
-	if (new->flags & FWD_DUAL_STACK_ANY &&
-	    !inany_equals(&new->addr, &inany_any6)) {
-		char astr[INANY_ADDRSTRLEN];
+	if (new->flags & FWD_DUAL_STACK_ANY) {
+		if (!inany_equals(&new->addr, &inany_any6)) {
+			char astr[INANY_ADDRSTRLEN];
 
-		warn("Dual stack rule has non-wildcard address %s",
-		     inany_ntop(&new->addr, astr, sizeof(astr)));
+			warn("Dual stack rule has non-wildcard address %s",
+			     inany_ntop(&new->addr, astr, sizeof(astr)));
+			return -EINVAL;
+		}
+		if (!(fwd->caps & FWD_CAP_IPV4)) {
+			warn("Dual stack forward, but IPv4 not enabled");
+			return -EINVAL;
+		}
+		if (!(fwd->caps & FWD_CAP_IPV6)) {
+			warn("Dual stack forward, but IPv6 not enabled");
+			return -EINVAL;
+		}
+	} else {
+		if (inany_v4(&new->addr) && !(fwd->caps & FWD_CAP_IPV4)) {
+			warn("IPv4 forward, but IPv4 not enabled");
+			return -EINVAL;
+		}
+		if (!inany_v4(&new->addr) && !(fwd->caps & FWD_CAP_IPV6)) {
+			warn("IPv6 forward, but IPv6 not enabled");
+			return -EINVAL;
+		}
+	}
+	if (new->proto == IPPROTO_TCP) {
+		if (!(fwd->caps & FWD_CAP_TCP)) {
+			warn("Can't add TCP forwarding rule, TCP not enabled");
+			return -EINVAL;
+		}
+	} else if (new->proto == IPPROTO_UDP) {
+		if (!(fwd->caps & FWD_CAP_UDP)) {
+			warn("Can't add UDP forwarding rule, UDP not enabled");
+			return -EINVAL;
+		}
+	} else {
+		warn("Unsupported protocol 0x%hhx (%s) for forwarding rule",
+		     new->proto, ipproto_name(new->proto));
 		return -EINVAL;
 	}
 

@@ -176,8 +176,6 @@ static void conf_ports_range_except(struct fwd_table *fwd, uint8_t proto,
 			die("Invalid interface name: %s", ifname);
 	}
 
-	assert(first != 0);
-
 	for (base = first; base <= last; base++) {
 		if (exclude && bitmap_isset(exclude, base))
 			continue;
@@ -310,10 +308,6 @@ static void conf_ports_spec(struct fwd_table *fwd, uint8_t proto,
 		if (p != ep) /* Garbage after the ranges */
 			goto bad;
 
-		if (orig_range.first == 0) {
-			die("Can't forward port 0 included in '%s'", spec);
-		}
-
 		conf_ports_range_except(fwd, proto, addr, ifname,
 					orig_range.first, orig_range.last,
 					exclude,
@@ -355,11 +349,6 @@ static void conf_ports(char optname, const char *optarg, struct fwd_table *fwd)
 		}
 		return;
 	}
-
-	if (proto == IPPROTO_TCP && !(fwd->caps & FWD_CAP_TCP))
-		die("TCP port forwarding requested but TCP is disabled");
-	if (proto == IPPROTO_UDP && !(fwd->caps & FWD_CAP_UDP))
-		die("UDP port forwarding requested but UDP is disabled");
 
 	strncpy(buf, optarg, sizeof(buf) - 1);
 
@@ -403,16 +392,6 @@ static void conf_ports(char optname, const char *optarg, struct fwd_table *fwd)
 		spec = buf;
 
 		addr = NULL;
-	}
-
-	if (addr) {
-		if (!(fwd->caps & FWD_CAP_IPV4) && inany_v4(addr)) {
-			die("IPv4 is disabled, can't use -%c %s",
-			    optname, optarg);
-		} else if (!(fwd->caps & FWD_CAP_IPV6) && !inany_v4(addr)) {
-			die("IPv6 is disabled, can't use -%c %s",
-			    optname, optarg);
-		}
 	}
 
 	if (optname == 'T' || optname == 'U') {
