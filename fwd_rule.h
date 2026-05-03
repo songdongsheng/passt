@@ -19,6 +19,7 @@
 
 /* Number of ports for both TCP and UDP */
 #define	NUM_PORTS	(1U << 16)
+#define PORT_BITMAP_SIZE	DIV_ROUND_UP(NUM_PORTS, 8)
 
 /* Forwarding capability bits */
 #define FWD_CAP_IPV4		BIT(0)
@@ -54,8 +55,38 @@ struct fwd_rule {
 	uint8_t flags;
 };
 
+#define FWD_RULE_BITS	8
+#define MAX_FWD_RULES	MAX_FROM_BITS(FWD_RULE_BITS)
+
+/* Maximum number of listening sockets (per pif)
+ *
+ * Rationale: This lets us listen on every port for two addresses and two
+ * protocols (which we need for -T auto -U auto without SO_BINDTODEVICE), plus a
+ * comfortable number of extras.
+ */
+#define MAX_LISTEN_SOCKS	(NUM_PORTS * 5)
+
+/**
+ * struct fwd_table - Forwarding state (per initiating pif)
+ * @caps:	Forwarding capabilities for this initiating pif
+ * @count:	Number of forwarding rules
+ * @rules:	Array of forwarding rules
+ * @rulesocks:	Parallel array of @rules (@count valid entries) of pointers to
+ *		@socks entries giving the start of the corresponding rule's
+ *		sockets within the larger array
+ * @sock_count:	Number of entries used in @socks (for all rules combined)
+ * @socks:	Listening sockets for forwarding
+ */
+struct fwd_table {
+	uint32_t caps;
+	unsigned count;
+	struct fwd_rule rules[MAX_FWD_RULES];
+	int *rulesocks[MAX_FWD_RULES];
+	unsigned sock_count;
+	int socks[MAX_LISTEN_SOCKS];
+};
+
 void fwd_probe_ephemeral(void);
-void fwd_port_map_ephemeral(uint8_t *map);
 
 #define FWD_RULE_STRLEN					    \
 	(IPPROTO_STRLEN - 1				    \
@@ -67,7 +98,6 @@ void fwd_port_map_ephemeral(uint8_t *map);
 const union inany_addr *fwd_rule_addr(const struct fwd_rule *rule);
 const char *fwd_rule_fmt(const struct fwd_rule *rule, char *dst, size_t size);
 void fwd_rules_info(const struct fwd_rule *rules, size_t count);
-void fwd_rule_conflict_check(const struct fwd_rule *new,
-			     const struct fwd_rule *rules, size_t count);
+void fwd_rule_parse(char optname, const char *optarg, struct fwd_table *fwd);
 
 #endif /* FWD_RULE_H */
