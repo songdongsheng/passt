@@ -35,7 +35,9 @@ enum pif_type {
 	PIF_NUM_TYPES,
 };
 
-extern const char *pif_type_str[];
+/* Maximum size of a pif name, including \0 */
+#define	PIF_NAME_SIZE	(128)
+extern const char pif_type_str[][PIF_NAME_SIZE];
 
 static inline const char *pif_type(enum pif_type pt)
 {
@@ -43,6 +45,7 @@ static inline const char *pif_type(enum pif_type pt)
 		return pif_type_str[pt];
 	else
 		return "?";
+	static_assert(sizeof("?") <= PIF_NAME_SIZE);
 }
 
 static inline const char *pif_name(uint8_t pif)
