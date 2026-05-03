@@ -34,6 +34,7 @@
 #include "common.h"
 #include "seccomp_pesto.h"
 #include "serialise.h"
+#include "fwd_rule.h"
 #include "pesto.h"
 #include "log.h"
 
@@ -66,6 +67,7 @@ static void usage(const char *name, FILE *f, int status)
 struct pif_configuration {
 	uint8_t pif;
 	char name[PIF_NAME_SIZE];
+	struct fwd_table fwd;
 };
 
 struct configuration {
@@ -123,6 +125,7 @@ static bool read_pif_conf(int fd, struct configuration *conf)
 	struct pif_configuration *pc;
 	struct pesto_pif_info info;
 	uint8_t pif;
+	unsigned i;
 
 	if (read_u8(fd, &pif) < 0)
 		die("Error reading from control socket");
@@ -151,8 +154,20 @@ static bool read_pif_conf(int fd, struct configuration *conf)
 	static_assert(sizeof(info.name) == sizeof(pc->name),
 		      "Mismatching pif name lengths");
 	memcpy(pc->name, info.name, sizeof(pc->name));
+	pc->fwd.caps = ntohl(info.caps);
 
-	debug("PIF %"PRIu8": %s", pc->pif, pc->name);
+	pc->fwd.count = ntohl(info.count);
+	if (pc->fwd.count > MAX_FWD_RULES)
+		die("Too many forwarding rules");
+
+	debug("PIF %"PRIu8": %s, %"PRIu32" rules, capabilities 0x%"PRIx32
+	      ":%s%s%s%s%s%s", pc->pif, pc->name, pc->fwd.count, pc->fwd.caps,
+	      pc->fwd.caps & FWD_CAP_IPV4 ? " IPv4" : "",
+	      pc->fwd.caps & FWD_CAP_IPV6 ? " IPv6" : "",
+	      pc->fwd.caps & FWD_CAP_TCP ? " TCP" : "",
+	      pc->fwd.caps & FWD_CAP_UDP ? " UDP" : "",
+	      pc->fwd.caps & FWD_CAP_SCAN ? " scan" : "",
+	      pc->fwd.caps & FWD_CAP_IFNAME ? " ifname" : "");
 
 	/* O(n^2), but n is bounded by MAX_PIFS */
 	if (pif_conf_by_num(conf, pc->pif))
@@ -161,6 +176,18 @@ static bool read_pif_conf(int fd, struct configuration *conf)
 	/* O(n^2), but n is bounded by MAX_PIFS */
 	if (pif_conf_by_name(conf, pc->name))
 		die("Received duplicate interface name");
+
+	/* NOTE: We read the fwd rules directly into fwd.rules, rather than
+	 * using fwd_rule_add().  This means we can read and display rules even
+	 * if something has gone wrong (in pesto or passt) and we get rules that
+	 * fwd_rule_add() would reject.  It does have the side effect that we
+	 * never assign socket space for the fwd rules, but we don't need that
+	 * within pesto.
+	 */
+	for (i = 0; i < pc->fwd.count; i++) {
+		if (fwd_rule_read(fd, &pc->fwd.rules[i]) < 0)
+			die("Error reading from control socket");
+	}
 
 	conf->npifs++;
 	return true;
@@ -177,7 +204,8 @@ static void show_conf(const struct configuration *conf)
 	for (i = 0; i < conf->npifs; i++) {
 		const struct pif_configuration *pc = &conf->pif[i];
 		printf("  %s\n", pc->name);
-		printf("    TBD\n");
+		fwd_rules_dump(printf, pc->fwd.rules, pc->fwd.count,
+			       "    ", "\n");
 	}
 }
 
@@ -288,6 +316,12 @@ int main(int argc, char **argv)
 		die("Server has unexpected pif name size (%"
 		    PRIu32" not %"PRIu32 ")",
 		    ntohl(hello.pif_name_size), PIF_NAME_SIZE);
+	}
+
+	if (ntohl(hello.ifnamsiz) != IFNAMSIZ) {
+		die("Server has unexpected IFNAMSIZ (%"
+		    PRIu32" not %"PRIu32 ")",
+		    ntohl(hello.ifnamsiz), IFNAMSIZ);
 	}
 
 	while (read_pif_conf(s, &conf))

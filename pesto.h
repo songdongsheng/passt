@@ -26,11 +26,13 @@
  * @magic:		PESTO_SERVER_MAGIC
  * @version:		Version number
  * @pif_name_size:	Server's value for PIF_NAME_SIZE
+ * @ifnamsiz:		Server's value for IFNAMSIZ
  */
 struct pesto_hello {
 	char magic[8];
 	uint32_t version;
 	uint32_t pif_name_size;
+	uint32_t ifnamsiz;
 } __attribute__ ((__packed__));
 
 static_assert(sizeof(PESTO_SERVER_MAGIC)
@@ -40,9 +42,13 @@ static_assert(sizeof(PESTO_SERVER_MAGIC)
 /**
  * struct pesto_pif_info - Message with basic metadata about a pif
  * @name:	Name (\0 terminated)
+ * @caps:	Forwarding capabilities for this pif
+ * @count:	Number of forwarding rules for this pif
  */
 struct pesto_pif_info {
 	char name[PIF_NAME_SIZE];
+	uint32_t caps;
+	uint32_t count;
 } __attribute__ ((__packed__));
 
 #endif /* PESTO_H */

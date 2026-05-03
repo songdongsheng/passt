@@ -45,7 +45,7 @@ PASST_SRCS = arch.c arp.c bitmap.c checksum.c conf.c dhcp.c dhcpv6.c \
 	vhost_user.c virtio.c vu_common.c
 QRAP_SRCS = qrap.c
 PASST_REPAIR_SRCS = passt-repair.c
-PESTO_SRCS = pesto.c serialise.c
+PESTO_SRCS = pesto.c bitmap.c fwd_rule.c inany.c ip.c lineread.c serialise.c
 SRCS = $(PASST_SRCS) $(QRAP_SRCS) $(PASST_REPAIR_SRCS) $(PESTO_SRCS)
 
 MANPAGES = passt.1 pasta.1 pesto.1 qrap.1 passt-repair.1

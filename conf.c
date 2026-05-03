@@ -1943,21 +1943,30 @@ static int conf_send_rules(const struct ctx *c, int fd)
 	unsigned pif;
 
 	for (pif = 0; pif < PIF_NUM_TYPES; pif++) {
+		struct fwd_table *fwd = c->fwd[pif];
 		struct pesto_pif_info info = { 0 };
+		unsigned i;
 		int rc;
 
-		if (!c->fwd[pif])
+		if (!fwd)
 			continue;
 
 		assert(pif != PIF_NONE);
 
 		rc = snprintf(info.name, sizeof(info.name), "%s", pif_name(pif));
 		assert(rc >= 0 && (size_t)rc < sizeof(info.name));
+		info.caps = htonl(fwd->caps);
+		info.count = htonl(fwd->count);
 
 		if (write_u8(fd, pif) < 0)
 			return -1;
 		if (write_all_buf(fd, &info, sizeof(info)) < 0)
 			return -1;
+
+		for (i = 0; i < fwd->count; i++) {
+			if (fwd_rule_write(fd, &fwd->rules[i]))
+				return -1;
+		}
 	}
 
 	if (write_u8(fd, PIF_NONE) < 0)
@@ -2010,6 +2019,7 @@ static void conf_accept(struct ctx *c)
 		.magic = PESTO_SERVER_MAGIC,
 		.version = htonl(PESTO_PROTOCOL_VERSION),
 		.pif_name_size = htonl(PIF_NAME_SIZE),
+		.ifnamsiz = htonl(IFNAMSIZ),
 	};
 	union epoll_ref ref = { .type = EPOLL_TYPE_CONF };
 	struct ucred uc = { 0 };

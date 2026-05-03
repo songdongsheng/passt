@@ -24,6 +24,7 @@
 #include "fwd_rule.h"
 #include "lineread.h"
 #include "log.h"
+#include "serialise.h"
 
 /* Ephemeral port range: values from RFC 6335 */
 static in_port_t fwd_ephemeral_min = (1 << 15) + (1 << 14);
@@ -644,4 +645,43 @@ void fwd_rule_parse(char optname, const char *optarg, struct fwd_table *fwd)
 	}
 
 	fwd_rule_parse_ports(fwd, proto, addr, ifname, spec);
+}
+
+/**
+ * fwd_rule_read() - Read serialised rule from an fd
+ * @fd:		fd to deserialise from
+ * @rule:	Buffer to store rule into
+ *
+ * Return: 0 on success, -1 on error (with errno set)
+ */
+int fwd_rule_read(int fd, struct fwd_rule *rule)
+{
+	if (read_all_buf(fd, rule, sizeof(*rule)))
+		return -1;
+
+	/* Byteswap for host */
+	rule->first = ntohs(rule->first);
+	rule->last = ntohs(rule->last);
+	rule->to = ntohs(rule->to);
+
+	return 0;
+}
+
+/**
+ * fwd_rule_write() - Serialise rule to an fd
+ * @fd:		fd to serialise to
+ * @rule:	Rule to send
+ *
+ * Return: 0 on success, -1 on error (with errno set)
+ */
+int fwd_rule_write(int fd, const struct fwd_rule *rule)
+{
+	struct fwd_rule tmp = *rule;
+
+	/* Byteswap for transport */
+	tmp.first = htons(tmp.first);
+	tmp.last = htons(tmp.last);
+	tmp.to = htons(tmp.to);
+
+	return write_all_buf(fd, &tmp, sizeof(tmp));
 }

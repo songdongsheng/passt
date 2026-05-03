@@ -29,6 +29,8 @@
 #define FWD_CAP_UDP		BIT(3)
 #define FWD_CAP_SCAN		BIT(4)
 #define FWD_CAP_IFNAME		BIT(5)
+#define FWD_CAP_ALL		(FWD_CAP_IPV4 | FWD_CAP_IPV6 | FWD_CAP_TCP | \
+				 FWD_CAP_UDP | FWD_CAP_SCAN | FWD_CAP_IFNAME)
 
 /**
  * struct fwd_rule - Forwarding rule governing a range of ports
@@ -99,6 +101,8 @@ void fwd_probe_ephemeral(void);
 const union inany_addr *fwd_rule_addr(const struct fwd_rule *rule);
 const char *fwd_rule_fmt(const struct fwd_rule *rule, char *dst, size_t size);
 void fwd_rule_parse(char optname, const char *optarg, struct fwd_table *fwd);
+int fwd_rule_read(int fd, struct fwd_rule *rule);
+int fwd_rule_write(int fd, const struct fwd_rule *rule);
 
 /**
  * fwd_rules_dump() - Dump forwarding rules
