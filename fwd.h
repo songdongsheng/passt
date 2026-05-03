@@ -20,12 +20,6 @@
 
 struct flowside;
 
-/* Number of ports for both TCP and UDP */
-#define	NUM_PORTS	(1U << 16)
-
-void fwd_probe_ephemeral(void);
-void fwd_port_map_ephemeral(uint8_t *map);
-
 #define FWD_RULE_BITS	8
 #define MAX_FWD_RULES	MAX_FROM_BITS(FWD_RULE_BITS)
 #define FWD_NO_HINT	(-1)

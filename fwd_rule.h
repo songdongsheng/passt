@@ -17,6 +17,9 @@
 #include "inany.h"
 #include "bitmap.h"
 
+/* Number of ports for both TCP and UDP */
+#define	NUM_PORTS	(1U << 16)
+
 /* Forwarding capability bits */
 #define FWD_CAP_IPV4		BIT(0)
 #define FWD_CAP_IPV6		BIT(1)
@@ -50,6 +53,9 @@ struct fwd_rule {
 #define FWD_SCAN		BIT(2)
 	uint8_t flags;
 };
+
+void fwd_probe_ephemeral(void);
+void fwd_port_map_ephemeral(uint8_t *map);
 
 #define FWD_RULE_STRLEN					    \
 	(IPPROTO_STRLEN - 1				    \

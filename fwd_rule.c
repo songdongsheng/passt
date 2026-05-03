@@ -15,9 +15,87 @@
  * Author: David Gibson <david@gibson.dropbear.id.au>
  */
 
+#include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #include "fwd_rule.h"
+#include "lineread.h"
+#include "log.h"
+
+/* Ephemeral port range: values from RFC 6335 */
+static in_port_t fwd_ephemeral_min = (1 << 15) + (1 << 14);
+static in_port_t fwd_ephemeral_max = NUM_PORTS - 1;
+
+#define PORT_RANGE_SYSCTL	"/proc/sys/net/ipv4/ip_local_port_range"
+
+/** fwd_probe_ephemeral() - Determine what ports this host considers ephemeral
+ *
+ * Work out what ports the host thinks are emphemeral and record it for later
+ * use by fwd_port_is_ephemeral().  If we're unable to probe, assume the range
+ * recommended by RFC 6335.
+ */
+void fwd_probe_ephemeral(void)
+{
+	char *line, *tab, *end;
+	struct lineread lr;
+	long min, max;
+	ssize_t len;
+	int fd;
+
+	fd = open(PORT_RANGE_SYSCTL, O_RDONLY | O_CLOEXEC);
+	if (fd < 0) {
+		warn_perror("Unable to open %s", PORT_RANGE_SYSCTL);
+		return;
+	}
+
+	lineread_init(&lr, fd);
+	len = lineread_get(&lr, &line);
+	close(fd);
+
+	if (len < 0)
+		goto parse_err;
+
+	tab = strchr(line, '\t');
+	if (!tab)
+		goto parse_err;
+	*tab = '\0';
+
+	errno = 0;
+	min = strtol(line, &end, 10);
+	if (*end || errno)
+		goto parse_err;
+
+	errno = 0;
+	max = strtol(tab + 1, &end, 10);
+	if (*end || errno)
+		goto parse_err;
+
+	if (min < 0 || min >= (long)NUM_PORTS ||
+	    max < 0 || max >= (long)NUM_PORTS)
+		goto parse_err;
+
+	fwd_ephemeral_min = min;
+	fwd_ephemeral_max = max;
+
+	return;
+
+parse_err:
+	warn("Unable to parse %s", PORT_RANGE_SYSCTL);
+}
+
+/**
+ * fwd_port_map_ephemeral() - Mark ephemeral ports in a bitmap
+ * @map:	Bitmap to update
+ */
+void fwd_port_map_ephemeral(uint8_t *map)
+{
+	unsigned port;
+
+	for (port = fwd_ephemeral_min; port <= fwd_ephemeral_max; port++)
+		bitmap_set(map, port);
+}
 
 /**
  * fwd_rule_addr() - Return match address for a rule
