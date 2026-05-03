@@ -2158,14 +2158,13 @@ void conf_handler(struct ctx *c, uint32_t events)
 			fwd_rules_dump(info, fwd->rules, fwd->count,
 				       "    ", "");
 		}
+
+		fwd_listen_switch(c);
 	}
 
 	if (events & EPOLLHUP) {
 		debug("Configuration client hangup");
-		goto close;
 	}
-
-	return;
 
 close:
 	conf_close(c);

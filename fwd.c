@@ -534,6 +534,40 @@ int fwd_listen_init(const struct ctx *c)
 	return 0;
 }
 
+/**
+ * fwd_listen_switch() - Switch from current to pending rules table
+ * @c:		Execution context
+ */
+void fwd_listen_switch(struct ctx *c)
+{
+	struct fwd_table *tmp[PIF_NUM_TYPES];
+	unsigned i;
+
+	/* Stop listening on the old tables */
+	for (i = 0; i < PIF_NUM_TYPES; i++) {
+		struct fwd_table *fwd = c->fwd[i];
+
+		if (!fwd)
+			continue;
+
+		debug("Flushing %u old %s rules", fwd->count, pif_name(i));
+		fwd_listen_close(fwd);
+		fwd->count = fwd->sock_count = 0;
+	}
+
+	/* Swap active and pending tables */
+	static_assert(sizeof(tmp) == sizeof(c->fwd) &&
+		      sizeof(tmp) == sizeof(c->fwd_pending),
+		      "Temporary has wrong size");
+	memcpy(&tmp, (void *)c->fwd, sizeof(tmp));
+	memcpy((void *)c->fwd, (void *)c->fwd_pending, sizeof(c->fwd));
+	memcpy((void *)c->fwd_pending, &tmp, sizeof(c->fwd_pending));
+
+	/* Start listening on the new tables */
+	if (fwd_listen_init(c) < 0)
+		err("Error switching to new forwarding rules");
+}
+
 /* See enum in kernel's include/net/tcp_states.h */
 #define UDP_LISTEN	0x07
 #define TCP_LISTEN	0x0a
