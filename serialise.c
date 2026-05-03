@@ -6,6 +6,9 @@
  * PASTA - Pack A Subtle Tap Abstraction
  *  for network namespace/tap device mode
  *
+ * PESTO - Programmable Extensible Socket Translation Orchestrator
+ *  front-end for passt(1) and pasta(1) forwarding configuration
+ *
  * serialise.c - Serialisation of data structures over bytestreams
  *
  * Copyright Red Hat

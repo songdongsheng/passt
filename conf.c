@@ -48,6 +48,10 @@
 #include "isolation.h"
 #include "log.h"
 #include "vhost_user.h"
+#include "epoll_ctl.h"
+#include "conf.h"
+#include "pesto.h"
+#include "serialise.h"
 
 #define NETNS_RUN_DIR	"/run/netns"
 
@@ -543,6 +547,7 @@ static void usage(const char *name, FILE *f, int status)
 		"  --runas UID|UID:GID 	Run as given UID, GID, which can be\n"
 		"    numeric, or login and group names\n"
 		"    default: drop to user \"nobody\"\n"
+		"  -c, --conf-path PATH	Configuration socket path\n"
 		"  -h, --help		Display this help message and exit\n"
 		"  --version		Show version and exit\n");
 
@@ -780,6 +785,9 @@ static void conf_print(const struct ctx *c)
 {
 	char buf[INANY_ADDRSTRLEN];
 	int i;
+
+	if (c->fd_control_listen >= 0)
+		info("Configuration socket: %s", c->control_path);
 
 	if (c->ifi4 > 0 || c->ifi6 > 0) {
 		char ifn[IFNAMSIZ];
@@ -1074,6 +1082,19 @@ static void conf_open_files(struct ctx *c)
 		if (c->pidfile_fd < 0)
 			die_perror("Couldn't open PID file %s", c->pidfile);
 	}
+
+	c->fd_control = -1;
+	if (*c->control_path) {
+		c->fd_control_listen = sock_unix(c->control_path);
+		if (c->fd_control_listen < 0) {
+			die_perror("Couldn't open control socket %s",
+				   c->control_path);
+		}
+		if (fcntl(c->fd_control_listen, F_SETFL, O_NONBLOCK))
+			die_perror("Couldn't set O_NONBLOCK on control socket");
+	} else {
+		c->fd_control_listen = -1;
+	}
 }
 
 /**
@@ -1107,6 +1128,25 @@ static void parse_mac(unsigned char mac[ETH_ALEN], const char *str)
 
 fail:
 	die("Invalid MAC address: %s", str);
+}
+
+/**
+ * conf_sock_listen() - Start listening for connections on configuration socket
+ * @c:		Execution context
+ */
+static void conf_sock_listen(const struct ctx *c)
+{
+	union epoll_ref ref = { .type = EPOLL_TYPE_CONF_LISTEN };
+
+	if (c->fd_control_listen < 0)
+		return;
+
+	if (listen(c->fd_control_listen, 0))
+		die_perror("Couldn't listen on configuration socket");
+
+	ref.fd = c->fd_control_listen;
+	if (epoll_add(c->epollfd, EPOLLIN | EPOLLET, ref))
+		die_perror("Couldn't add configuration socket to epoll");
 }
 
 /**
@@ -1191,9 +1231,10 @@ void conf(struct ctx *c, int argc, char **argv)
 		{"migrate-exit", no_argument,		NULL,		29 },
 		{"migrate-no-linger", no_argument,	NULL,		30 },
 		{"stats", required_argument,		NULL,		31 },
+		{"conf-path",	required_argument,	NULL,		'c' },
 		{ 0 },
 	};
-	const char *optstring = "+dqfel:hs:F:I:p:P:m:a:n:M:g:i:o:D:S:H:461t:u:T:U:";
+	const char *optstring = "+dqfel:hs:c:F:I:p:P:m:a:n:M:g:i:o:D:S:H:461t:u:T:U:";
 	const char *logname = (c->mode == MODE_PASTA) ? "pasta" : "passt";
 	bool opt_t = false, opt_T = false, opt_u = false, opt_U = false;
 	char userns[PATH_MAX] = { 0 }, netns[PATH_MAX] = { 0 };
@@ -1450,6 +1491,13 @@ void conf(struct ctx *c, int argc, char **argv)
 				die("Invalid socket path: %s", optarg);
 
 			c->fd_tap = -1;
+			break;
+		case 'c':
+			ret = snprintf(c->control_path, sizeof(c->control_path),
+				       "%s", optarg);
+			if (ret <= 0 || ret >= (int)sizeof(c->control_path))
+				die("Invalid configuration path: %s", optarg);
+			c->fd_control_listen = c->fd_control = -1;
 			break;
 		case 'F':
 			errno = 0;
@@ -1873,6 +1921,136 @@ void conf(struct ctx *c, int argc, char **argv)
 			fwd_rule_parse('U', "auto", c->fwd[PIF_SPLICE]);
 	}
 
+	conf_sock_listen(c);
+
 	if (!c->quiet)
 		conf_print(c);
+}
+
+static void conf_accept(struct ctx *c);
+
+/**
+ * conf_close() - Close configuration / control socket and clean up
+ * @c:		Execution context
+ */
+static void conf_close(struct ctx *c)
+{
+	debug("Closing configuration socket");
+	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, c->fd_control, NULL);
+	close(c->fd_control);
+	c->fd_control = -1;
+}
+
+/**
+ * conf_listen_handler() - Handle events on configuration listening socket
+ * @c:		Execution context
+ * @events:	epoll events
+ */
+void conf_listen_handler(struct ctx *c, uint32_t events)
+{
+	if (events != EPOLLIN) {
+		err("Unexpected event 0x%04x on configuration socket", events);
+		return;
+	}
+
+	if (c->fd_control >= 0) {
+		/* Ignore the new connection for now, blocking it until the
+		 * current one finishes.
+		 */
+		return;
+	}
+
+	conf_accept(c);
+}
+
+/**
+ * conf_accept() - Accept a new control connection
+ * @c:		Execution context
+ */
+static void conf_accept(struct ctx *c)
+{
+	struct pesto_hello hello = {
+		.magic = PESTO_SERVER_MAGIC,
+		.version = htonl(PESTO_PROTOCOL_VERSION),
+	};
+	union epoll_ref ref = { .type = EPOLL_TYPE_CONF };
+	struct ucred uc = { 0 };
+	socklen_t len = sizeof(uc);
+	int fd, rc;
+
+retry:
+	fd = accept4(c->fd_control_listen, NULL, NULL, SOCK_CLOEXEC);
+	if (fd < 0) {
+		if (errno != EAGAIN)
+			warn_perror("accept4() on configuration listening socket");
+		return;
+	}
+
+	if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &uc, &len) < 0)
+		warn_perror("Can't get configuration client credentials");
+
+	c->fd_control = ref.fd = fd;
+	rc = epoll_add(c->epollfd, EPOLLIN | EPOLLET, ref);
+	if (rc < 0) {
+		warn_perror("epoll_ctl() on configuration socket");
+		goto fail;
+	}
+
+	rc = write_all_buf(fd, &hello, sizeof(hello));
+	if (rc < 0) {
+		warn_perror("Error writing configuration protocol hello");
+		goto fail;
+	}
+
+	info("Accepted configuration client, PID %i", uc.pid);
+	if (!PESTO_PROTOCOL_VERSION) {
+		warn(
+"Warning: Using experimental unsupported configuration protocol");
+	}
+
+	return;
+
+fail:
+	conf_close(c);
+	goto retry;
+}
+
+/**
+ * conf_handler() - Handle events on configuration socket
+ * @c:		Execution context
+ * @events:	epoll events
+ */
+void conf_handler(struct ctx *c, uint32_t events)
+{
+	if (events & EPOLLIN) {
+		char discard[BUFSIZ];
+		ssize_t n;
+
+		do {
+			n = read(c->fd_control, discard, sizeof(discard));
+			if (n > 0)
+				debug("Discarded %zd bytes of config data", n);
+		} while (n > 0);
+		if (n == 0) {
+			debug("Configuration client EOF");
+			goto close;
+		}
+		if (errno != EAGAIN && errno != EWOULDBLOCK) {
+			err_perror("Error reading config data");
+			goto close;
+		}
+	}
+
+	if (events & EPOLLHUP) {
+		debug("Configuration client hangup");
+		goto close;
+	}
+
+	return;
+
+close:
+	conf_close(c);
+
+	/* Check if any other clients are waiting to connect */
+	conf_accept(c);
 }

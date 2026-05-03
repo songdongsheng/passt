@@ -33,6 +33,7 @@
 
 #include "common.h"
 #include "seccomp_pesto.h"
+#include "serialise.h"
 #include "pesto.h"
 #include "log.h"
 
@@ -66,6 +67,8 @@ static void usage(const char *name, FILE *f, int status)
  *
  * Return: 0 on success, won't return on failure
  *
+ * #syscalls:pesto socket s390x:socketcall i686:socketcall
+ * #syscalls:pesto connect shutdown close
  * #syscalls:pesto exit_group fstat read write
  */
 int main(int argc, char **argv)
@@ -76,9 +79,12 @@ int main(int argc, char **argv)
 		{"version",	no_argument,		NULL,		1 },
 		{ 0 },
 	};
+	struct sockaddr_un a = { AF_UNIX, "" };
 	const char *optstring = "dh";
+	struct pesto_hello hello;
 	struct sock_fprog prog;
-	int optname;
+	int optname, ret, s;
+	uint32_t s_version;
 
 	prctl(PR_SET_DUMPABLE, 0);
 
@@ -122,5 +128,42 @@ int main(int argc, char **argv)
 
 	debug("debug_flag=%d, path=\"%s\"", debug_flag, argv[optind]);
 
-	die("pesto is not implemented yet");
+	if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
+		die_perror("Failed to create AF_UNIX socket");
+
+	ret = snprintf(a.sun_path, sizeof(a.sun_path), "%s", argv[optind]);
+	if (ret <= 0 || ret >= (int)sizeof(a.sun_path))
+		die("Invalid socket path \"%s\"", argv[optind]);
+
+	ret = connect(s, (struct sockaddr *)&a, sizeof(a));
+	if (ret < 0) {
+		die_perror("Failed to connect to %s", a.sun_path);
+	}
+
+	ret = read_all_buf(s, &hello, sizeof(hello));
+	if (ret < 0)
+		die_perror("Couldn't read server greeting");
+
+	if (memcmp(hello.magic, PESTO_SERVER_MAGIC, sizeof(hello.magic)))
+		die("Bad magic number from server");
+
+	s_version = ntohl(hello.version);
+
+	if (s_version > PESTO_PROTOCOL_VERSION) {
+		die("Unknown server protocol version %"PRIu32" > %"PRIu32,
+		    s_version, PESTO_PROTOCOL_VERSION);
+	}
+
+	/* cppcheck-suppress knownConditionTrueFalse */
+	if (!s_version) {
+		if (PESTO_PROTOCOL_VERSION)
+			die("Unsupported experimental server protocol");
+		FPRINTF(stderr,
+"Warning: Using experimental protocol version, client and server must match\n");
+	}
+
+	if (shutdown(s, SHUT_RDWR) < 0 || close(s) < 0)
+		die_perror("Error shutting down control socket");
+
+	exit(0);
 }
