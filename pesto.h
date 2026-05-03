@@ -17,18 +17,32 @@
 /* Version 0 is reserved for unreleased / unsupported experimental versions */
 #define PESTO_PROTOCOL_VERSION	1
 
+/* Maximum size of a pif name, including \0 */
+#define	PIF_NAME_SIZE	(128)
+#define PIF_NONE	0
+
 /**
  * struct pesto_hello - Server introduction message
- * @magic:	PESTO_SERVER_MAGIC
- * @version:	Version number
+ * @magic:		PESTO_SERVER_MAGIC
+ * @version:		Version number
+ * @pif_name_size:	Server's value for PIF_NAME_SIZE
  */
 struct pesto_hello {
 	char magic[8];
 	uint32_t version;
+	uint32_t pif_name_size;
 } __attribute__ ((__packed__));
 
 static_assert(sizeof(PESTO_SERVER_MAGIC)
 	      == sizeof(((struct pesto_hello *)0)->magic),
 	      "PESTO_SERVER_MAGIC has wrong size");
+
+/**
+ * struct pesto_pif_info - Message with basic metadata about a pif
+ * @name:	Name (\0 terminated)
+ */
+struct pesto_pif_info {
+	char name[PIF_NAME_SIZE];
+} __attribute__ ((__packed__));
 
 #endif /* PESTO_H */

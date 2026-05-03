@@ -1930,6 +1930,43 @@ void conf(struct ctx *c, int argc, char **argv)
 static void conf_accept(struct ctx *c);
 
 /**
+ * conf_send_rules() - Send current forwarding rules to config client (pesto)
+ * @c:		Execution context
+ * @fd:		Socket to the client
+ *
+ * Return: 0 on success, -1 on failure
+ *
+ * FIXME: So far only sends pif ids and names
+ */
+static int conf_send_rules(const struct ctx *c, int fd)
+{
+	unsigned pif;
+
+	for (pif = 0; pif < PIF_NUM_TYPES; pif++) {
+		struct pesto_pif_info info = { 0 };
+		int rc;
+
+		if (!c->fwd[pif])
+			continue;
+
+		assert(pif != PIF_NONE);
+
+		rc = snprintf(info.name, sizeof(info.name), "%s", pif_name(pif));
+		assert(rc >= 0 && (size_t)rc < sizeof(info.name));
+
+		if (write_u8(fd, pif) < 0)
+			return -1;
+		if (write_all_buf(fd, &info, sizeof(info)) < 0)
+			return -1;
+	}
+
+	if (write_u8(fd, PIF_NONE) < 0)
+		return -1;
+
+	return 0;
+}
+
+/**
  * conf_close() - Close configuration / control socket and clean up
  * @c:		Execution context
  */
@@ -1972,6 +2009,7 @@ static void conf_accept(struct ctx *c)
 	struct pesto_hello hello = {
 		.magic = PESTO_SERVER_MAGIC,
 		.version = htonl(PESTO_PROTOCOL_VERSION),
+		.pif_name_size = htonl(PIF_NAME_SIZE),
 	};
 	union epoll_ref ref = { .type = EPOLL_TYPE_CONF };
 	struct ucred uc = { 0 };
@@ -2007,6 +2045,9 @@ retry:
 		warn(
 "Warning: Using experimental unsupported configuration protocol");
 	}
+
+	if (conf_send_rules(c, fd) < 0)
+		goto fail;
 
 	return;
 

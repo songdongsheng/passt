@@ -11,6 +11,7 @@
 
 #include <netinet/in.h>
 
+#include "pesto.h"
 #include "epoll_type.h"
 
 union inany_addr;
@@ -24,7 +25,7 @@ union sockaddr_inany;
  */
 enum pif_type {
 	/* Invalid or not present pif */
-	PIF_NONE = 0,
+	PIF_NONE_ = PIF_NONE,
 	/* Host socket interface */
 	PIF_HOST,
 	/* Qemu socket or namespace tuntap interface */
@@ -35,8 +36,6 @@ enum pif_type {
 	PIF_NUM_TYPES,
 };
 
-/* Maximum size of a pif name, including \0 */
-#define	PIF_NAME_SIZE	(128)
 extern const char pif_type_str[][PIF_NAME_SIZE];
 
 static inline const char *pif_type(enum pif_type pt)

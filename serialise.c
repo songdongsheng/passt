@@ -121,6 +121,10 @@ int write_all_buf(int fd, const void *buf, size_t len)
 		return write_all_buf(fd, &beval, sizeof(beval));	\
 	}
 
+#define	be8toh(x)	(x)
+#define	htobe8(x)	(x)
+
+SERIALISE_UINT(8)
 SERIALISE_UINT(32)
 
 #undef SERIALISE_UINT

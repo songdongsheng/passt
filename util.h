@@ -87,8 +87,6 @@ void abort_with_msg(const char *fmt, ...)
 #define V6		1
 #define IP_VERSIONS	2
 
-#define ARRAY_SIZE(a)		((int)(sizeof(a) / sizeof((a)[0])))
-
 #define foreach(item, array)						\
 	for ((item) = (array); (item) - (array) < ARRAY_SIZE(array); (item)++)
 

@@ -53,4 +53,6 @@ static inline const char *strerror_(int errnum)
 
 #define strerror(x) @ "Don't call strerror() directly, use strerror_() instead"
 
+#define ARRAY_SIZE(a)		((int)(sizeof(a) / sizeof((a)[0])))
+
 #endif /* COMMON_H */

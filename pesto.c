@@ -60,6 +60,127 @@ static void usage(const char *name, FILE *f, int status)
 	exit(status);
 }
 
+/* Maximum number of pifs with rule tables */
+#define MAX_PIFS	3
+
+struct pif_configuration {
+	uint8_t pif;
+	char name[PIF_NAME_SIZE];
+};
+
+struct configuration {
+	uint32_t npifs;
+	struct pif_configuration pif[MAX_PIFS];
+};
+
+/**
+ * pif_conf_by_num() - Find a pif's configuration by pif id
+ * @conf:	Configuration description
+ * @pif:	pif id
+ *
+ * Return: pointer to the pif_configuration for @pif, or NULL if not found
+ */
+static struct pif_configuration *pif_conf_by_num(struct configuration *conf,
+						 uint8_t pif)
+{
+	unsigned i;
+
+	for (i = 0; i < conf->npifs; i++) {
+		if (conf->pif[i].pif == pif)
+			return &conf->pif[i];
+	}
+
+	return NULL;
+}
+
+/**
+ * pif_conf_by_name() - Find a pif's configuration by name
+ * @conf:	Configuration description
+ * @name:	Interface name
+ *
+ * Return: pif_configuration for pif named @name, or NULL if not found
+ */
+static struct pif_configuration *pif_conf_by_name(struct configuration *conf,
+						  const char *name)
+{
+	unsigned i;
+
+	for (i = 0; i < conf->npifs; i++) {
+		if (strcmp(conf->pif[i].name, name) == 0)
+			return &conf->pif[i];
+	}
+
+	return NULL;
+}
+
+/**
+ * pesto_read_rules() - Read rulestate from passt/pasta
+ * @fd:		Control socket
+ * @conf:	Configuration description to update
+ */
+static bool read_pif_conf(int fd, struct configuration *conf)
+{
+	struct pif_configuration *pc;
+	struct pesto_pif_info info;
+	uint8_t pif;
+
+	if (read_u8(fd, &pif) < 0)
+		die("Error reading from control socket");
+
+	if (pif == PIF_NONE)
+		return false;
+
+	debug("Receiving config for PIF %"PRIu8, pif);
+
+	if (conf->npifs >= ARRAY_SIZE(conf->pif)) {
+		die("passt has more pifs than pesto can manage (max %d)",
+		    ARRAY_SIZE(conf->pif));
+	}
+
+	pc = &conf->pif[conf->npifs];
+	pc->pif = pif;
+
+	if (read_all_buf(fd, &info, sizeof(info)) < 0)
+		die("Error reading from control socket");
+
+	if (info.name[sizeof(info.name)-1])
+		die("Interface name was not NULL terminated");
+	/* Redundant, to make static checkers happy */
+	info.name[sizeof(info.name) - 1] = '\0';
+
+	static_assert(sizeof(info.name) == sizeof(pc->name),
+		      "Mismatching pif name lengths");
+	memcpy(pc->name, info.name, sizeof(pc->name));
+
+	debug("PIF %"PRIu8": %s", pc->pif, pc->name);
+
+	/* O(n^2), but n is bounded by MAX_PIFS */
+	if (pif_conf_by_num(conf, pc->pif))
+		die("Received duplicate interface identifier");
+
+	/* O(n^2), but n is bounded by MAX_PIFS */
+	if (pif_conf_by_name(conf, pc->name))
+		die("Received duplicate interface name");
+
+	conf->npifs++;
+	return true;
+}
+
+/**
+ * show_conf() - Show current configuration obtained from passt/pasta
+ * @conf:	Configuration description
+ */
+static void show_conf(const struct configuration *conf)
+{
+	unsigned i;
+
+	for (i = 0; i < conf->npifs; i++) {
+		const struct pif_configuration *pc = &conf->pif[i];
+		printf("  %s\n", pc->name);
+		printf("    TBD\n");
+	}
+}
+
 /**
  * main() - Dynamic reconfiguration client main program
  * @argc:	Argument count
@@ -80,6 +201,7 @@ int main(int argc, char **argv)
 		{ 0 },
 	};
 	struct sockaddr_un a = { AF_UNIX, "" };
+	struct configuration conf = { 0 };
 	const char *optstring = "dh";
 	struct pesto_hello hello;
 	struct sock_fprog prog;
@@ -161,6 +283,18 @@ int main(int argc, char **argv)
 		FPRINTF(stderr,
 "Warning: Using experimental protocol version, client and server must match\n");
 	}
+
+	if (ntohl(hello.pif_name_size) != PIF_NAME_SIZE) {
+		die("Server has unexpected pif name size (%"
+		    PRIu32" not %"PRIu32 ")",
+		    ntohl(hello.pif_name_size), PIF_NAME_SIZE);
+	}
+
+	while (read_pif_conf(s, &conf))
+		;
+
+	printf("passt/pasta configuration (%s)\n", a.sun_path);
+	show_conf(&conf);
 
 	if (shutdown(s, SHUT_RDWR) < 0 || close(s) < 0)
 		die_perror("Error shutting down control socket");
