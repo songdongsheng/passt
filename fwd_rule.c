@@ -196,29 +196,6 @@ static bool fwd_rule_conflicts(const struct fwd_rule *a, const struct fwd_rule *
 }
 
 /**
- * fwd_rule_conflict_check() - Die if given rule conflicts with any in list
- * @new:	New rule
- * @rules:	Existing rules against which to test
- * @count:	Number of rules in @rules
- */
-static void fwd_rule_conflict_check(const struct fwd_rule *new,
-				    const struct fwd_rule *rules, size_t count)
-{
-	unsigned i;
-
-	for (i = 0; i < count; i++) {
-		char newstr[FWD_RULE_STRLEN], rulestr[FWD_RULE_STRLEN];
-
-		if (!fwd_rule_conflicts(new, &rules[i]))
-			continue;
-
-		die("Forwarding configuration conflict: %s versus %s",
-		    fwd_rule_fmt(new, newstr, sizeof(newstr)),
-		    fwd_rule_fmt(&rules[i], rulestr, sizeof(rulestr)));
-	}
-}
-
-/**
  * fwd_rule_add() - Validate and add a rule to a forwarding table
  * @fwd:	Table to add to
  * @new:	Rule to add
@@ -230,7 +207,7 @@ static int fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new)
 	/* Flags which can be set from the caller */
 	const uint8_t allowed_flags = FWD_WEAK | FWD_SCAN | FWD_DUAL_STACK_ANY;
 	unsigned num = (unsigned)new->last - new->first + 1;
-	unsigned port;
+	unsigned port, i;
 
 	if (new->first > new->last) {
 		warn("Rule has invalid port range %u-%u",
@@ -291,6 +268,18 @@ static int fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new)
 		warn("Unsupported protocol 0x%hhx (%s) for forwarding rule",
 		     new->proto, ipproto_name(new->proto));
 		return -EINVAL;
+	}
+
+	for (i = 0; i < fwd->count; i++) {
+		char newstr[FWD_RULE_STRLEN], rulestr[FWD_RULE_STRLEN];
+
+		if (!fwd_rule_conflicts(new, &fwd->rules[i]))
+			continue;
+
+		warn("Forwarding configuration conflict: %s versus %s",
+		     fwd_rule_fmt(new, newstr, sizeof(newstr)),
+		     fwd_rule_fmt(&fwd->rules[i], rulestr, sizeof(rulestr)));
+		return -EEXIST;
 	}
 
 	if (fwd->count >= ARRAY_SIZE(fwd->rules)) {
@@ -435,7 +424,6 @@ static void fwd_rule_range_except(struct fwd_table *fwd, uint8_t proto,
 		rule.last = i - 1;
 		rule.to = base + delta;
 
-		fwd_rule_conflict_check(&rule, fwd->rules, fwd->count);
 		if (fwd_rule_add(fwd, &rule) < 0)
 			goto fail;
 
