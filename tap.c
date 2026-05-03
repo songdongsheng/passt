@@ -756,6 +756,11 @@ resume:
 
 		if (IN4_IS_ADDR_LOOPBACK(&iph->saddr) ||
 		    IN4_IS_ADDR_LOOPBACK(&iph->daddr)) {
+			/* The scope of sstr and dstr could be in theory reduced
+			 * into the conditional block debug() expands to, but
+			 * it's awkward and unreadable, so ignore this warning.
+			 */
+			/* cppcheck-suppress [variableScope,unmatchedSuppression] */
 			char sstr[INET_ADDRSTRLEN], dstr[INET_ADDRSTRLEN];
 
 			debug("Loopback address on tap interface: %s -> %s",
@@ -929,6 +934,11 @@ resume:
 			continue;
 
 		if (IN6_IS_ADDR_LOOPBACK(saddr) || IN6_IS_ADDR_LOOPBACK(daddr)) {
+			/* The scope of sstr and dstr could be in theory reduced
+			 * into the conditional block debug() expands to, but
+			 * it's awkward and unreadable, so ignore this warning.
+			 */
+			/* cppcheck-suppress [variableScope,unmatchedSuppression] */
 			char sstr[INET6_ADDRSTRLEN], dstr[INET6_ADDRSTRLEN];
 
 			debug("Loopback address on tap interface: %s -> %s",
@@ -1304,7 +1314,7 @@ void tap_handler_pasta(struct ctx *c, uint32_t events,
  * tap_backend_show_hints() - Give help information to start QEMU
  * @c:		Execution context
  */
-static void tap_backend_show_hints(struct ctx *c)
+static void tap_backend_show_hints(const struct ctx *c)
 {
 	switch (c->mode) {
 	case MODE_PASTA:

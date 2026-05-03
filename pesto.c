@@ -34,17 +34,11 @@
 #include "common.h"
 #include "seccomp_pesto.h"
 #include "pesto.h"
+#include "log.h"
 
-static bool debug_flag = false;
+bool debug_flag = false;
 
 static char stdout_buf[BUFSIZ];
-
-#define die(...)							\
-	do {								\
-		FPRINTF(stderr, __VA_ARGS__);				\
-		FPRINTF(stderr, "\n");					\
-		exit(EXIT_FAILURE);					\
-	} while (0)
 
 /**
  * usage() - Print usage, exit with given status code
@@ -99,7 +93,7 @@ int main(int argc, char **argv)
 	 * breaking our seccomp profile.
 	 */
 	if (setvbuf(stdout, stdout_buf, _IOFBF, sizeof(stdout_buf)))
-		die("Failed to set stdout buffer");
+		die_perror("Failed to set stdout buffer");
 
 	do {
 		optname = getopt_long(argc, argv, optstring, options, NULL);
@@ -126,7 +120,7 @@ int main(int argc, char **argv)
 	if (argc - optind != 1)
 		usage(argv[0], stderr, EXIT_FAILURE);
 
-	printf("debug_flag=%d, path=\"%s\"\n", debug_flag, argv[optind]);
+	debug("debug_flag=%d, path=\"%s\"", debug_flag, argv[optind]);
 
 	die("pesto is not implemented yet");
 }

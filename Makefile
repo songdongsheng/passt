@@ -50,10 +50,10 @@ SRCS = $(PASST_SRCS) $(QRAP_SRCS) $(PASST_REPAIR_SRCS) $(PESTO_SRCS)
 
 MANPAGES = passt.1 pasta.1 pesto.1 qrap.1 passt-repair.1
 
-PASST_HEADERS = arch.h arp.h bitmap.h checksum.h conf.h dhcp.h dhcpv6.h \
-	epoll_ctl.h flow.h fwd.h fwd_rule.h flow_table.h icmp.h icmp_flow.h \
-	inany.h iov.h ip.h isolation.h lineread.h log.h migrate.h ndp.h \
-	netlink.h packet.h passt.h pasta.h pesto.h pcap.h pif.h repair.h \
+PASST_HEADERS = arch.h arp.h bitmap.h checksum.h common.h conf.h dhcp.h \
+	dhcpv6.h epoll_ctl.h flow.h fwd.h fwd_rule.h flow_table.h icmp.h \
+	icmp_flow.h inany.h iov.h ip.h isolation.h lineread.h log.h migrate.h \
+	ndp.h netlink.h packet.h passt.h pasta.h pcap.h pesto.h pif.h repair.h \
 	serialise.h siphash.h tap.h tcp.h tcp_buf.h tcp_conn.h tcp_internal.h \
 	tcp_splice.h tcp_vu.h udp.h udp_flow.h udp_internal.h udp_vu.h util.h \
 	vhost_user.h virtio.h vu_common.h
@@ -116,7 +116,7 @@ passt-repair: $(PASST_REPAIR_SRCS) seccomp_repair.h
 	$(CC) $(FLAGS) $(CFLAGS) $(CPPFLAGS) $(PASST_REPAIR_SRCS) -o passt-repair $(LDFLAGS)
 
 pesto: $(PESTO_SRCS) $(PESTO_HEADERS) seccomp_pesto.h
-	$(CC) $(FLAGS) $(CFLAGS) $(CPPFLAGS) $(PESTO_SRCS) -o pesto $(LDFLAGS)
+	$(CC) $(FLAGS) $(CFLAGS) $(CPPFLAGS) -DPESTO $(PESTO_SRCS) -o pesto $(LDFLAGS)
 
 valgrind: EXTRA_SYSCALLS += rt_sigprocmask rt_sigtimedwait rt_sigaction	\
 			    rt_sigreturn getpid gettid kill clock_gettime \

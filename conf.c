@@ -308,7 +308,9 @@ static void conf_netns_opt(char *netns, const char *arg)
  * @argv:	Command line arguments
  */
 static void conf_pasta_ns(int *netns_only, char *userns, char *netns,
-			  int optind, int argc, char *argv[])
+			  int optind, int argc,
+/* cppcheck-suppress [constParameter, unmatchedSuppression] */
+			  char *argv[])
 {
 	if (*netns && optind != argc)
 		die("Both --netns and PID or command given");
