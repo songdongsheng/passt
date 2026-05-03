@@ -1,0 +1,59 @@
+.\" SPDX-License-Identifier: GPL-2.0-or-later
+.\" Copyright Red Hat
+.\" Author: David Gibson <david@gibson.dropbear.id.au>
+.TH pesto 1
+
+.SH NAME
+.B pesto
+\- Configure a running \fBpasst\fR(1) or \fBpasta\fR(1) instance.
+
+.SH SYNOPSIS
+.B pesto
+[\fIOPTION\fR]... \fIPATH\fR
+
+.SH DESCRIPTION
+
+.B pesto
+is a client to view and update the port forwarding configuration of a running
+\fBpasst\fR(1) or \fBpasta\fR(1) instance.
+
+\fIPATH\fR gives the path to the UNIX domain socket created by \fBpasst\fR or
+\fBpasta\fR.  It should match the \fB-c\fR command line option given to that
+instance.
+
+.SH OPTIONS
+
+.TP
+.BR \-d ", " \-\-debug
+Be verbose.
+
+.TP
+.BR \-h ", " \-\-help
+Display a help message and exit.
+
+.TP
+.BR \-\-version
+Show version and exit.
+
+.SH AUTHORS
+
+Stefano Brivio <sbrivio@redhat.com>,
+David Gibson <david@gibson.dropbear.id.au>.
+
+.SH REPORTING BUGS
+
+Please report issues on the bug tracker at https://bugs.passt.top/, or send a
+message to the passt-user@passt.top mailing list, see https://lists.passt.top/.
+
+.SH COPYRIGHT
+
+Copyright Red Hat
+
+\fBpesto\fR is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 2 of the License, or (at
+your option) any later version.
+
+.SH SEE ALSO
+
+\fBpasst\fR(1), \fBpasta\fR(1), \fBunix\fR(7).
