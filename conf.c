@@ -902,7 +902,8 @@ dns6:
 			dir = "Inbound";
 
 		info("%s forwarding rules (%s):", dir, pif_name(i));
-		fwd_rules_info(c->fwd[i]->rules, c->fwd[i]->count);
+		fwd_rules_dump(info, c->fwd[i]->rules, c->fwd[i]->count,
+			       "    ", "");
 	}
 }
 

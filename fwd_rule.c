@@ -124,7 +124,6 @@ const union inany_addr *fwd_rule_addr(const struct fwd_rule *rule)
  */
 __attribute__((noinline))
 #endif
-/* cppcheck-suppress staticFunction */
 const char *fwd_rule_fmt(const struct fwd_rule *rule, char *dst, size_t size)
 {
 	const char *percent = *rule->ifname ? "%" : "";
@@ -156,21 +155,6 @@ const char *fwd_rule_fmt(const struct fwd_rule *rule, char *dst, size_t size)
 		return NULL;
 
 	return dst;
-}
-
-/**
- * fwd_rules_info() - Print forwarding rules for debugging
- * @fwd:	Table to print
- */
-void fwd_rules_info(const struct fwd_rule *rules, size_t count)
-{
-	unsigned i;
-
-	for (i = 0; i < count; i++) {
-		char buf[FWD_RULE_STRLEN];
-
-		info("    %s", fwd_rule_fmt(&rules[i], buf, sizeof(buf)));
-	}
 }
 
 /**

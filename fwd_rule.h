@@ -97,7 +97,25 @@ void fwd_probe_ephemeral(void);
 
 const union inany_addr *fwd_rule_addr(const struct fwd_rule *rule);
 const char *fwd_rule_fmt(const struct fwd_rule *rule, char *dst, size_t size);
-void fwd_rules_info(const struct fwd_rule *rules, size_t count);
 void fwd_rule_parse(char optname, const char *optarg, struct fwd_table *fwd);
+
+/**
+ * fwd_rules_dump() - Dump forwarding rules
+ * @fn:		Printing/logging function to call
+ * @rules:	Array of rules to dump
+ * @count:	Number of rules to dump
+ * @prefix:	String to print at the start of each rule
+ * @suffix:	String to print at the end of each rule
+ */
+#define fwd_rules_dump(fn, rules, count, prefix, suffix)		\
+	do {								\
+		unsigned i_;						\
+		for (i_ = 0; i_ < (count); i_++) {			\
+			char buf_[FWD_RULE_STRLEN];			\
+			fn("%s%s%s", prefix,				\
+			   fwd_rule_fmt(&(rules)[i_], buf_, sizeof(buf_)), \
+			   suffix);					\
+		}							\
+	} while (0)
 
 #endif /* FWD_RULE_H */
