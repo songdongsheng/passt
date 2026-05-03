@@ -1976,6 +1976,62 @@ static int conf_send_rules(const struct ctx *c, int fd)
 }
 
 /**
+ * conf_recv_rules() - Receive forwarding rules from configuration client
+ * @c:		Execution context
+ * @fd:		Socket to the client
+ *
+ * Return: 0 on success, -1 on failure
+ */
+static int conf_recv_rules(const struct ctx *c, int fd)
+{
+	while (1) {
+		struct fwd_table *fwd;
+		struct fwd_rule r;
+		uint32_t count;
+		uint8_t pif;
+		unsigned i;
+
+		if (read_u8(fd, &pif))
+			return -1;
+
+		if (pif == PIF_NONE)
+			break;
+
+		if (pif >= ARRAY_SIZE(c->fwd_pending) ||
+		    !(fwd = c->fwd_pending[pif])) {
+			err("Received rules for non-existent table");
+			return -1;
+		}
+
+		if (read_u32(fd, &count))
+			return -1;
+
+		if (count > MAX_FWD_RULES) {
+			err("Received %"PRIu32" rules (maximum %u)",
+			    count, MAX_FWD_RULES);
+			return -1;
+		}
+
+		for (i = 0; i < count; i++) {
+			if (fwd_rule_read(fd, &r))
+				return -1;
+
+			if (r.ifname[sizeof(r.ifname) - 1]) {
+				err("Interface name was not NULL terminated");
+				return -1;
+			}
+			/* Redundant, to make static checkers happy */
+			r.ifname[sizeof(r.ifname) - 1] = '\0';
+
+			if (fwd_rule_add(fwd, &r) < 0)
+				return -1;
+		}
+	}
+
+	return 0;
+}
+
+/**
  * conf_close() - Close configuration / control socket and clean up
  * @c:		Execution context
  */
@@ -2074,21 +2130,33 @@ fail:
 void conf_handler(struct ctx *c, uint32_t events)
 {
 	if (events & EPOLLIN) {
-		char discard[BUFSIZ];
-		ssize_t n;
+		unsigned pif;
 
-		do {
-			n = read(c->fd_control, discard, sizeof(discard));
-			if (n > 0)
-				debug("Discarded %zd bytes of config data", n);
-		} while (n > 0);
-		if (n == 0) {
-			debug("Configuration client EOF");
-			goto close;
+		/* Clear pending tables */
+		for (pif = 0; pif < PIF_NUM_TYPES; pif++) {
+			struct fwd_table *fwd = c->fwd_pending[pif];
+
+			if (!fwd)
+				continue;
+			fwd->count = 0;
+			fwd->sock_count = 0;
 		}
-		if (errno != EAGAIN && errno != EWOULDBLOCK) {
-			err_perror("Error reading config data");
+
+		/* FIXME: this could block indefinitely if the client doesn't
+		 * write as much as it should
+		 */
+		if (conf_recv_rules(c, c->fd_control) < 0)
 			goto close;
+
+		for (pif = 0; pif < PIF_NUM_TYPES; pif++) {
+			struct fwd_table *fwd = c->fwd_pending[pif];
+
+			if (!fwd)
+				continue;
+
+			info("New forwarding rules for %s:", pif_name(pif));
+			fwd_rules_dump(info, fwd->rules, fwd->count,
+				       "    ", "");
 		}
 	}
 

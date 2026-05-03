@@ -247,6 +247,9 @@ void fwd_neigh_table_init(const struct ctx *c)
 static struct fwd_table fwd_in;
 static struct fwd_table fwd_out;
 
+static struct fwd_table fwd_in_pending;
+static struct fwd_table fwd_out_pending;
+
 /**
  * fwd_rule_init() - Initialise forwarding tables
  * @c:		Execution context
@@ -269,10 +272,15 @@ void fwd_rule_init(struct ctx *c)
 		caps |= FWD_CAP_IFNAME;
 
 	fwd_in.caps = fwd_out.caps = caps;
+	fwd_in_pending.caps = fwd_out_pending.caps = caps;
 
 	c->fwd[PIF_HOST] = &fwd_in;
-	if (c->mode == MODE_PASTA)
+	c->fwd_pending[PIF_HOST] = &fwd_in_pending;
+
+	if (c->mode == MODE_PASTA) {
 		c->fwd[PIF_SPLICE] = &fwd_out;
+		c->fwd_pending[PIF_SPLICE] = &fwd_out_pending;
+	}
 }
 
 /**

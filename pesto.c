@@ -231,6 +231,39 @@ static bool read_pif_conf(int fd, struct configuration *conf)
 }
 
 /**
+ * send_conf() - Send updated configuration to passt/pasta
+ * @fd:		Control socket
+ * @conf:	Updated configuration
+ */
+static void send_conf(int fd, const struct configuration *conf)
+{
+	unsigned i;
+
+	for (i = 0; i < conf->npifs; i++) {
+		const struct pif_configuration *pc = &conf->pif[i];
+		unsigned j;
+
+		if (write_u8(fd, pc->pif) < 0)
+			goto fail;
+
+		if (write_u32(fd, pc->fwd.count) < 0)
+			goto fail;
+
+		for (j = 0; j < pc->fwd.count; j++) {
+			if (fwd_rule_write(fd, &pc->fwd.rules[j]) < 0)
+				goto fail;
+		}
+	}
+
+	if (write_u8(fd, PIF_NONE) < 0)
+		goto fail;
+	return;
+
+fail:
+	die_perror("Error writing to control socket");
+}
+
+/**
  * show_conf() - Show current configuration obtained from passt/pasta
  * @conf:	Configuration description
  */
@@ -431,6 +464,8 @@ int main(int argc, char **argv)
 		printf("Updated configuration (%s)\n", a.sun_path);
 		show_conf(&conf);
 	}
+
+	send_conf(s, &conf);
 
 noupdate:
 	if (shutdown(s, SHUT_RDWR) < 0 || close(s) < 0)
