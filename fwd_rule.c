@@ -208,7 +208,7 @@ static int fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new)
 		return -EINVAL;
 	}
 	if (new->flags & ~allowed_flags) {
-		warn("Rule has invalid flags 0x%hhx",
+		warn("Rule has invalid flags 0x%x",
 		     new->flags & ~allowed_flags);
 		return -EINVAL;
 	}
@@ -267,11 +267,11 @@ static int fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new)
 	}
 
 	if (fwd->count >= ARRAY_SIZE(fwd->rules)) {
-		warn("Too many rules (maximum %u)", ARRAY_SIZE(fwd->rules));
+		warn("Too many rules (maximum %d)", ARRAY_SIZE(fwd->rules));
 		return -ENOSPC;
 	}
 	if ((fwd->sock_count + num) > ARRAY_SIZE(fwd->socks)) {
-		warn("Rules require too many listening sockets (maximum %u)",
+		warn("Rules require too many listening sockets (maximum %d)",
 		     ARRAY_SIZE(fwd->socks));
 		return -ENOSPC;
 	}
