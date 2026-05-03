@@ -271,13 +271,24 @@ int fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new)
 		warn("Too many rules (maximum %d)", ARRAY_SIZE(fwd->rules));
 		return -ENOSPC;
 	}
+
 	if ((fwd->sock_count + num) > ARRAY_SIZE(fwd->socks)) {
 		warn("Rules require too many listening sockets (maximum %d)",
 		     ARRAY_SIZE(fwd->socks));
 		return -ENOSPC;
 	}
+	/* Redundant (see check just above), to make static checkers happy */
+	if (fwd->sock_count > ARRAY_SIZE(fwd->socks))
+		return -ENOSPC;
 
 	fwd->rulesocks[fwd->count] = &fwd->socks[fwd->sock_count];
+
+	/* Redundant, but not for static checkers, that might be missing that
+	 * due to the check on 'num' above against ARRAY_SIZE(fwd->socks), we
+	 * have a proper upper bound for new->last in the loop below.
+	 */
+	if (new->last > ARRAY_SIZE(fwd->socks) + new->first)
+		return -ENOSPC;
 	for (port = new->first; port <= new->last; port++)
 		fwd->rulesocks[fwd->count][port - new->first] = -1;
 
