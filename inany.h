@@ -10,8 +10,10 @@
 #define INANY_H
 
 #include <assert.h>
+#include <stdbool.h>
 #include <string.h>
 
+#include "util.h"
 #include "ip.h"
 #include "siphash.h"
 
