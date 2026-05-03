@@ -55,6 +55,43 @@ static void usage(const char *name, FILE *f, int status)
 	FPRINTF(f, "Usage: %s [OPTION]... PATH\n", name);
 	FPRINTF(f,
 		"\n"
+		"  -t, --tcp-ports SPEC	TCP inbound port forwarding\n"
+		"    can be specified multiple times\n"
+		"    SPEC can be:\n"
+		"      'none': don't forward any ports\n"
+		"      [ADDR[%%IFACE]/]PORTS: forward specific ports\n"
+		"        PORTS is either 'all' (forward all unbound, non-ephemeral\n"
+		"        ports), or a comma-separated list of ports, optionally\n"
+		"        ranged with '-' and optional target ports after ':'.\n"
+		"        Ranges can be reduced by excluding ports or ranges\n"
+		"        prefixed by '~'.\n"
+		"        The 'auto' keyword may be given to only forward\n"
+		"        ports which are bound in the target namespace\n"
+		"        Examples:\n"
+		"        -t all         Forward all ports\n"
+		"        -t 127.0.0.1/all Forward all ports from local address\n"
+		"                         127.0.0.1\n"
+		"        -t 22		Forward local port 22 to 22\n"
+		"        -t 22:23	Forward local port 22 to 23\n"
+		"        -t 22,25	Forward ports 22, 25 to ports 22, 25\n"
+		"        -t 22-80  	Forward ports 22 to 80\n"
+		"        -t 22-80:32-90	Forward ports 22 to 80 to\n"
+		"			corresponding port numbers plus 10\n"
+		"        -t 192.0.2.1/5	Bind port 5 of 192.0.2.1\n"
+		"        -t 5-25,~10-20	Forward ports 5 to 9, and 21 to 25\n"
+		"        -t ~25		Forward all ports except for 25\n"
+		"        -t auto	Forward all ports bound in namespace\n"
+		"        -t 192.0.2.2/auto Forward ports from 192.0.2.2 if\n"
+		"                          they are bound in the namespace\n"
+		"        -t 8000-8010,auto Forward ports 8000-8010 if they\n"
+		"                          are bound in the namespace\n"
+		"  -u, --udp-ports SPEC	UDP inbound port forwarding\n"
+		"    SPEC is as described for TCP above\n"
+		"  -T, --tcp-ns SPEC	TCP port forwarding to init namespace\n"
+		"    SPEC is as described above\n"
+		"  -U, --udp-ns SPEC	UDP port forwarding to init namespace\n"
+		"    SPEC is as described above\n"
+		"  -s, --show		Show configuration before and after\n"
 		"  -d, --debug		Print debugging messages\n"
 		"  -h, --help		Display this help message and exit\n"
 		"  --version		Show version and exit\n");
@@ -207,6 +244,8 @@ static void show_conf(const struct configuration *conf)
 		fwd_rules_dump(printf, pc->fwd.rules, pc->fwd.count,
 			       "    ", "\n");
 	}
+	/* Flush stdout, so this doesn't get misordered with later debug()s */
+	(void)fflush(stdout);
 }
 
 /**
@@ -218,7 +257,7 @@ static void show_conf(const struct configuration *conf)
  *
  * #syscalls:pesto socket s390x:socketcall i686:socketcall
  * #syscalls:pesto connect shutdown close
- * #syscalls:pesto exit_group fstat read write
+ * #syscalls:pesto exit_group fstat read write openat
  */
 int main(int argc, char **argv)
 {
@@ -226,11 +265,18 @@ int main(int argc, char **argv)
 		{"debug",	no_argument,		NULL,		'd' },
 		{"help",	no_argument,		NULL,		'h' },
 		{"version",	no_argument,		NULL,		1 },
+		{"tcp-ports",	required_argument,	NULL,		't' },
+		{"udp-ports",	required_argument,	NULL,		'u' },
+		{"tcp-ns",	required_argument,	NULL,		'T' },
+		{"udp-ns",	required_argument,	NULL,		'U' },
+		{"show",	no_argument,		NULL,		's' },
 		{ 0 },
 	};
+	struct pif_configuration *inbound, *outbound;
 	struct sockaddr_un a = { AF_UNIX, "" };
+	const char *optstring = "dht:u:T:U:s";
 	struct configuration conf = { 0 };
-	const char *optstring = "dh";
+	bool update = false, show = false;
 	struct pesto_hello hello;
 	struct sock_fprog prog;
 	int optname, ret, s;
@@ -251,12 +297,24 @@ int main(int argc, char **argv)
 	if (setvbuf(stdout, stdout_buf, _IOFBF, sizeof(stdout_buf)))
 		die_perror("Failed to set stdout buffer");
 
+	fwd_probe_ephemeral();
+
 	do {
 		optname = getopt_long(argc, argv, optstring, options, NULL);
 
 		switch (optname) {
 		case -1:
 		case 0:
+			break;
+		case 't':
+		case 'u':
+		case 'T':
+		case 'U':
+			/* Parse these options after we've read state from passt/pasta */
+			update = true;
+			break;
+		case 's':
+			show = true;
 			break;
 		case 'h':
 			usage(argv[0], stdout, EXIT_SUCCESS);
@@ -289,6 +347,8 @@ int main(int argc, char **argv)
 	if (ret < 0) {
 		die_perror("Failed to connect to %s", a.sun_path);
 	}
+
+	debug("Connected to passt/pasta control socket");
 
 	ret = read_all_buf(s, &hello, sizeof(hello));
 	if (ret < 0)
@@ -327,9 +387,52 @@ int main(int argc, char **argv)
 	while (read_pif_conf(s, &conf))
 		;
 
-	printf("passt/pasta configuration (%s)\n", a.sun_path);
-	show_conf(&conf);
+	if (!update) {
+		printf("passt/pasta configuration (%s)\n", a.sun_path);
+		show_conf(&conf);
+		goto noupdate;
+	}
 
+	if (show) {
+		printf("Previous configuration (%s)\n", a.sun_path);
+		show_conf(&conf);
+	}
+
+	inbound = pif_conf_by_name(&conf, "HOST");
+	outbound = pif_conf_by_name(&conf, "SPLICE");
+
+	optind = 0;
+	do {
+		optname = getopt_long(argc, argv, optstring, options, NULL);
+
+		switch (optname) {
+		case 't':
+		case 'u':
+			if (!inbound) {
+				die("Can't use -%c, no inbound interface",
+				    optname);
+			}
+			fwd_rule_parse(optname, optarg, &inbound->fwd);
+			break;
+		case 'T':
+		case 'U':
+			if (!outbound) {
+				die("Can't use -%c, no outbound interface",
+				    optname);
+			}
+			fwd_rule_parse(optname, optarg, &outbound->fwd);
+			break;
+		default:
+			continue;
+		}
+	} while (optname != -1);
+
+	if (show) {
+		printf("Updated configuration (%s)\n", a.sun_path);
+		show_conf(&conf);
+	}
+
+noupdate:
 	if (shutdown(s, SHUT_RDWR) < 0 || close(s) < 0)
 		die_perror("Error shutting down control socket");
 

@@ -187,7 +187,7 @@ static bool fwd_rule_conflicts(const struct fwd_rule *a, const struct fwd_rule *
  *
  * Return: 0 on success, negative error code on failure
  */
-static int fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new)
+int fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new)
 {
 	/* Flags which can be set from the caller */
 	const uint8_t allowed_flags = FWD_WEAK | FWD_SCAN | FWD_DUAL_STACK_ANY;

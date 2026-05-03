@@ -32,6 +32,137 @@ Be verbose.
 Display a help message and exit.
 
 .TP
+.BR \-s ", " \-\-show
+Show the forwarding configuration before and after changes are applied.
+
+.TP
+.BR \-t ", " \-\-tcp-ports " " \fIspec
+Configure TCP port forwarding to guest or namespace. \fIspec\fR can be one of:
+.RS
+
+.TP
+.BR none
+Don't forward any ports
+
+.TP
+[\fIaddress\fR[\fB%\fR\fIinterface\fR]\fB/\fR]\fIports\fR ...
+Specific ports to forward.  Optionally, a specific listening address
+and interface name (since Linux 5.7) can be specified.  \fIports\fR
+may be either:
+.RS
+.TP
+\fBall\fR
+Forward all unbound, non-ephemeral ports, as permitted by current capabilities.
+No failures are reported for unavailable ports, unless no ports could be
+forwarded at all.
+.RE
+
+.RS
+or a comma-separated list of entries which may be any of:
+.TP
+\fIfirst\fR[\fB-\fR\fIlast\fR][\fB:\fR\fItofirst\fR[\fB-\fR\fItolast\fR]]
+Include range. Forward port numbers between \fIfirst\fR and \fIlast\fR
+(inclusive) to ports between \fItofirst\fR and \fItolast\fR.  If
+\fItofirst\fR and \fItolast\fR are omitted, assume the same as
+\fIfirst\fR and \fIlast\fR.  If \fIlast\fR is omitted, assume the same
+as \fIfirst\fR.
+
+.TP
+\fB~\fR\fIfirst\fR[\fB-\fR\fIlast\fR]
+Exclude range.  Don't forward port numbers between \fIfirst\fR and
+\fIlast\fR.  This takes precedences over include ranges.
+
+.TP
+.BR auto
+\fBpasta\fR only.  Only forward ports in the specified set if the
+target ports are bound in the namespace. The list of ports is
+periodically derived (every second) from listening sockets reported by
+\fI/proc/net/tcp\fR and \fI/proc/net/tcp6\fR, see \fBproc\fR(5).
+.RE
+
+Specifying excluded ranges only implies that all other non-ephemeral
+ports are forwarded. Specifying no ranges at all implies forwarding
+all non-ephemeral ports permitted by current capabilities.  In this
+case, no failures are reported for unavailable ports, unless no ports
+could be forwarded at all.
+
+Examples:
+.RS
+.TP
+-t all
+Forward all unbound, non-ephemeral ports as permitted by current
+capabilities to the corresponding port on the guest or namespace
+.TP
+-t ::1/all
+For the local address ::1, forward all unbound, non-ephemeral ports as
+permitted by current capabilities
+.TP
+-t 22
+Forward local port 22 to port 22 on the guest or namespace
+.TP
+-t 22:23
+Forward local port 22 to port 23 on the guest or namespace
+.TP
+-t 22,25
+Forward local ports 22 and 25 to ports 22 and 25 on the guest or namespace
+.TP
+-t 22-80
+Forward local ports between 22 and 80 to corresponding ports on the guest or
+namespace
+.TP
+-t 22-80:32-90
+Forward local ports between 22 and 80 to ports between 32 and 90 on the guest or
+namespace
+.TP
+-t 192.0.2.1/22
+Forward local port 22, bound to 192.0.2.1, to port 22 on the guest or namespace
+.TP
+-t 192.0.2.1%eth0/22
+Forward local port 22, bound to 192.0.2.1 and interface eth0, to port 22
+.TP
+-t %eth0/22
+Forward local port 22, bound to any address on interface eth0, to port 22
+.TP
+-t 2000-5000,~3000-3010
+Forward local ports between 2000 and 5000, except for those between 3000 and
+3010
+.TP
+-t 192.0.2.1/20-30,~25
+For the local address 192.0.2.1, forward ports between 20 and 24 and between 26
+and 30
+.TP
+-t ~20000-20010
+Forward all ports to the guest, except for the range from 20000 to 20010
+.TP
+-t auto
+Automatically forward any ports which are bound in the namespace
+.TP
+-t ::1/auto
+Automatically forward any ports which are bound in the namespace,
+listening only on local port ::1
+.TP
+-t 8000-8010,auto
+Forward ports in the range 8000-8010 if and only if they are bound in
+the namespace
+.RE
+.RE
+
+.TP
+.BR \-u ", " \-\-udp-ports " " \fIspec
+Configure UDP port forwarding to guest. \fIspec\fR is as described for TCP
+above.
+
+.TP
+.BR \-T ", " \-\-tcp-ns " " \fIspec
+Configure TCP port forwarding from target namespace to init namespace.
+\fIspec\fR is as described above.
+
+.TP
+.BR \-U ", " \-\-udp-ns " " \fIspec
+Configure UDP port forwarding from target namespace to init namespace.
+\fIspec\fR is as described above.
+
+.TP
 .BR \-\-version
 Show version and exit.
 

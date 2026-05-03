@@ -103,6 +103,7 @@ const char *fwd_rule_fmt(const struct fwd_rule *rule, char *dst, size_t size);
 void fwd_rule_parse(char optname, const char *optarg, struct fwd_table *fwd);
 int fwd_rule_read(int fd, struct fwd_rule *rule);
 int fwd_rule_write(int fd, const struct fwd_rule *rule);
+int fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new);
 
 /**
  * fwd_rules_dump() - Dump forwarding rules
