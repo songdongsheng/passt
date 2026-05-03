@@ -80,7 +80,7 @@ static size_t neigh_table_slot(const struct ctx *c,
 	struct siphash_state st = SIPHASH_INIT(c->hash_secret);
 	uint32_t i;
 
-	inany_siphash_feed(&st, key);
+	siphash_feed_inany(&st, key);
 	i = siphash_final(&st, sizeof(*key), 0);
 
 	return ((size_t)i) & (NEIGH_TABLE_SIZE - 1);

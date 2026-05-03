@@ -19,6 +19,7 @@
 #include "fwd_rule.h"
 
 struct flowside;
+struct ctx;
 
 #define FWD_NO_HINT	(-1)
 

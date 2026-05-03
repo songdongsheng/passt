@@ -29,20 +29,6 @@
 #define IP_MAX_MTU			USHRT_MAX
 #endif
 
-#ifndef MIN
-#define MIN(x, y)		(((x) < (y)) ? (x) : (y))
-#endif
-#ifndef MAX
-#define MAX(x, y)		(((x) > (y)) ? (x) : (y))
-#endif
-
-#define DIV_ROUND_UP(n, d)	(((n) + (d) - 1) / (d))
-#define DIV_ROUND_CLOSEST(n, d)	(((n) + (d) / 2) / (d))
-#define ROUND_DOWN(x, y)	((x) & ~((y) - 1))
-#define ROUND_UP(x, y)		(((x) + (y) - 1) & ~((y) - 1))
-
-#define MAX_FROM_BITS(n)	(((1U << (n)) - 1))
-
 #define SWAP(a, b)							\
 	do {								\
 		__typeof__(a) __x = (a); (a) = (b); (b) = __x;		\
@@ -201,8 +187,6 @@ static inline const char *af_name(sa_family_t af)
 		return "<unknown address family>";
 	}
 }
-
-#define UINT16_STRLEN		(sizeof("65535"))
 
 /* inet address (- '\0') + port (u16) (- '\0') + ':' + '\0' */
 #define SOCKADDR_INET_STRLEN					\

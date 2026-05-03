@@ -13,6 +13,7 @@
 #include <net/if.h>
 #include <netinet/in.h>
 
+#include "common.h"
 #include "ip.h"
 #include "inany.h"
 #include "bitmap.h"

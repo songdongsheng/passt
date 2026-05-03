@@ -18,8 +18,26 @@
 	"This is free software: you are free to change and redistribute it.\n" \
 	"There is NO WARRANTY, to the extent permitted by law.\n\n"
 
+#ifndef MIN
+#define MIN(x, y)		(((x) < (y)) ? (x) : (y))
+#endif
+#ifndef MAX
+#define MAX(x, y)		(((x) > (y)) ? (x) : (y))
+#endif
+
+#define MAX_FROM_BITS(n)	(((1U << (n)) - 1))
+
 /* FPRINTF() intentionally silences cert-err33-c clang-tidy warnings */
 #define FPRINTF(f, ...)	(void)fprintf(f, __VA_ARGS__)
+
+#define ARRAY_SIZE(a)		((int)(sizeof(a) / sizeof((a)[0])))
+
+#define DIV_ROUND_UP(n, d)	(((n) + (d) - 1) / (d))
+#define DIV_ROUND_CLOSEST(n, d)	(((n) + (d) / 2) / (d))
+#define ROUND_DOWN(x, y)	((x) & ~((y) - 1))
+#define ROUND_UP(x, y)		(((x) + (y) - 1) & ~((y) - 1))
+
+#define UINT16_STRLEN		(sizeof("65535"))
 
 /*
  * Starting from glibc 2.40.9000 and commit 25a5eb4010df ("string: strerror,
@@ -52,8 +70,6 @@ static inline const char *strerror_(int errnum)
 }
 
 #define strerror(x) @ "Don't call strerror() directly, use strerror_() instead"
-
-#define ARRAY_SIZE(a)		((int)(sizeof(a) / sizeof((a)[0])))
 
 #ifndef __bswap_constant_16
 #define __bswap_constant_16(x)						\

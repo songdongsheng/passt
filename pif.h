@@ -16,6 +16,7 @@
 
 union inany_addr;
 union sockaddr_inany;
+struct ctx;
 
 /**
  * enum pif_type - Type of passt/pasta interface ("pif")
