@@ -36,6 +36,42 @@ Display a help message and exit.
 Show the forwarding configuration before and after changes are applied.
 
 .TP
+.BR \-A ", " \-\-add
+Add the port forwarding specifiers following this option to the current
+forwarding table, rather than replacing it.
+
+This option can be given multiple times, as it might follow previous deletions
+(see \fB--delete\fR below), and implies that all the specifiers following it,
+before a further \fB--delete\fR option occurs, will be handled as additions.
+
+See the section \fBAdding, deleting, clearing rules\fR in the \fBNOTES\fR for
+more details.
+
+.TP
+.BR \-D ", " \-\-delete
+Delete the port forwarding specifiers following this option from the current
+forwarding table, rather than adding them to it.
+
+This option can be given multiple times, as it might follow previous additions
+(see \fB--add\fR above), and implies that all the specifiers following it,
+before a further \fB--add\fR option occurs, will be handled as deletions.
+
+See the section \fBAdding, deleting, clearing rules\fR in the \fBNOTES\fR for
+more details.
+
+.TP
+.BR \-C ", " \-\-clear " " \fIpif
+Clear the forwarding table associated to a given \fIpif\fR, that is, a
+conceptual type of interface in \fBpasst\fR(1) or \fBpasta\fR(1) representing a
+specific data path and direction.
+
+The available \fIpif\fR names can be obtained by querying the current forwarding
+configuration, which can be done by calling \fBpesto\fR(1) without options.
+
+See the section \fBAdding, deleting, clearing rules\fR in the \fBNOTES\fR for
+more details.
+
+.TP
 .BR \-t ", " \-\-tcp-ports " " \fIspec
 Configure TCP port forwarding to guest or namespace. \fIspec\fR can be one of:
 .RS
@@ -165,6 +201,55 @@ Configure UDP port forwarding from target namespace to init namespace.
 .TP
 .BR \-\-version
 Show version and exit.
+
+.SH NOTES
+
+.SS Adding, deleting, clearing rules
+
+The options \fB--add\fR, \fB--delete\fR, and \fB--clear\fR are handled as
+sequential commands to manipulate the current forwarding tables. If none of them
+is given, forwarding specifiers for a given table are intended as replacement of
+the corresponding table. That is:
+
+.nf
+	pesto -t 1024 -U 1025
+.fi
+
+will \fBreplace\fR the current TCP inbound port forwarding table with a single
+rule, forwarding port 1024, and will similarly replace the UDP outbound
+forwarding table with a single forwarding rule for port 1025. This usage is a
+short-hand form for:
+
+.nf
+	pesto -C HOST -t 1024 -C SPLICE -U 1025
+.fi
+
+The options \fB--add\fR and \fB--delete\fR are used to \fBadd new specific
+rules or delete existing ones\fR, instead of replacing tables. For example:
+
+.nf
+	pesto -A -t 2000 -D -t 3000 -U 5000
+.fi
+
+will add a forwarding rule for inbound TCP port 2000, and delete inbound TCP
+port 3000 as well as outbound UDP port 5000 from the existing set of rules.
+
+All these options are interpreted as sequential commands and can be arbitrarily
+combined. For example:
+
+.nf
+	pesto -A -t 2000 -C HOST -A -T 3000 -t 2001 -D -u 5000
+.fi
+
+will, in order:
+
+.RS
+- add inbound TCP port 2000
+- clear inbound ports, reverting the addition above
+- add outbound TCP port 3000
+- add inbound TCP port 2001
+- delete inbound UDP port 5000
+.RE
 
 .SH AUTHORS
 

@@ -1851,16 +1851,16 @@ void conf(struct ctx *c, int argc, char **argv)
 
 		if (name == 't') {
 			opt_t = true;
-			fwd_rule_parse(name, optarg, c->fwd[PIF_HOST]);
+			fwd_rule_parse(name, false, optarg, c->fwd[PIF_HOST]);
 		} else if (name == 'u') {
 			opt_u = true;
-			fwd_rule_parse(name, optarg, c->fwd[PIF_HOST]);
+			fwd_rule_parse(name, false, optarg, c->fwd[PIF_HOST]);
 		} else if (name == 'T') {
 			opt_T = true;
-			fwd_rule_parse(name, optarg, c->fwd[PIF_SPLICE]);
+			fwd_rule_parse(name, false, optarg, c->fwd[PIF_SPLICE]);
 		} else if (name == 'U') {
 			opt_U = true;
-			fwd_rule_parse(name, optarg, c->fwd[PIF_SPLICE]);
+			fwd_rule_parse(name, false, optarg, c->fwd[PIF_SPLICE]);
 		}
 	} while (name != -1);
 
@@ -1912,13 +1912,13 @@ void conf(struct ctx *c, int argc, char **argv)
 
 	if (c->mode == MODE_PASTA) {
 		if (!opt_t)
-			fwd_rule_parse('t', "auto", c->fwd[PIF_HOST]);
+			fwd_rule_parse('t', false, "auto", c->fwd[PIF_HOST]);
 		if (!opt_T)
-			fwd_rule_parse('T', "auto", c->fwd[PIF_SPLICE]);
+			fwd_rule_parse('T', false, "auto", c->fwd[PIF_SPLICE]);
 		if (!opt_u)
-			fwd_rule_parse('u', "auto", c->fwd[PIF_HOST]);
+			fwd_rule_parse('u', false, "auto", c->fwd[PIF_HOST]);
 		if (!opt_U)
-			fwd_rule_parse('U', "auto", c->fwd[PIF_SPLICE]);
+			fwd_rule_parse('U', false, "auto", c->fwd[PIF_SPLICE]);
 	}
 
 	conf_sock_listen(c);
@@ -2133,14 +2133,8 @@ void conf_handler(struct ctx *c, uint32_t events)
 		unsigned pif;
 
 		/* Clear pending tables */
-		for (pif = 0; pif < PIF_NUM_TYPES; pif++) {
-			struct fwd_table *fwd = c->fwd_pending[pif];
-
-			if (!fwd)
-				continue;
-			fwd->count = 0;
-			fwd->sock_count = 0;
-		}
+		for (pif = 0; pif < PIF_NUM_TYPES; pif++)
+			fwd_rule_clear(c->fwd_pending[pif]);
 
 		/* FIXME: this could block indefinitely if the client doesn't
 		 * write as much as it should

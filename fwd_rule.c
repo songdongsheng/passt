@@ -181,6 +181,89 @@ static bool fwd_rule_conflicts(const struct fwd_rule *a, const struct fwd_rule *
 }
 
 /**
+ * fwd_rule_match() - Test if two rules exactly match each other
+ * @a:		Rule to check against @b
+ * @b:		Rule to check against @a
+ *
+ * Return: true if rules match exactly, false otherwise
+ */
+static bool fwd_rule_match(const struct fwd_rule *a, const struct fwd_rule *b)
+{
+	return !memcmp(a, b, sizeof(*a));
+}
+
+/**
+ * fwd_rule_clear() - Clear a forwarding table
+ * @fwd:	Table to clear (might be NULL)
+ */
+void fwd_rule_clear(struct fwd_table *fwd)
+{
+	if (!fwd)
+		return;
+
+	/* TODO: check that there are no open sockets in the table before
+	 * going on. See also a related item in fwd_rule_del().
+	 */
+
+	fwd->count = 0;
+	fwd->sock_count = 0;
+}
+
+/**
+ * fwd_rule_del() - Partially validate and delete a rule from a forwarding table
+ * @fwd:	Table to delete from
+ * @rule:	Rule to delete (must conflict with an existing rule)
+ *
+ * Return: 0 on success, negative error code on failure (-ENOENT if not found)
+ *
+ * NOTE: This function can't be used for a forwarding table with any open socket
+ * stored in fwd->rulesocks.
+ */
+static int fwd_rule_del(struct fwd_table *fwd, const struct fwd_rule *rule)
+{
+	char rulestr[FWD_RULE_STRLEN], oldstr[FWD_RULE_STRLEN];
+	unsigned num, i;
+
+	for (i = 0; i < fwd->count; i++) {
+		if (fwd_rule_match(rule, &fwd->rules[i]))
+			break;
+
+		if (fwd_rule_conflicts(rule, &fwd->rules[i])) {
+			warn(
+"Specifier %s conflicts with rule %s, but doesn't match it, can't delete",
+			fwd_rule_fmt(rule, rulestr, sizeof(rulestr)),
+			fwd_rule_fmt(&fwd->rules[i], oldstr, sizeof(oldstr)));
+			return -EINVAL;
+		}
+	}
+
+	if (i == fwd->count) {
+		warn("Couldn't find forwarding rule to delete: %s",
+		     fwd_rule_fmt(rule, rulestr, sizeof(rulestr)));
+		return -ENOENT;
+	}
+
+	/* Don't use anything else from 'rule' as passed, it's not validated */
+	rule = &fwd->rules[i];
+	num = (unsigned)rule->last - rule->first + 1;
+
+	fwd->count--;
+
+	memmove((void *)(fwd->rulesocks + i), (void *)(fwd->rulesocks + i + 1),
+		(fwd->count - i) * sizeof(*fwd->rulesocks));
+
+	/* TODO: move sockets stored starting from fwd->rulesocks[i + 1], should
+	 * we ever need to delete rules from a table with open sockets.
+	 */
+	fwd->sock_count -= num;
+
+	memmove(fwd->rules + i, fwd->rules + i + 1,
+		(fwd->count - i) * sizeof(*fwd->rules));
+
+	return 0;
+}
+
+/**
  * fwd_rule_add() - Validate and add a rule to a forwarding table
  * @fwd:	Table to add to
  * @new:	Rule to add
@@ -370,6 +453,7 @@ static int parse_keyword(const char *s, const char **endptr, const char *kw)
  * fwd_rule_range_except() - Set up forwarding for a range of ports minus a
  *                           bitmap of exclusions
  * @fwd:	Forwarding table to be updated
+ * @del:	Delete resulting rules from forwarding table, instead of adding
  * @proto:	Protocol to forward
  * @addr:	Listening address
  * @ifname:	Listening interface
@@ -379,8 +463,8 @@ static int parse_keyword(const char *s, const char **endptr, const char *kw)
  * @to:		Port to translate @first to when forwarding
  * @flags:	Flags for forwarding entries
  */
-static void fwd_rule_range_except(struct fwd_table *fwd, uint8_t proto,
-				  const union inany_addr *addr,
+static void fwd_rule_range_except(struct fwd_table *fwd, bool del,
+				  uint8_t proto, const union inany_addr *addr,
 				  const char *ifname,
 				  uint16_t first, uint16_t last,
 				  const uint8_t *exclude, uint16_t to,
@@ -420,15 +504,20 @@ static void fwd_rule_range_except(struct fwd_table *fwd, uint8_t proto,
 		rule.last = i - 1;
 		rule.to = base + delta;
 
-		if (fwd_rule_add(fwd, &rule) < 0)
-			goto fail;
+		if (del) {
+			if (fwd_rule_del(fwd, &rule) < 0)
+				goto fail;
+		} else {
+			if (fwd_rule_add(fwd, &rule) < 0)
+				goto fail;
+		}
 
 		base = i - 1;
 	}
 	return;
 
 fail:
-	die("Unable to add rule %s",
+	die("Unable to %s rule %s", del ? "delete" : "add",
 	    fwd_rule_fmt(&rule, rulestr, sizeof(rulestr)));
 }
 
@@ -447,12 +536,13 @@ fail:
 /**
  * fwd_rule_parse_ports() - Parse port range(s) specifier
  * @fwd:	Forwarding table to be updated
+ * @del:	Delete resulting rules from forwarding table, instead of adding
  * @proto:	Protocol to forward
  * @addr:	Listening address for forwarding
  * @ifname:	Interface name for listening
  * @spec:	Port range(s) specifier
  */
-static void fwd_rule_parse_ports(struct fwd_table *fwd, uint8_t proto,
+static void fwd_rule_parse_ports(struct fwd_table *fwd, bool del, uint8_t proto,
 				 const union inany_addr *addr,
 				 const char *ifname,
 				 const char *spec)
@@ -509,7 +599,7 @@ static void fwd_rule_parse_ports(struct fwd_table *fwd, uint8_t proto,
 		/* Exclude ephemeral ports */
 		fwd_port_map_ephemeral(exclude);
 
-		fwd_rule_range_except(fwd, proto, addr, ifname,
+		fwd_rule_range_except(fwd, del, proto, addr, ifname,
 				      1, NUM_PORTS - 1, exclude,
 				      1, flags | FWD_WEAK);
 		return;
@@ -539,7 +629,7 @@ static void fwd_rule_parse_ports(struct fwd_table *fwd, uint8_t proto,
 		if (p != ep) /* Garbage after the ranges */
 			goto bad;
 
-		fwd_rule_range_except(fwd, proto, addr, ifname,
+		fwd_rule_range_except(fwd, del, proto, addr, ifname,
 				      orig_range.first, orig_range.last,
 				      exclude,
 				      mapped_range.first, flags);
@@ -553,10 +643,12 @@ bad:
 /**
  * fwd_rule_parse() - Parse port configuration option
  * @optname:	Short option name, t, T, u, or U
+ * @del:	Delete resulting rules from forwarding table, instead of adding
  * @optarg:	Option argument (port specification)
  * @fwd:	Forwarding table to be updated
  */
-void fwd_rule_parse(char optname, const char *optarg, struct fwd_table *fwd)
+void fwd_rule_parse(char optname, bool del, const char *optarg,
+		    struct fwd_table *fwd)
 {
 	union inany_addr addr_buf = inany_any6, *addr = &addr_buf;
 	char buf[BUFSIZ], *spec, *ifname = NULL;
@@ -634,12 +726,12 @@ void fwd_rule_parse(char optname, const char *optarg, struct fwd_table *fwd)
 			     optname, optarg);
 
 			if (fwd->caps & FWD_CAP_IPV4) {
-				fwd_rule_parse_ports(fwd, proto,
+				fwd_rule_parse_ports(fwd, del, proto,
 						     &inany_loopback4, NULL,
 						     spec);
 			}
 			if (fwd->caps & FWD_CAP_IPV6) {
-				fwd_rule_parse_ports(fwd, proto,
+				fwd_rule_parse_ports(fwd, del, proto,
 						     &inany_loopback6, NULL,
 						     spec);
 			}
@@ -655,7 +747,7 @@ void fwd_rule_parse(char optname, const char *optarg, struct fwd_table *fwd)
 		    optname, optarg);
 	}
 
-	fwd_rule_parse_ports(fwd, proto, addr, ifname, spec);
+	fwd_rule_parse_ports(fwd, del, proto, addr, ifname, spec);
 }
 
 /**

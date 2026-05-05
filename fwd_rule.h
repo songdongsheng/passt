@@ -100,9 +100,11 @@ void fwd_probe_ephemeral(void);
 
 const union inany_addr *fwd_rule_addr(const struct fwd_rule *rule);
 const char *fwd_rule_fmt(const struct fwd_rule *rule, char *dst, size_t size);
-void fwd_rule_parse(char optname, const char *optarg, struct fwd_table *fwd);
+void fwd_rule_parse(char optname, bool del, const char *optarg,
+		    struct fwd_table *fwd);
 int fwd_rule_read(int fd, struct fwd_rule *rule);
 int fwd_rule_write(int fd, const struct fwd_rule *rule);
+void fwd_rule_clear(struct fwd_table *fwd);
 int fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new);
 
 /**

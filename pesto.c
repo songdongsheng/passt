@@ -55,6 +55,9 @@ static void usage(const char *name, FILE *f, int status)
 	FPRINTF(f, "Usage: %s [OPTION]... PATH\n", name);
 	FPRINTF(f,
 		"\n"
+		"  -A, --add		Add following specifiers to forwards\n"
+		"  -D, --delete		Delete following specifiers instead\n"
+		"  -C, --clear PIF	Clear forwarding table for given PIF\n"
 		"  -t, --tcp-ports SPEC	TCP inbound port forwarding\n"
 		"    can be specified multiple times\n"
 		"    SPEC can be:\n"
@@ -298,6 +301,9 @@ int main(int argc, char **argv)
 		{"debug",	no_argument,		NULL,		'd' },
 		{"help",	no_argument,		NULL,		'h' },
 		{"version",	no_argument,		NULL,		1 },
+		{"add",		no_argument,		NULL,		'A' },
+		{"delete",	no_argument,		NULL,		'D' },
+		{"clear",	required_argument,	NULL,		'C' },
 		{"tcp-ports",	required_argument,	NULL,		't' },
 		{"udp-ports",	required_argument,	NULL,		'u' },
 		{"tcp-ns",	required_argument,	NULL,		'T' },
@@ -305,9 +311,11 @@ int main(int argc, char **argv)
 		{"show",	no_argument,		NULL,		's' },
 		{ 0 },
 	};
+	enum { MODE_CLEAR, MODE_ADD, MODE_DEL } mode = MODE_CLEAR;
+	bool inbound_cleared = false, outbound_cleared = false;
 	struct pif_configuration *inbound, *outbound;
+	const char *optstring = "dhADC:t:u:T:U:s";
 	struct sockaddr_un a = { AF_UNIX, "" };
-	const char *optstring = "dht:u:T:U:s";
 	struct configuration conf = { 0 };
 	bool update = false, show = false;
 	struct pesto_hello hello;
@@ -339,11 +347,16 @@ int main(int argc, char **argv)
 		case -1:
 		case 0:
 			break;
+		case 'C':
 		case 't':
 		case 'u':
 		case 'T':
 		case 'U':
-			/* Parse these options after we've read state from passt/pasta */
+		case 'A':
+		case 'D':
+			/* Parse these options after we've read state from
+			 * passt/pasta
+			 */
 			update = true;
 			break;
 		case 's':
@@ -436,16 +449,43 @@ int main(int argc, char **argv)
 
 	optind = 0;
 	do {
+		struct pif_configuration *pif_to_clear;
+
 		optname = getopt_long(argc, argv, optstring, options, NULL);
 
 		switch (optname) {
+		case 'A':
+			mode = MODE_ADD;
+			break;
+		case 'D':
+			mode = MODE_DEL;
+			break;
+		case 'C':
+			if (!(pif_to_clear = pif_conf_by_name(&conf, optarg)))
+				die("Unsupported pif name %s", optarg);
+
+			fwd_rule_clear(&pif_to_clear->fwd);
+
+			if (!strcmp(optarg, "HOST"))
+				inbound_cleared = true;
+			else if (!strcmp(optarg, "SPLICE"))
+				outbound_cleared = true;
+
+			break;
 		case 't':
 		case 'u':
 			if (!inbound) {
 				die("Can't use -%c, no inbound interface",
 				    optname);
 			}
-			fwd_rule_parse(optname, optarg, &inbound->fwd);
+
+			if (mode == MODE_CLEAR && !inbound_cleared) {
+				fwd_rule_clear(&inbound->fwd);
+				inbound_cleared = true;
+			}
+
+			fwd_rule_parse(optname, mode == MODE_DEL, optarg,
+				       &inbound->fwd);
 			break;
 		case 'T':
 		case 'U':
@@ -453,7 +493,14 @@ int main(int argc, char **argv)
 				die("Can't use -%c, no outbound interface",
 				    optname);
 			}
-			fwd_rule_parse(optname, optarg, &outbound->fwd);
+
+			if (mode == MODE_CLEAR && !outbound_cleared) {
+				fwd_rule_clear(&outbound->fwd);
+				outbound_cleared = true;
+			}
+
+			fwd_rule_parse(optname, mode == MODE_DEL, optarg,
+				       &outbound->fwd);
 			break;
 		default:
 			continue;
