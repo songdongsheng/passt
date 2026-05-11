@@ -67,7 +67,7 @@
 				{{{ 0xfe, 0x80, 0, 0, 0, 0, 0, 0,	\
 				       0, 0, 0, 0, 0, 0, 0, 0x01 }}}
 
-const char *pasta_default_ifn = "tap0";
+static const char *pasta_default_ifn = "tap0";
 
 /**
  * add_dns4() - Possibly add the IPv4 address of a DNS resolver to configuration
