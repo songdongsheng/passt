@@ -224,6 +224,7 @@ static struct nlmsghdr *nl_next(int s, char *buf, struct nlmsghdr *nh, ssize_t *
 	nl_foreach((nh), (status), (s), (buf), (seq))			\
 		if ((nh)->nlmsg_type != (type)) {			\
 			warn("netlink: Unexpected message type");	\
+		/* NOLINTNEXTLINE(readability-inconsistent-ifelse-braces) */\
 		} else
 
 /**
