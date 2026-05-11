@@ -170,7 +170,7 @@ static int nl_status(const struct nlmsghdr *nh, ssize_t n, uint32_t seq)
 		return 0;
 	}
 	if (nh->nlmsg_type == NLMSG_ERROR) {
-		struct nlmsgerr *errmsg = (struct nlmsgerr *)NLMSG_DATA(nh);
+		const struct nlmsgerr *errmsg = NLMSG_DATA(nh);
 		return errmsg->error;
 	}
 
