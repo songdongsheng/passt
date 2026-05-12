@@ -50,14 +50,13 @@ SRCS = $(PASST_SRCS) $(QRAP_SRCS) $(PASST_REPAIR_SRCS) $(PESTO_SRCS)
 
 MANPAGES = passt.1 pasta.1 pesto.1 qrap.1 passt-repair.1
 
-PASST_HEADERS = arch.h arp.h bitmap.h checksum.h common.h conf.h dhcp.h \
-	dhcpv6.h epoll_ctl.h flow.h fwd.h fwd_rule.h flow_table.h icmp.h \
-	icmp_flow.h inany.h iov.h ip.h isolation.h lineread.h log.h migrate.h \
-	ndp.h netlink.h packet.h passt.h pasta.h pcap.h pesto.h pif.h repair.h \
-	serialise.h siphash.h tap.h tcp.h tcp_buf.h tcp_conn.h tcp_internal.h \
-	tcp_splice.h tcp_vu.h udp.h udp_flow.h udp_internal.h udp_vu.h util.h \
-	vhost_user.h virtio.h vu_common.h
-HEADERS = $(PASST_HEADERS) seccomp.h
+PASST_HEADERS = arch.h arp.h bitmap.h checksum.h conf.h dhcp.h dhcpv6.h \
+	epoll_ctl.h flow.h fwd.h fwd_rule.h flow_table.h icmp.h icmp_flow.h \
+	inany.h iov.h ip.h isolation.h lineread.h log.h migrate.h ndp.h \
+	netlink.h packet.h passt.h pasta.h pcap.h pif.h repair.h serialise.h \
+	siphash.h tap.h tcp.h tcp_buf.h tcp_conn.h tcp_internal.h tcp_splice.h \
+	tcp_vu.h udp.h udp_flow.h udp_internal.h udp_vu.h util.h vhost_user.h \
+	virtio.h vu_common.h
 
 C := \#include <sys/random.h>\nint main(){int a=getrandom(0, 0, 0);}
 ifeq ($(shell printf "$(C)" | $(CC) -S -xc - -o - >/dev/null 2>&1; echo $$?),0)
@@ -103,10 +102,10 @@ seccomp_pesto.h: seccomp.sh $(PESTO_SRCS)
 $(BASEBIN): %:
 	$(CC) $(FLAGS) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(filter %.c,$^) -o $@
 
-passt: $(PASST_SRCS) $(HEADERS)
+passt: $(PASST_SRCS) $(PASST_HEADERS) seccomp.h
 
 passt.avx2: FLAGS += -Ofast -mavx2 -ftree-vectorize -funroll-loops
-passt.avx2: $(PASST_SRCS) $(HEADERS)
+passt.avx2: $(PASST_SRCS) $(PASST_HEADERS) seccomp.h
 
 pasta.avx2 pasta.1 pasta: pasta%: passt%
 	ln -sf $< $@
@@ -202,7 +201,7 @@ CPPCHECK_FLAGS = --std=c11 --error-exitcode=1 --enable=all --force	\
 	--suppress=unusedStructMember					\
 	 -D CPPCHECK_6936
 
-cppcheck: $(PASST_SRCS) $(HEADERS)
+cppcheck: $(PASST_SRCS) $(PASST_HEADERS) seccomp.h
 	$(CPPCHECK) $(CPPCHECK_FLAGS) 					\
 		$(filter -D%,$(FLAGS) $(CFLAGS) $(CPPFLAGS)) $^		\
 		$^
