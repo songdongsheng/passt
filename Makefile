@@ -76,9 +76,14 @@ docdir		?= $(datarootdir)/doc/passt
 mandir		?= $(datarootdir)/man
 man1dir		?= $(mandir)/man1
 
-BIN := passt pasta qrap passt-repair pesto
+BASEBIN := passt qrap passt-repair pesto
 ifeq ($(TARGET_ARCH),x86_64)
-BIN += passt.avx2 pasta.avx2
+BASEBIN += passt.avx2
+endif
+
+BIN = $(BASEBIN) pasta
+ifeq ($(TARGET_ARCH),x86_64)
+BIN += pasta.avx2
 endif
 
 all: $(BIN) $(MANPAGES) docs
@@ -95,27 +100,24 @@ seccomp_repair.h: seccomp.sh $(PASST_REPAIR_SRCS)
 seccomp_pesto.h: seccomp.sh $(PESTO_SRCS)
 	@ ARCH="$(TARGET_ARCH)" CC="$(CC)" ./seccomp.sh seccomp_pesto.h $(PESTO_SRCS)
 
+$(BASEBIN): %:
+	$(CC) $(FLAGS) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(filter %.c,$^) -o $@
+
 passt: $(PASST_SRCS) $(HEADERS)
-	$(CC) $(FLAGS) $(CFLAGS) $(CPPFLAGS) $(PASST_SRCS) -o passt $(LDFLAGS)
 
 passt.avx2: FLAGS += -Ofast -mavx2 -ftree-vectorize -funroll-loops
 passt.avx2: $(PASST_SRCS) $(HEADERS)
-	$(CC) $(filter-out -O2,$(FLAGS)) $(CFLAGS) $(CPPFLAGS) \
-		$(PASST_SRCS) -o passt.avx2 $(LDFLAGS)
-
-passt.avx2: passt
 
 pasta.avx2 pasta.1 pasta: pasta%: passt%
 	ln -sf $< $@
 
+qrap: FLAGS += -DARCH=\"$(TARGET_ARCH)\"
 qrap: $(QRAP_SRCS) passt.h
-	$(CC) $(FLAGS) $(CFLAGS) $(CPPFLAGS) -DARCH=\"$(TARGET_ARCH)\" $(QRAP_SRCS) -o qrap $(LDFLAGS)
 
 passt-repair: $(PASST_REPAIR_SRCS) seccomp_repair.h
-	$(CC) $(FLAGS) $(CFLAGS) $(CPPFLAGS) $(PASST_REPAIR_SRCS) -o passt-repair $(LDFLAGS)
 
+pesto: FLAGS += -DPESTO
 pesto: $(PESTO_SRCS) $(PESTO_HEADERS) seccomp_pesto.h
-	$(CC) $(FLAGS) $(CFLAGS) $(CPPFLAGS) -DPESTO $(PESTO_SRCS) -o pesto $(LDFLAGS)
 
 valgrind: EXTRA_SYSCALLS += rt_sigprocmask rt_sigtimedwait rt_sigaction	\
 			    rt_sigreturn getpid gettid kill clock_gettime \
