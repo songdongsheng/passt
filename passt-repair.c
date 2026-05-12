@@ -46,6 +46,9 @@
 #define REPAIR_EXT		".repair"
 #define REPAIR_EXT_LEN		strlen(REPAIR_EXT)
 
+/* FPRINTF() intentionally silences cert-err33-c clang-tidy warnings */
+#define FPRINTF(f, ...)	(void)fprintf(f, __VA_ARGS__)
+
 /**
  * wait_for_socket() - Wait for a Unix socket to appear in a directory
  * @a:		Unix domain address to update with socket's path
@@ -66,33 +69,33 @@ static int wait_for_socket(struct sockaddr_un *a, const char *dir,
 	const struct inotify_event *ev = NULL;
 	bool found = false;
 	int fd, ret;
-	ssize_t n;
 
 	if ((fd = inotify_init1(IN_CLOEXEC)) < 0) {
-		fprintf(stderr, "inotify_init1: %i\n", errno);
+		FPRINTF(stderr, "inotify_init1: %i\n", errno);
 		_exit(1);
 	}
 
 	if (inotify_add_watch(fd, dir, IN_CREATE) < 0) {
-		fprintf(stderr, "inotify_add_watch: %i\n", errno);
+		FPRINTF(stderr, "inotify_add_watch: %i\n", errno);
 		_exit(1);
 	}
 
 	do {
+		ssize_t n;
 		char *p;
 
 		n = read(fd, buf, sizeof(buf));
 		if (n < 0) {
-			fprintf(stderr, "inotify read: %i\n", errno);
+			FPRINTF(stderr, "inotify read: %i\n", errno);
 			_exit(1);
 		}
-		buf[n - 1] = '\0';
 
 		if (n < (ssize_t)sizeof(*ev)) {
-			fprintf(stderr, "Short inotify read: %zi\n", n);
+			FPRINTF(stderr, "Short inotify read: %zi\n", n);
 			continue;
 		}
 
+		buf[n - 1] = '\0';
 		for (p = buf; p < buf + n; p += sizeof(*ev) + ev->len) {
 			ev = (const struct inotify_event *)p;
 
@@ -108,7 +111,7 @@ static int wait_for_socket(struct sockaddr_un *a, const char *dir,
 	} while (!found);
 
 	if (ev->len > NAME_MAX + 1 || ev->name[ev->len - 1] != '\0') {
-		fprintf(stderr, "Invalid filename from inotify\n");
+		FPRINTF(stderr, "Invalid filename from inotify\n");
 		_exit(1);
 	}
 
@@ -116,7 +119,7 @@ static int wait_for_socket(struct sockaddr_un *a, const char *dir,
 		       dir, ev->name);
 
 	if ((stat(a->sun_path, sb))) {
-		fprintf(stderr, "Can't stat() %s: %i\n", a->sun_path, errno);
+		FPRINTF(stderr, "Can't stat() %s: %i\n", a->sun_path, errno);
 		_exit(1);
 	}
 
@@ -160,7 +163,7 @@ int main(int argc, char **argv)
 	prog.filter = filter_repair;
 	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) ||
 	    prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
-		fprintf(stderr, "Failed to apply seccomp filter\n");
+		FPRINTF(stderr, "Failed to apply seccomp filter\n");
 		_exit(1);
 	}
 
@@ -173,17 +176,17 @@ int main(int argc, char **argv)
 	cmsg = CMSG_FIRSTHDR(&msg);
 
 	if (argc != 2) {
-		fprintf(stderr, "Usage: %s PATH\n", argv[0]);
+		FPRINTF(stderr, "Usage: %s PATH\n", argv[0]);
 		_exit(2);
 	}
 
 	if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-		fprintf(stderr, "Failed to create AF_UNIX socket: %i\n", errno);
+		FPRINTF(stderr, "Failed to create AF_UNIX socket: %i\n", errno);
 		_exit(1);
 	}
 
 	if ((stat(argv[1], &sb))) {
-		fprintf(stderr, "Can't stat() %s: %i\n", argv[1], errno);
+		FPRINTF(stderr, "Can't stat() %s: %i\n", argv[1], errno);
 		_exit(1);
 	}
 
@@ -195,12 +198,12 @@ int main(int argc, char **argv)
 	}
 
 	if (ret <= 0 || ret >= (int)sizeof(a.sun_path)) {
-		fprintf(stderr, "Invalid socket path\n");
+		FPRINTF(stderr, "Invalid socket path\n");
 		_exit(2);
 	}
 
 	if ((sb.st_mode & S_IFMT) != S_IFSOCK) {
-		fprintf(stderr, "%s is not a socket\n", a.sun_path);
+		FPRINTF(stderr, "%s is not a socket\n", a.sun_path);
 		_exit(2);
 	}
 
@@ -208,7 +211,7 @@ int main(int argc, char **argv)
 		if (inotify_dir && errno == ECONNREFUSED)
 			continue;
 
-		fprintf(stderr, "Failed to connect to %s: %s\n", a.sun_path,
+		FPRINTF(stderr, "Failed to connect to %s: %s\n", a.sun_path,
 			strerror(errno));
 		_exit(1);
 	}
@@ -219,7 +222,7 @@ loop:
 		if (errno == ECONNRESET) {
 			ret = 0;
 		} else {
-			fprintf(stderr, "Failed to read message: %i\n", errno);
+			FPRINTF(stderr, "Failed to read message: %i\n", errno);
 			_exit(1);
 		}
 	}
@@ -231,7 +234,7 @@ loop:
 	    cmsg->cmsg_len < CMSG_LEN(sizeof(int)) ||
 	    cmsg->cmsg_len > CMSG_LEN(sizeof(int) * SCM_MAX_FD) ||
 	    cmsg->cmsg_type != SCM_RIGHTS) {
-		fprintf(stderr, "No/bad ancillary data from peer\n");
+		FPRINTF(stderr, "No/bad ancillary data from peer\n");
 		_exit(1);
 	}
 
@@ -246,7 +249,7 @@ loop:
 	}
 	if (!n) {
 		cmsg_len = cmsg->cmsg_len; /* socklen_t is 'unsigned' on musl */
-		fprintf(stderr, "Invalid ancillary data length %zu from peer\n",
+		FPRINTF(stderr, "Invalid ancillary data length %zu from peer\n",
 			cmsg_len);
 		_exit(1);
 	}
@@ -255,15 +258,15 @@ loop:
 
 	if (cmd != TCP_REPAIR_ON && cmd != TCP_REPAIR_OFF &&
 	    cmd != TCP_REPAIR_OFF_NO_WP) {
-		fprintf(stderr, "Unsupported command 0x%04x\n", cmd);
+		FPRINTF(stderr, "Unsupported command 0x%04x\n", cmd);
 		_exit(1);
 	}
 
-	op = cmd;
+	op = (int)cmd;
 
 	for (i = 0; i < n; i++) {
 		if (setsockopt(fds[i], SOL_TCP, TCP_REPAIR, &op, sizeof(op))) {
-			fprintf(stderr,
+			FPRINTF(stderr,
 				"Setting TCP_REPAIR to %i on socket %i: %s\n",
 				op, fds[i], strerror(errno));
 			_exit(1);
@@ -275,11 +278,9 @@ loop:
 
 	/* Confirm setting by echoing the command back */
 	if (send(s, &cmd, sizeof(cmd), 0) < 0) {
-		fprintf(stderr, "Reply to %i: %s\n", op, strerror(errno));
+		FPRINTF(stderr, "Reply to %i: %s\n", op, strerror(errno));
 		_exit(1);
 	}
 
 	goto loop;
-
-	return 0;
 }

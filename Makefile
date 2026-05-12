@@ -193,13 +193,14 @@ docs: README.md
 CLANG_TIDY = clang-tidy
 CLANG_TIDY_FLAGS = -DCLANG_TIDY_58992
 
-clang-tidy: passt.clang-tidy
+clang-tidy: passt.clang-tidy passt-repair.clang-tidy
 
 .PHONY: %.clang-tidy
 %.clang-tidy:
 	$(CLANG_TIDY) $(filter %.c,$^) -- $(BASE_CPPFLAGS) $(CPPFLAGS) $(CLANG_TIDY_FLAGS)
 
 passt.clang-tidy: $(PASST_SRCS) $(PASST_HEADERS) seccomp.h
+passt-repair.clang-tidy: $(PASST_REPAIR_SRCS) $(PASST_REPAIR_HEADERS) seccomp_repair.h
 
 CPPCHECK = cppcheck
 CPPCHECK_FLAGS = --std=c11 --error-exitcode=1 --enable=all --force	\
@@ -214,10 +215,11 @@ CPPCHECK_FLAGS = --std=c11 --error-exitcode=1 --enable=all --force	\
 	--suppress=unusedStructMember					\
 	 -D CPPCHECK_6936
 
-cppcheck: passt.cppcheck
+cppcheck: passt.cppcheck passt-repair.cppcheck
 
 .PHONY: %.cppcheck
 %.cppcheck:
 	$(CPPCHECK) $(CPPCHECK_FLAGS) $(BASE_CPPFLAGS) $^
 
 passt.cppcheck: $(PASST_SRCS) $(PASST_HEADERS) seccomp.h
+passt-repair.cppcheck: $(PASST_REPAIR_SRCS) $(PASST_REPAIR_HEADERS) seccomp_repair.h
