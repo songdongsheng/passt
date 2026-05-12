@@ -57,6 +57,8 @@ PASST_HEADERS = arch.h arp.h bitmap.h checksum.h conf.h dhcp.h dhcpv6.h \
 	siphash.h tap.h tcp.h tcp_buf.h tcp_conn.h tcp_internal.h tcp_splice.h \
 	tcp_vu.h udp.h udp_flow.h udp_internal.h udp_vu.h util.h vhost_user.h \
 	virtio.h vu_common.h
+QRAP_HEADERS = arp.h ip.h passt.h util.h
+PASST_REPAIR_HEADERS = linux_dep.h
 
 C := \#include <sys/random.h>\nint main(){int a=getrandom(0, 0, 0);}
 ifeq ($(shell printf "$(C)" | $(CC) -S -xc - -o - >/dev/null 2>&1; echo $$?),0)
@@ -93,7 +95,7 @@ static: clean all
 seccomp.h: seccomp.sh $(PASST_SRCS) $(PASST_HEADERS)
 	@ EXTRA_SYSCALLS="$(EXTRA_SYSCALLS)" ARCH="$(TARGET_ARCH)" CC="$(CC)" ./seccomp.sh seccomp.h $(PASST_SRCS) $(PASST_HEADERS)
 
-seccomp_repair.h: seccomp.sh $(PASST_REPAIR_SRCS)
+seccomp_repair.h: seccomp.sh $(PASST_REPAIR_SRCS) $(PASST_REPAIR_HEADERS)
 	@ ARCH="$(TARGET_ARCH)" CC="$(CC)" ./seccomp.sh seccomp_repair.h $(PASST_REPAIR_SRCS)
 
 seccomp_pesto.h: seccomp.sh $(PESTO_SRCS)
@@ -111,9 +113,9 @@ pasta.avx2 pasta.1 pasta: pasta%: passt%
 	ln -sf $< $@
 
 qrap: FLAGS += -DARCH=\"$(TARGET_ARCH)\"
-qrap: $(QRAP_SRCS) passt.h
+qrap: $(QRAP_SRCS) $(QRAP_HEADERS)
 
-passt-repair: $(PASST_REPAIR_SRCS) seccomp_repair.h
+passt-repair: $(PASST_REPAIR_SRCS) $(PASST_REPAIR_HEADERS) seccomp_repair.h
 
 pesto: FLAGS += -DPESTO
 pesto: $(PESTO_SRCS) $(PESTO_HEADERS) seccomp_pesto.h
