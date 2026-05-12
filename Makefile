@@ -194,9 +194,7 @@ CLANG_TIDY = clang-tidy
 CLANG_TIDY_FLAGS = -DCLANG_TIDY_58992
 
 clang-tidy: $(PASST_SRCS)
-	$(CLANG_TIDY) $^ --						\
-		$(filter-out -pie,$(BASE_CPPFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) $(CFLAGS)) \
-		$(CLANG_TIDY_FLAGS)
+	$(CLANG_TIDY) $^ -- $(BASE_CPPFLAGS) $(CPPFLAGS) $(CLANG_TIDY_FLAGS)
 
 CPPCHECK = cppcheck
 CPPCHECK_FLAGS = --std=c11 --error-exitcode=1 --enable=all --force	\
@@ -212,6 +210,4 @@ CPPCHECK_FLAGS = --std=c11 --error-exitcode=1 --enable=all --force	\
 	 -D CPPCHECK_6936
 
 cppcheck: $(PASST_SRCS) $(PASST_HEADERS) seccomp.h
-	$(CPPCHECK) $(CPPCHECK_FLAGS) 					\
-		$(filter -D%,$(BASE_CPPFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) $(CFLAGS)) $^ \
-		$^
+	$(CPPCHECK) $(CPPCHECK_FLAGS) $(BASE_CPPFLAGS) $^
