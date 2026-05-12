@@ -47,6 +47,82 @@
 #define REPAIR_EXT_LEN		strlen(REPAIR_EXT)
 
 /**
+ * wait_for_socket() - Wait for a Unix socket to appear in a directory
+ * @a:		Unix domain address to update with socket's path
+ * @dir:	Path to directory to wait for socket in
+ * @sb:		Stat block, populated for the discovered socket on exit
+ *
+ * Return: Length of socket address
+ *
+ * #syscalls:repair close
+ * #syscalls:repair stat|statx stat64|statx statx
+ * #syscalls:repair inotify_init1 inotify_add_watch
+ */
+static int wait_for_socket(struct sockaddr_un *a, const char *dir,
+			   struct stat *sb)
+{
+	char buf[sizeof(struct inotify_event) + NAME_MAX + 1]
+		__attribute__ ((aligned(__alignof__(struct inotify_event))));
+	const struct inotify_event *ev = NULL;
+	char path[PATH_MAX + 1];
+	bool found = false;
+	ssize_t n;
+	int fd;
+
+	if ((fd = inotify_init1(IN_CLOEXEC)) < 0) {
+		fprintf(stderr, "inotify_init1: %i\n", errno);
+		_exit(1);
+	}
+
+	if (inotify_add_watch(fd, dir, IN_CREATE) < 0) {
+		fprintf(stderr, "inotify_add_watch: %i\n", errno);
+		_exit(1);
+	}
+
+	do {
+		char *p;
+
+		n = read(fd, buf, sizeof(buf));
+		if (n < 0) {
+			fprintf(stderr, "inotify read: %i\n", errno);
+			_exit(1);
+		}
+		buf[n - 1] = '\0';
+
+		if (n < (ssize_t)sizeof(*ev)) {
+			fprintf(stderr, "Short inotify read: %zi\n", n);
+			continue;
+		}
+
+		for (p = buf; p < buf + n; p += sizeof(*ev) + ev->len) {
+			ev = (const struct inotify_event *)p;
+
+			if (ev->len >= REPAIR_EXT_LEN &&
+			    !memcmp(ev->name +
+				    strnlen(ev->name, ev->len) -
+				    REPAIR_EXT_LEN,
+				    REPAIR_EXT, REPAIR_EXT_LEN)) {
+				found = true;
+				break;
+			}
+		}
+	} while (!found);
+
+	if (ev->len > NAME_MAX + 1 || ev->name[ev->len - 1] != '\0') {
+		fprintf(stderr, "Invalid filename from inotify\n");
+		_exit(1);
+	}
+
+	snprintf(path, sizeof(path), "%s/%s", dir, ev->name);
+	if ((stat(path, sb))) {
+		fprintf(stderr, "Can't stat() %s: %i\n", path, errno);
+		_exit(1);
+	}
+
+	return snprintf(a->sun_path, sizeof(a->sun_path), "%s", path);
+}
+
+/**
  * main() - Entry point and whole program with loop
  * @argc:	Argument count, must be 2
  * @argv:	Argument: path of UNIX domain socket to connect to
@@ -59,7 +135,6 @@
  * #syscalls:repair sendto sendmsg arm:send ppc64le:send
  * #syscalls:repair stat|statx stat64|statx statx
  * #syscalls:repair fstat|fstat64 newfstatat|fstatat64
- * #syscalls:repair inotify_init1 inotify_add_watch
  */
 int main(int argc, char **argv)
 {
@@ -112,65 +187,7 @@ int main(int argc, char **argv)
 	}
 
 	if ((sb.st_mode & S_IFMT) == S_IFDIR) {
-		char buf[sizeof(struct inotify_event) + NAME_MAX + 1]
-		   __attribute__ ((aligned(__alignof__(struct inotify_event))));
-		const struct inotify_event *ev = NULL;
-		char path[PATH_MAX + 1];
-		bool found = false;
-		ssize_t n;
-		int fd;
-
-		if ((fd = inotify_init1(IN_CLOEXEC)) < 0) {
-			fprintf(stderr, "inotify_init1: %i\n", errno);
-			_exit(1);
-		}
-
-		if (inotify_add_watch(fd, argv[1], IN_CREATE) < 0) {
-			fprintf(stderr, "inotify_add_watch: %i\n", errno);
-			_exit(1);
-		}
-
-		do {
-			char *p;
-
-			n = read(fd, buf, sizeof(buf));
-			if (n < 0) {
-				fprintf(stderr, "inotify read: %i\n", errno);
-				_exit(1);
-			}
-			buf[n - 1] = '\0';
-
-			if (n < (ssize_t)sizeof(*ev)) {
-				fprintf(stderr, "Short inotify read: %zi\n", n);
-				continue;
-			}
-
-			for (p = buf; p < buf + n; p += sizeof(*ev) + ev->len) {
-				ev = (const struct inotify_event *)p;
-
-				if (ev->len >= REPAIR_EXT_LEN &&
-				    !memcmp(ev->name +
-					    strnlen(ev->name, ev->len) -
-					    REPAIR_EXT_LEN,
-					    REPAIR_EXT, REPAIR_EXT_LEN)) {
-					found = true;
-					break;
-				}
-			}
-		} while (!found);
-
-		if (ev->len > NAME_MAX + 1 || ev->name[ev->len - 1] != '\0') {
-			fprintf(stderr, "Invalid filename from inotify\n");
-			_exit(1);
-		}
-
-		snprintf(path, sizeof(path), "%s/%s", argv[1], ev->name);
-		if ((stat(path, &sb))) {
-			fprintf(stderr, "Can't stat() %s: %i\n", path, errno);
-			_exit(1);
-		}
-
-		ret = snprintf(a.sun_path, sizeof(a.sun_path), "%s", path);
+		ret = wait_for_socket(&a, argv[1], &sb);
 		inotify_dir = true;
 	} else {
 		ret = snprintf(a.sun_path, sizeof(a.sun_path), "%s", argv[1]);
