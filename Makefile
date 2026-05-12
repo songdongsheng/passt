@@ -193,7 +193,7 @@ docs: README.md
 CLANG_TIDY = clang-tidy
 CLANG_TIDY_FLAGS = -DCLANG_TIDY_58992
 
-clang-tidy: passt.clang-tidy passt-repair.clang-tidy
+clang-tidy: passt.clang-tidy passt-repair.clang-tidy pesto.clang-tidy
 
 .PHONY: %.clang-tidy
 %.clang-tidy:
@@ -201,6 +201,7 @@ clang-tidy: passt.clang-tidy passt-repair.clang-tidy
 
 passt.clang-tidy: $(PASST_SRCS) $(PASST_HEADERS) seccomp.h
 passt-repair.clang-tidy: $(PASST_REPAIR_SRCS) $(PASST_REPAIR_HEADERS) seccomp_repair.h
+pesto.clang-tidy: $(PESTO_SRCS) $(PESTO_HEADERS) seccomp_pesto.h
 
 CPPCHECK = cppcheck
 CPPCHECK_FLAGS = --std=c11 --error-exitcode=1 --enable=all --force	\
@@ -212,14 +213,26 @@ CPPCHECK_FLAGS = --std=c11 --error-exitcode=1 --enable=all --force	\
 		echo "";						\
 	fi)								\
 	--suppress=missingIncludeSystem					\
-	--suppress=unusedStructMember					\
 	 -D CPPCHECK_6936
 
-cppcheck: passt.cppcheck passt-repair.cppcheck
+cppcheck: passt.cppcheck passt-repair.cppcheck pesto.cppcheck
 
 .PHONY: %.cppcheck
 %.cppcheck:
 	$(CPPCHECK) $(CPPCHECK_FLAGS) $(BASE_CPPFLAGS) $^
 
+passt.cppcheck: BASE_CPPFLAGS += -UPESTO
+passt.cppcheck: CPPCHECK_FLAGS += --suppress=unusedStructMember
 passt.cppcheck: $(PASST_SRCS) $(PASST_HEADERS) seccomp.h
+
+passt-repair.cppcheck: CPPCHECK_FLAGS += --suppress=unusedStructMember
 passt-repair.cppcheck: $(PASST_REPAIR_SRCS) $(PASST_REPAIR_HEADERS) seccomp_repair.h
+
+pesto.cppcheck: BASE_CPPFLAGS += -DPESTO
+pesto.cppcheck: CPPCHECK_FLAGS += --suppress=unusedFunction:bitmap.c
+pesto.cppcheck: CPPCHECK_FLAGS += --suppress=unusedFunction:inany.h
+pesto.cppcheck: CPPCHECK_FLAGS += --suppress=unusedFunction:inany.c
+pesto.cppcheck: CPPCHECK_FLAGS += --suppress=unusedFunction:ip.h
+pesto.cppcheck: CPPCHECK_FLAGS += --suppress=unusedFunction:serialise.c
+pesto.cppcheck: CPPCHECK_FLAGS += --suppress=staticFunction:fwd_rule.c
+pesto.cppcheck: $(PESTO_SRCS) $(PESTO_HEADERS) seccomp_pesto.h
