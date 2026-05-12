@@ -30,12 +30,17 @@ ifeq ($(shell $(CC) -O2 -dM -E - < /dev/null 2>&1 | grep ' _FORTIFY_SOURCE ' > /
 FORTIFY_FLAG := -D_FORTIFY_SOURCE=2
 endif
 
-FLAGS := -Wall -Wextra -Wno-format-zero-length -Wformat-security
-FLAGS += -pedantic -std=c11 -D_XOPEN_SOURCE=700 -D_GNU_SOURCE
-FLAGS +=  $(FORTIFY_FLAG) -O2 -pie -fPIE
-FLAGS += -DPAGE_SIZE=$(shell getconf PAGE_SIZE)
-FLAGS += -DVERSION=\"$(VERSION)\"
-FLAGS += -DDUAL_STACK_SOCKETS=$(DUAL_STACK_SOCKETS)
+# Mandatory preprocessor flags that won't be overridden with $(CPPFLAGS)
+# FIXME: Could some of these be default, rather than required?
+BASE_CPPFLAGS := -D_XOPEN_SOURCE=700 -D_GNU_SOURCE $(FORTIFY_FLAG)
+BASE_CPPFLAGS += -DPAGE_SIZE=$(shell getconf PAGE_SIZE)
+BASE_CPPFLAGS += -DVERSION=\"$(VERSION)\"
+BASE_CPPFLAGS += -DDUAL_STACK_SOCKETS=$(DUAL_STACK_SOCKETS)
+
+# Mandatory compiler flags that won't be overridden with $(CFLAGS)
+# FIXME: Could some of these be default, rather than required?
+BASE_CFLAGS := -std=c11 -pie -fPIE -O2
+BASE_CFLAGS += -pedantic -Wall -Wextra -Wno-format-zero-length -Wformat-security
 
 PASST_SRCS = arch.c arp.c bitmap.c checksum.c conf.c dhcp.c dhcpv6.c \
 	epoll_ctl.c flow.c fwd.c fwd_rule.c icmp.c igmp.c inany.c iov.c ip.c \
@@ -62,11 +67,11 @@ PASST_REPAIR_HEADERS = linux_dep.h
 
 C := \#include <sys/random.h>\nint main(){int a=getrandom(0, 0, 0);}
 ifeq ($(shell printf "$(C)" | $(CC) -S -xc - -o - >/dev/null 2>&1; echo $$?),0)
-	FLAGS += -DHAS_GETRANDOM
+	BASE_CPPFLAGS += -DHAS_GETRANDOM
 endif
 
 ifeq ($(shell :|$(CC) -fstack-protector-strong -S -xc - -o - >/dev/null 2>&1; echo $$?),0)
-	FLAGS += -fstack-protector-strong
+	BASE_CFLAGS += -fstack-protector-strong
 endif
 
 prefix		?= /usr/local
@@ -89,7 +94,8 @@ endif
 
 all: $(BIN) $(MANPAGES) docs
 
-static: FLAGS += -static -DGLIBC_NO_STATIC_NSS
+static: BASE_CPPFLAGS += -DGLIBC_NO_STATIC_NSS
+static: BASE_CFLAGS += -static
 static: clean all
 
 seccomp.h: seccomp.sh $(PASST_SRCS) $(PASST_HEADERS)
@@ -102,29 +108,30 @@ seccomp_pesto.h: seccomp.sh $(PESTO_SRCS)
 	@ ARCH="$(TARGET_ARCH)" CC="$(CC)" ./seccomp.sh seccomp_pesto.h $(PESTO_SRCS)
 
 $(BASEBIN): %:
-	$(CC) $(FLAGS) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(filter %.c,$^) -o $@
+	$(CC) $(BASE_CPPFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) $(CFLAGS) $(LDFLAGS) $(filter %.c,$^) -o $@
 
 passt: $(PASST_SRCS) $(PASST_HEADERS) seccomp.h
 
-passt.avx2: FLAGS += -Ofast -mavx2 -ftree-vectorize -funroll-loops
+passt.avx2: BASE_CFLAGS += -Ofast -mavx2 -ftree-vectorize -funroll-loops
 passt.avx2: $(PASST_SRCS) $(PASST_HEADERS) seccomp.h
 
 pasta.avx2 pasta.1 pasta: pasta%: passt%
 	ln -sf $< $@
 
-qrap: FLAGS += -DARCH=\"$(TARGET_ARCH)\"
+qrap: BASE_CPPFLAGS += -DARCH=\"$(TARGET_ARCH)\"
 qrap: $(QRAP_SRCS) $(QRAP_HEADERS)
 
 passt-repair: $(PASST_REPAIR_SRCS) $(PASST_REPAIR_HEADERS) seccomp_repair.h
 
-pesto: FLAGS += -DPESTO
+pesto: BASE_CPPFLAGS += -DPESTO
 pesto: $(PESTO_SRCS) $(PESTO_HEADERS) seccomp_pesto.h
 
 valgrind: EXTRA_SYSCALLS += rt_sigprocmask rt_sigtimedwait rt_sigaction	\
 			    rt_sigreturn getpid gettid kill clock_gettime \
 			    mmap|mmap2 munmap open unlink gettimeofday futex \
 			    statx readlink
-valgrind: FLAGS += -g -DVALGRIND
+valgrind: BASE_CPPFLAGS += -DVALGRIND
+valgrind: BASE_CFLAGS += -g
 valgrind: all
 
 .PHONY: clean
@@ -187,7 +194,8 @@ CLANG_TIDY = clang-tidy
 CLANG_TIDY_FLAGS = -DCLANG_TIDY_58992
 
 clang-tidy: $(PASST_SRCS)
-	$(CLANG_TIDY) $^ -- $(filter-out -pie,$(FLAGS) $(CFLAGS) $(CPPFLAGS)) \
+	$(CLANG_TIDY) $^ --						\
+		$(filter-out -pie,$(BASE_CPPFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) $(CFLAGS)) \
 		$(CLANG_TIDY_FLAGS)
 
 CPPCHECK = cppcheck
@@ -205,5 +213,5 @@ CPPCHECK_FLAGS = --std=c11 --error-exitcode=1 --enable=all --force	\
 
 cppcheck: $(PASST_SRCS) $(PASST_HEADERS) seccomp.h
 	$(CPPCHECK) $(CPPCHECK_FLAGS) 					\
-		$(filter -D%,$(FLAGS) $(CFLAGS) $(CPPFLAGS)) $^		\
+		$(filter -D%,$(BASE_CPPFLAGS) $(CPPFLAGS) $(BASE_CFLAGS) $(CFLAGS)) $^ \
 		$^
