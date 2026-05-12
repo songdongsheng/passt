@@ -181,21 +181,27 @@ docs: README.md
 		done < README.md;					\
 	) > README.plain.md
 
+CLANG_TIDY = clang-tidy
+CLANG_TIDY_FLAGS = -DCLANG_TIDY_58992
+
 clang-tidy: $(PASST_SRCS)
-	clang-tidy $^ -- $(filter-out -pie,$(FLAGS) $(CFLAGS) $(CPPFLAGS)) \
-	           -DCLANG_TIDY_58992
+	$(CLANG_TIDY) $^ -- $(filter-out -pie,$(FLAGS) $(CFLAGS) $(CPPFLAGS)) \
+		$(CLANG_TIDY_FLAGS)
+
+CPPCHECK = cppcheck
+CPPCHECK_FLAGS = --std=c11 --error-exitcode=1 --enable=all --force	\
+	--inconclusive --library=posix --quiet				\
+	--inline-suppr							\
+	$(shell if $(CPPCHECK) --quiet --check-level=exhaustive /dev/null; then \
+		echo "--check-level=exhaustive";			\
+	else								\
+		echo "";						\
+	fi)								\
+	--suppress=missingIncludeSystem					\
+	--suppress=unusedStructMember					\
+	 -D CPPCHECK_6936
 
 cppcheck: $(PASST_SRCS) $(HEADERS)
-	if cppcheck --check-level=exhaustive /dev/null > /dev/null 2>&1; then \
-		CPPCHECK_EXHAUSTIVE="--check-level=exhaustive";		\
-	else								\
-		CPPCHECK_EXHAUSTIVE=;					\
-	fi;								\
-	cppcheck --std=c11 --error-exitcode=1 --enable=all --force	\
-	--inconclusive --library=posix --quiet				\
-	$${CPPCHECK_EXHAUSTIVE}						\
-	--inline-suppr							\
-	--suppress=missingIncludeSystem \
-	--suppress=unusedStructMember					\
-	$(filter -D%,$(FLAGS) $(CFLAGS) $(CPPFLAGS)) -D CPPCHECK_6936	\
-	$^
+	$(CPPCHECK) $(CPPCHECK_FLAGS) 					\
+		$(filter -D%,$(FLAGS) $(CFLAGS) $(CPPFLAGS)) $^		\
+		$^
