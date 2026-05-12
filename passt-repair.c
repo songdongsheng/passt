@@ -64,10 +64,9 @@ static int wait_for_socket(struct sockaddr_un *a, const char *dir,
 	char buf[sizeof(struct inotify_event) + NAME_MAX + 1]
 		__attribute__ ((aligned(__alignof__(struct inotify_event))));
 	const struct inotify_event *ev = NULL;
-	char path[PATH_MAX + 1];
 	bool found = false;
+	int fd, ret;
 	ssize_t n;
-	int fd;
 
 	if ((fd = inotify_init1(IN_CLOEXEC)) < 0) {
 		fprintf(stderr, "inotify_init1: %i\n", errno);
@@ -113,13 +112,15 @@ static int wait_for_socket(struct sockaddr_un *a, const char *dir,
 		_exit(1);
 	}
 
-	snprintf(path, sizeof(path), "%s/%s", dir, ev->name);
-	if ((stat(path, sb))) {
-		fprintf(stderr, "Can't stat() %s: %i\n", path, errno);
+	ret = snprintf(a->sun_path, sizeof(a->sun_path), "%s/%s",
+		       dir, ev->name);
+
+	if ((stat(a->sun_path, sb))) {
+		fprintf(stderr, "Can't stat() %s: %i\n", a->sun_path, errno);
 		_exit(1);
 	}
 
-	return snprintf(a->sun_path, sizeof(a->sun_path), "%s", path);
+	return ret;
 }
 
 /**
