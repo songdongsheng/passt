@@ -76,10 +76,9 @@ docdir		?= $(datarootdir)/doc/passt
 mandir		?= $(datarootdir)/man
 man1dir		?= $(mandir)/man1
 
-ifeq ($(TARGET_ARCH),x86_64)
-BIN := passt passt.avx2 pasta pasta.avx2 qrap passt-repair pesto
-else
 BIN := passt pasta qrap passt-repair pesto
+ifeq ($(TARGET_ARCH),x86_64)
+BIN += passt.avx2 pasta.avx2
 endif
 
 all: $(BIN) $(MANPAGES) docs
