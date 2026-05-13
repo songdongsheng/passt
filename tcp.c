@@ -2578,11 +2578,11 @@ void tcp_listen_handler(const struct ctx *c, union epoll_ref ref,
 
 		err("Invalid endpoint from TCP accept(): %s",
 		    sockaddr_ntop(&sa, sastr, sizeof(sastr)));
-		goto cancel;
+		goto rst;
 	}
 
 	if (!flow_target(c, flow, ref.listen.rule, IPPROTO_TCP))
-		goto cancel;
+		goto rst;
 
 	switch (flow->f.pif[TGTSIDE]) {
 	case PIF_SPLICE:
@@ -2598,11 +2598,14 @@ void tcp_listen_handler(const struct ctx *c, union epoll_ref ref,
 		flow_err(flow, "No support for forwarding TCP from %s to %s",
 			 pif_name(flow->f.pif[INISIDE]),
 			 pif_name(flow->f.pif[TGTSIDE]));
-		goto cancel;
+		goto rst;
 	}
 
 	return;
 
+rst:
+	tcp_linger0(flow, s);
+	close(s);
 cancel:
 	flow_alloc_cancel(flow);
 }
