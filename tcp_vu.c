@@ -130,7 +130,8 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 		return ret;
 	}
 
-	iov_truncate(&flags_iov[0], 1, hdrlen + optlen);
+	l2len = hdrlen + optlen - VNET_HLEN;
+	iov_truncate(&flags_iov[0], 1, l2len + VNET_HLEN);
 	payload = IOV_TAIL(flags_elem[0].in_sg, 1, hdrlen);
 
 	if (flags & KEEPALIVE)
@@ -139,13 +140,12 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	tcp_fill_headers(c, conn, eh, ip4h, ip6h, th, &payload,
 			 NULL, seq, !*c->pcap);
 
-	l2len = optlen + hdrlen - VNET_HLEN;
 	vu_pad(&flags_elem[0].in_sg[0], l2len);
 
 	vu_flush(vdev, vq, flags_elem, 1);
 
 	if (*c->pcap)
-		pcap_iov(&flags_elem[0].in_sg[0], 1, VNET_HLEN);
+		pcap_iov(&flags_elem[0].in_sg[0], 1, VNET_HLEN, l2len);
 
 	if (flags & DUP_ACK) {
 		elem_cnt = vu_collect(vdev, vq, &flags_elem[1], 1,
@@ -160,8 +160,10 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 
 			vu_flush(vdev, vq, &flags_elem[1], 1);
 
-			if (*c->pcap)
-				pcap_iov(&flags_elem[1].in_sg[0], 1, VNET_HLEN);
+			if (*c->pcap) {
+				pcap_iov(&flags_elem[1].in_sg[0], 1, VNET_HLEN,
+					 l2len);
+			}
 		}
 	}
 	vu_queue_notify(vdev, vq);
@@ -466,7 +468,7 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 		vu_flush(vdev, vq, &elem[head[i]], buf_cnt);
 
 		if (*c->pcap)
-			pcap_iov(iov, buf_cnt, VNET_HLEN);
+			pcap_iov(iov, buf_cnt, VNET_HLEN, l2len);
 
 		conn->seq_to_tap += dlen;
 	}

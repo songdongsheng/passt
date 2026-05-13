@@ -268,7 +268,7 @@ int vu_send_single(const struct ctx *c, const void *buf, size_t size)
 	iov_from_buf(in_sg, in_total, VNET_HLEN, buf, total);
 
 	if (*c->pcap)
-		pcap_iov(in_sg, in_total, VNET_HLEN);
+		pcap_iov(in_sg, in_total, VNET_HLEN, size);
 
 	vu_flush(vdev, vq, elem, elem_cnt);
 	vu_queue_notify(vdev, vq);

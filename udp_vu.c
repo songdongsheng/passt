@@ -182,6 +182,7 @@ void udp_vu_sock_to_tap(const struct ctx *c, int s, int n, flow_sidx_t tosidx)
 	static struct iovec iov_vu[VIRTQUEUE_MAX_SIZE];
 	struct vu_dev *vdev = c->vdev;
 	struct vu_virtq *vq = &vdev->vq[VHOST_USER_RX_QUEUE];
+	size_t hdrlen = udp_vu_hdrlen(v6);
 	int i;
 
 	assert(!c->no_udp);
@@ -227,7 +228,8 @@ void udp_vu_sock_to_tap(const struct ctx *c, int s, int n, flow_sidx_t tosidx)
 			udp_vu_prepare(c, iov_vu, toside, dlen);
 			if (*c->pcap) {
 				udp_vu_csum(toside, iov_vu, iov_cnt, dlen);
-				pcap_iov(iov_vu, iov_cnt, VNET_HLEN);
+				pcap_iov(iov_vu, iov_cnt, VNET_HLEN,
+					 hdrlen + dlen - VNET_HLEN);
 			}
 			vu_flush(vdev, vq, elem, elem_used);
 			vu_queue_notify(vdev, vq);

@@ -499,7 +499,8 @@ static size_t tap_send_frames_passt(const struct ctx *c,
 		/* Number of unsent or partially sent buffers for the frame */
 		size_t rembufs = bufs_per_frame - (i % bufs_per_frame);
 
-		if (write_remainder(c->fd_tap, &iov[i], rembufs, buf_offset) < 0) {
+		if (write_remainder(c->fd_tap, &iov[i], rembufs, buf_offset,
+				    SIZE_MAX) < 0) {
 			err_perror("tap: partial frame send");
 			return i;
 		}
@@ -1157,10 +1158,11 @@ void tap_handler(struct ctx *c, const struct timespec *now)
 void tap_add_packet(struct ctx *c, struct iov_tail *data,
 		    const struct timespec *now)
 {
+	size_t l2len = iov_tail_size(data);
 	struct ethhdr eh_storage;
 	const struct ethhdr *eh;
 
-	pcap_iov(data->iov, data->cnt, data->off);
+	pcap_iov(data->iov, data->cnt, data->off, l2len);
 
 	eh = IOV_PEEK_HEADER(data, eh_storage);
 	if (!eh)
