@@ -84,7 +84,6 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	struct ethhdr *eh;
 	uint32_t seq;
 	int elem_cnt;
-	int nb_ack;
 	int ret;
 
 	hdrlen = tcp_vu_hdrlen(CONN_V6(conn));
@@ -98,8 +97,6 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	assert(flags_elem[0].in_num == 1);
 	assert(flags_elem[0].in_sg[0].iov_len >=
 	       MAX(hdrlen + sizeof(*opts), ETH_ZLEN + VNET_HLEN));
-
-	vu_set_vnethdr(flags_elem[0].in_sg[0].iov_base, 1);
 
 	eh = vu_eth(flags_elem[0].in_sg[0].iov_base);
 
@@ -145,9 +142,10 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	l2len = optlen + hdrlen - VNET_HLEN;
 	vu_pad(&flags_elem[0].in_sg[0], l2len);
 
+	vu_flush(vdev, vq, flags_elem, 1);
+
 	if (*c->pcap)
 		pcap_iov(&flags_elem[0].in_sg[0], 1, VNET_HLEN);
-	nb_ack = 1;
 
 	if (flags & DUP_ACK) {
 		elem_cnt = vu_collect(vdev, vq, &flags_elem[1], 1,
@@ -159,14 +157,14 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 			memcpy(flags_elem[1].in_sg[0].iov_base,
 			       flags_elem[0].in_sg[0].iov_base,
 			       flags_elem[0].in_sg[0].iov_len);
-			nb_ack++;
+
+			vu_flush(vdev, vq, &flags_elem[1], 1);
 
 			if (*c->pcap)
 				pcap_iov(&flags_elem[1].in_sg[0], 1, VNET_HLEN);
 		}
 	}
-
-	vu_flush(vdev, vq, flags_elem, nb_ack);
+	vu_queue_notify(vdev, vq);
 
 	return 0;
 }
@@ -453,7 +451,6 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 		assert(frame_size >= hdrlen);
 
 		dlen = frame_size - hdrlen;
-		vu_set_vnethdr(iov->iov_base, buf_cnt);
 
 		/* The IPv4 header checksum varies only with dlen */
 		if (previous_dlen != dlen)
@@ -466,14 +463,14 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 		l2len = dlen + hdrlen - VNET_HLEN;
 		vu_pad(iov, l2len);
 
+		vu_flush(vdev, vq, &elem[head[i]], buf_cnt);
+
 		if (*c->pcap)
 			pcap_iov(iov, buf_cnt, VNET_HLEN);
 
 		conn->seq_to_tap += dlen;
 	}
-
-	/* send packets */
-	vu_flush(vdev, vq, elem, iov_cnt);
+	vu_queue_notify(vdev, vq);
 
 	conn_flag(c, conn, ACK_FROM_TAP_DUE);
 

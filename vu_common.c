@@ -118,7 +118,8 @@ int vu_collect(const struct vu_dev *vdev, struct vu_virtq *vq,
  * @vnethdr:		Address of the header to set
  * @num_buffers:	Number of guest buffers of the frame
  */
-void vu_set_vnethdr(struct virtio_net_hdr_mrg_rxbuf *vnethdr, int num_buffers)
+static void vu_set_vnethdr(struct virtio_net_hdr_mrg_rxbuf *vnethdr,
+			   int num_buffers)
 {
 	vnethdr->hdr = VU_HEADER;
 	/* Note: if VIRTIO_NET_F_MRG_RXBUF is not negotiated,
@@ -139,6 +140,8 @@ void vu_flush(const struct vu_dev *vdev, struct vu_virtq *vq,
 {
 	int i;
 
+	vu_set_vnethdr(elem[0].in_sg[0].iov_base, elem_cnt);
+
 	for (i = 0; i < elem_cnt; i++) {
 		size_t elem_size = iov_size(elem[i].in_sg, elem[i].in_num);
 
@@ -146,7 +149,6 @@ void vu_flush(const struct vu_dev *vdev, struct vu_virtq *vq,
 	}
 
 	vu_queue_flush(vdev, vq, elem_cnt);
-	vu_queue_notify(vdev, vq);
 }
 
 /**
@@ -260,8 +262,6 @@ int vu_send_single(const struct ctx *c, const void *buf, size_t size)
 		goto err;
 	}
 
-	vu_set_vnethdr(in_sg[0].iov_base, elem_cnt);
-
 	total -= VNET_HLEN;
 
 	/* copy data from the buffer to the iovec */
@@ -271,6 +271,7 @@ int vu_send_single(const struct ctx *c, const void *buf, size_t size)
 		pcap_iov(in_sg, in_total, VNET_HLEN);
 
 	vu_flush(vdev, vq, elem, elem_cnt);
+	vu_queue_notify(vdev, vq);
 
 	trace("vhost-user sent %zu", total);
 

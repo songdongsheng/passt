@@ -124,8 +124,6 @@ static int udp_vu_sock_recv(const struct ctx *c, struct vu_virtq *vq, int s,
 	l2len = *dlen + hdrlen - VNET_HLEN;
 	vu_pad(&iov_vu[0], l2len);
 
-	vu_set_vnethdr(iov_vu[0].iov_base, elem_used);
-
 	/* release unused buffers */
 	vu_queue_rewind(vq, elem_cnt - elem_used);
 
@@ -230,6 +228,7 @@ void udp_vu_sock_to_tap(const struct ctx *c, int s, int n, flow_sidx_t tosidx)
 				pcap_iov(iov_vu, iov_used, VNET_HLEN);
 			}
 			vu_flush(vdev, vq, elem, iov_used);
+			vu_queue_notify(vdev, vq);
 		}
 	}
 }
