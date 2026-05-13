@@ -939,6 +939,7 @@ static void tcp_fill_header(struct tcphdr *th,
  * @ip6h:		Pointer to IPv6 header, or NULL
  * @th:			Pointer to TCP header
  * @payload:		TCP payload
+ * @dlen:		TCP payload length
  * @ip4_check:		IPv4 checksum, if already known
  * @seq:		Sequence number for this segment
  * @no_tcp_csum:	Do not set TCP checksum
@@ -949,11 +950,10 @@ size_t tcp_fill_headers(const struct ctx *c, struct tcp_tap_conn *conn,
 			struct ethhdr *eh,
 			struct iphdr *ip4h, struct ipv6hdr *ip6h,
 			struct tcphdr *th, struct iov_tail *payload,
-			const uint16_t *ip4_check, uint32_t seq,
+			size_t dlen, const uint16_t *ip4_check, uint32_t seq,
 			bool no_tcp_csum)
 {
 	const struct flowside *tapside = TAPFLOW(conn);
-	size_t dlen = iov_tail_size(payload);
 	size_t l4len = dlen + sizeof(*th);
 	uint8_t *omac = conn->f.tap_omac;
 	size_t l3len = l4len;

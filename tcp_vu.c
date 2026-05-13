@@ -138,7 +138,7 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 		seq--;
 
 	tcp_fill_headers(c, conn, eh, ip4h, ip6h, th, &payload,
-			 NULL, seq, !*c->pcap);
+			 optlen, NULL, seq, !*c->pcap);
 
 	vu_pad(&flags_elem[0].in_sg[0], l2len);
 
@@ -282,12 +282,13 @@ static ssize_t tcp_vu_sock_recv(const struct ctx *c, struct vu_virtq *vq,
  * @conn:		Connection pointer
  * @iov:		Pointer to the array of IO vectors
  * @iov_cnt:		Number of entries in @iov
+ * @dlen:		Data length
  * @check:		Checksum, if already known
  * @no_tcp_csum:	Do not set TCP checksum
  * @push:		Set PSH flag, last segment in a batch
  */
 static void tcp_vu_prepare(const struct ctx *c, struct tcp_tap_conn *conn,
-			   struct iovec *iov, size_t iov_cnt,
+			   struct iovec *iov, size_t iov_cnt, size_t dlen,
 			   const uint16_t **check, bool no_tcp_csum, bool push)
 {
 	const struct flowside *toside = TAPFLOW(conn);
@@ -331,7 +332,7 @@ static void tcp_vu_prepare(const struct ctx *c, struct tcp_tap_conn *conn,
 	th->ack = 1;
 	th->psh = push;
 
-	tcp_fill_headers(c, conn, eh, ip4h, ip6h, th, &payload,
+	tcp_fill_headers(c, conn, eh, ip4h, ip6h, th, &payload, dlen,
 			 *check, conn->seq_to_tap, no_tcp_csum);
 	if (ip4h)
 		*check = &ip4h->check;
@@ -459,7 +460,7 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 			check = NULL;
 		previous_dlen = dlen;
 
-		tcp_vu_prepare(c, conn, iov, buf_cnt, &check, !*c->pcap, push);
+		tcp_vu_prepare(c, conn, iov, buf_cnt, dlen, &check, !*c->pcap, push);
 
 		/* Pad first/single buffer only, it's at least ETH_ZLEN long */
 		l2len = dlen + hdrlen - VNET_HLEN;
