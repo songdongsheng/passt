@@ -40,7 +40,7 @@ int vu_collect(const struct vu_dev *vdev, struct vu_virtq *vq,
 	       struct iovec *in_sg, size_t max_in_sg, size_t *in_total,
 	       size_t size, size_t *collected);
 void vu_flush(const struct vu_dev *vdev, struct vu_virtq *vq,
-	      struct vu_virtq_element *elem, int elem_cnt);
+	      struct vu_virtq_element *elem, int elem_cnt, size_t frame_len);
 void vu_kick_cb(struct vu_dev *vdev, union epoll_ref ref,
 		const struct timespec *now);
 int vu_send_single(const struct ctx *c, const void *buf, size_t size);

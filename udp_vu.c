@@ -231,7 +231,7 @@ void udp_vu_sock_to_tap(const struct ctx *c, int s, int n, flow_sidx_t tosidx)
 				pcap_iov(iov_vu, iov_cnt, VNET_HLEN,
 					 hdrlen + dlen - VNET_HLEN);
 			}
-			vu_flush(vdev, vq, elem, elem_used);
+			vu_flush(vdev, vq, elem, elem_used, hdrlen + dlen);
 			vu_queue_notify(vdev, vq);
 		}
 	}

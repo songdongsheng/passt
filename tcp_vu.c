@@ -142,7 +142,7 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 
 	vu_pad(&flags_elem[0].in_sg[0], l2len);
 
-	vu_flush(vdev, vq, flags_elem, 1);
+	vu_flush(vdev, vq, flags_elem, 1, hdrlen + optlen);
 
 	if (*c->pcap)
 		pcap_iov(&flags_elem[0].in_sg[0], 1, VNET_HLEN, l2len);
@@ -158,7 +158,7 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 			       flags_elem[0].in_sg[0].iov_base,
 			       flags_elem[0].in_sg[0].iov_len);
 
-			vu_flush(vdev, vq, &flags_elem[1], 1);
+			vu_flush(vdev, vq, &flags_elem[1], 1, hdrlen + optlen);
 
 			if (*c->pcap) {
 				pcap_iov(&flags_elem[1].in_sg[0], 1, VNET_HLEN,
@@ -465,7 +465,7 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 		l2len = dlen + hdrlen - VNET_HLEN;
 		vu_pad(iov, l2len);
 
-		vu_flush(vdev, vq, &elem[head[i]], buf_cnt);
+		vu_flush(vdev, vq, &elem[head[i]], buf_cnt, dlen + hdrlen);
 
 		if (*c->pcap)
 			pcap_iov(iov, buf_cnt, VNET_HLEN, l2len);

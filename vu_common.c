@@ -134,18 +134,26 @@ static void vu_set_vnethdr(struct virtio_net_hdr_mrg_rxbuf *vnethdr,
  * @vq:		vhost-user virtqueue
  * @elem:	virtqueue elements array to send back to the virtqueue
  * @elem_cnt:	Length of the array
+ * @frame_len:	Total frame length including vnet header
  */
 void vu_flush(const struct vu_dev *vdev, struct vu_virtq *vq,
-	      struct vu_virtq_element *elem, int elem_cnt)
+	      struct vu_virtq_element *elem, int elem_cnt, size_t frame_len)
 {
+	size_t len;
 	int i;
 
 	vu_set_vnethdr(elem[0].in_sg[0].iov_base, elem_cnt);
 
+	len = MAX(ETH_ZLEN + VNET_HLEN, frame_len);
 	for (i = 0; i < elem_cnt; i++) {
-		size_t elem_size = iov_size(elem[i].in_sg, elem[i].in_num);
+		size_t elem_size, fill_size;
 
-		vu_queue_fill(vdev, vq, &elem[i], elem_size, i);
+		elem_size = iov_size(elem[i].in_sg, elem[i].in_num);
+		fill_size = MIN(elem_size, len);
+
+		vu_queue_fill(vdev, vq, &elem[i], fill_size, i);
+
+		len -= fill_size;
 	}
 
 	vu_queue_flush(vdev, vq, elem_cnt);
@@ -270,7 +278,7 @@ int vu_send_single(const struct ctx *c, const void *buf, size_t size)
 	if (*c->pcap)
 		pcap_iov(in_sg, in_total, VNET_HLEN, size);
 
-	vu_flush(vdev, vq, elem, elem_cnt);
+	vu_flush(vdev, vq, elem, elem_cnt, VNET_HLEN + size);
 	vu_queue_notify(vdev, vq);
 
 	trace("vhost-user sent %zu", total);
