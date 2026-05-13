@@ -251,7 +251,7 @@ void *tap_push_uh4(struct udphdr *uh, struct in_addr src, in_port_t sport,
 	uh->source = htons(sport);
 	uh->dest = htons(dport);
 	uh->len = htons(l4len);
-	csum_udp4(uh, src, dst, &payload);
+	csum_udp4(uh, src, dst, &payload, dlen);
 	return (char *)uh + sizeof(*uh);
 }
 
@@ -356,7 +356,7 @@ void *tap_push_uh6(struct udphdr *uh,
 	uh->source = htons(sport);
 	uh->dest = htons(dport);
 	uh->len = htons(l4len);
-	csum_udp6(uh, src, dst, &payload);
+	csum_udp6(uh, src, dst, &payload, dlen);
 	return (char *)uh + sizeof(*uh);
 }
 

@@ -809,13 +809,14 @@ static void tcp_sock_set_nodelay(int s)
  * @psum:	Unfolded partial checksum of the IPv4 or IPv6 pseudo-header
  * @th:		TCP header (updated)
  * @payload:	TCP payload
+ * @dlen:	TCP payload length
  */
 static void tcp_update_csum(uint32_t psum, struct tcphdr *th,
-			    struct iov_tail *payload)
+			    struct iov_tail *payload, size_t dlen)
 {
 	th->check = 0;
 	psum = csum_unfolded(th, sizeof(*th), psum);
-	th->check = csum_iov_tail(payload, psum);
+	th->check = csum_iov_tail(payload, psum, dlen);
 }
 
 /**
@@ -952,7 +953,8 @@ size_t tcp_fill_headers(const struct ctx *c, struct tcp_tap_conn *conn,
 			bool no_tcp_csum)
 {
 	const struct flowside *tapside = TAPFLOW(conn);
-	size_t l4len = iov_tail_size(payload) + sizeof(*th);
+	size_t dlen = iov_tail_size(payload);
+	size_t l4len = dlen + sizeof(*th);
 	uint8_t *omac = conn->f.tap_omac;
 	size_t l3len = l4len;
 	uint32_t psum = 0;
@@ -1013,7 +1015,7 @@ size_t tcp_fill_headers(const struct ctx *c, struct tcp_tap_conn *conn,
 	if (no_tcp_csum)
 		th->check = 0;
 	else
-		tcp_update_csum(psum, th, payload);
+		tcp_update_csum(psum, th, payload, dlen);
 
 	return MAX(l3len + sizeof(struct ethhdr), ETH_ZLEN);
 }
@@ -2225,7 +2227,7 @@ static void tcp_rst_no_conn(const struct ctx *c, int af,
 		rsth->ack = 1;
 	}
 
-	tcp_update_csum(psum, rsth, &payload);
+	tcp_update_csum(psum, rsth, &payload, 0);
 	rst_l2len = ((char *)rsth - buf) + sizeof(*rsth);
 	tap_send_single(c, buf, rst_l2len);
 }
