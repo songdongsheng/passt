@@ -198,6 +198,57 @@ void iov_memset(const struct iovec *iov, size_t iov_cnt, size_t offset, int c,
 }
 
 /**
+ * iov_memcpy() - Copy data between two iovec arrays
+ * @dst_iov:		Destination iovec array
+ * @dst_iov_cnt:	Number of elements in destination iovec array
+ * @dst_offset:		Destination offset
+ * @src_iov:		Source iovec array
+ * @src_iov_cnt:	Number of elements in source iovec array
+ * @offs:		Source offset
+ * @length:		Number of bytes to copy
+ *
+ * Return: total number of bytes copied
+ */
+/* cppcheck-suppress unusedFunction */
+size_t iov_memcpy(struct iovec *dst_iov, size_t dst_iov_cnt, size_t dst_offset,
+		  const struct iovec *src_iov, size_t src_iov_cnt,
+		  size_t src_offset, size_t length)
+{
+	size_t i, j, total = 0;
+
+	i = iov_skip_bytes(src_iov, src_iov_cnt, src_offset, &src_offset);
+	j = iov_skip_bytes(dst_iov, dst_iov_cnt, dst_offset, &dst_offset);
+
+	/* copying data */
+	while (length && i < src_iov_cnt && j < dst_iov_cnt) {
+		size_t n = MIN(dst_iov[j].iov_len - dst_offset,
+			       src_iov[i].iov_len - src_offset);
+
+		if (n > length)
+			n = length;
+
+		memcpy((char *)dst_iov[j].iov_base + dst_offset,
+		       (const char *)src_iov[i].iov_base + src_offset, n);
+
+		dst_offset += n;
+		src_offset += n;
+		total += n;
+		length -= n;
+
+		if (dst_offset == dst_iov[j].iov_len) {
+			dst_offset = 0;
+			j++;
+		}
+		if (src_offset == src_iov[i].iov_len) {
+			src_offset = 0;
+			i++;
+		}
+	}
+
+	return total;
+}
+
+/**
  * iov_tail_prune() - Remove any unneeded buffers from an IOV tail
  * @tail:	IO vector tail (modified)
  *
