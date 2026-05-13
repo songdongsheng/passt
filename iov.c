@@ -180,7 +180,6 @@ size_t iov_truncate(struct iovec *iov, size_t iov_cnt, size_t size)
  * 		Will write less than @length bytes if it runs out of space in
  * 		the iov
  */
-/* cppcheck-suppress unusedFunction */
 void iov_memset(const struct iovec *iov, size_t iov_cnt, size_t offset, int c,
 		size_t length)
 {

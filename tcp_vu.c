@@ -90,7 +90,7 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 
 	elem_cnt = vu_collect(vdev, vq, &flags_elem[0], 1,
 			      &flags_iov[0], 1, NULL,
-			      MAX(hdrlen + sizeof(*opts), ETH_ZLEN + VNET_HLEN), NULL);
+			      hdrlen + sizeof(*opts), NULL);
 	if (elem_cnt != 1)
 		return -EAGAIN;
 
@@ -130,8 +130,6 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 		return ret;
 	}
 
-	l2len = hdrlen + optlen - VNET_HLEN;
-	iov_truncate(&flags_iov[0], 1, l2len + VNET_HLEN);
 	payload = IOV_TAIL(flags_elem[0].in_sg, 1, hdrlen);
 
 	if (flags & KEEPALIVE)
@@ -140,17 +138,17 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	tcp_fill_headers(c, conn, eh, ip4h, ip6h, th, &payload,
 			 optlen, NULL, seq, !*c->pcap);
 
-	vu_pad(&flags_elem[0].in_sg[0], l2len);
-
+	vu_pad(flags_elem[0].in_sg, 1, hdrlen + optlen);
 	vu_flush(vdev, vq, flags_elem, 1, hdrlen + optlen);
 
+	l2len = hdrlen + optlen - VNET_HLEN;
 	if (*c->pcap)
 		pcap_iov(&flags_elem[0].in_sg[0], 1, VNET_HLEN, l2len);
 
 	if (flags & DUP_ACK) {
 		elem_cnt = vu_collect(vdev, vq, &flags_elem[1], 1,
 				      &flags_iov[1], 1, NULL,
-				      flags_elem[0].in_sg[0].iov_len, NULL);
+				      hdrlen + optlen, NULL);
 		if (elem_cnt == 1 &&
 		    flags_elem[1].in_sg[0].iov_len >=
 		    flags_elem[0].in_sg[0].iov_len) {
@@ -215,7 +213,7 @@ static ssize_t tcp_vu_sock_recv(const struct ctx *c, struct vu_virtq *vq,
 				 ARRAY_SIZE(elem) - elem_cnt,
 				 &iov_vu[DISCARD_IOV_NUM + iov_used],
 				 VIRTQUEUE_MAX_SIZE - iov_used, &in_total,
-				 MAX(MIN(mss, fillsize) + hdrlen, ETH_ZLEN + VNET_HLEN),
+				 MIN(mss, fillsize) + hdrlen,
 				 &frame_size);
 		if (cnt == 0)
 			break;
@@ -251,8 +249,11 @@ static ssize_t tcp_vu_sock_recv(const struct ctx *c, struct vu_virtq *vq,
 	if (!peek_offset_cap)
 		ret -= already_sent;
 
-	/* adjust iov number and length of the last iov */
-	i = iov_truncate(&iov_vu[DISCARD_IOV_NUM], iov_used, ret);
+	i = iov_skip_bytes(&iov_vu[DISCARD_IOV_NUM], iov_used,
+			   MAX(hdrlen + ret, VNET_HLEN + ETH_ZLEN),
+			   NULL);
+	if ((size_t)i < iov_used)
+		i++;
 
 	/* adjust head count */
 	while (*head_cnt > 0 && head[*head_cnt - 1] >= i)
@@ -449,11 +450,13 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 		size_t frame_size = iov_size(iov, buf_cnt);
 		bool push = i == head_cnt - 1;
 		ssize_t dlen;
-		size_t l2len;
 
 		assert(frame_size >= hdrlen);
 
 		dlen = frame_size - hdrlen;
+		if (dlen > len)
+			dlen = len;
+		len -= dlen;
 
 		/* The IPv4 header checksum varies only with dlen */
 		if (previous_dlen != dlen)
@@ -462,14 +465,13 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 
 		tcp_vu_prepare(c, conn, iov, buf_cnt, dlen, &check, !*c->pcap, push);
 
-		/* Pad first/single buffer only, it's at least ETH_ZLEN long */
-		l2len = dlen + hdrlen - VNET_HLEN;
-		vu_pad(iov, l2len);
-
+		vu_pad(elem[head[i]].in_sg, buf_cnt, dlen + hdrlen);
 		vu_flush(vdev, vq, &elem[head[i]], buf_cnt, dlen + hdrlen);
 
-		if (*c->pcap)
-			pcap_iov(iov, buf_cnt, VNET_HLEN, l2len);
+		if (*c->pcap) {
+			pcap_iov(iov, buf_cnt, VNET_HLEN,
+				 dlen + hdrlen - VNET_HLEN);
+		}
 
 		conn->seq_to_tap += dlen;
 	}

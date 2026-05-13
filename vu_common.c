@@ -74,6 +74,7 @@ int vu_collect(const struct vu_dev *vdev, struct vu_virtq *vq,
 	size_t current_iov = 0;
 	int elem_cnt = 0;
 
+	size = MAX(size, ETH_ZLEN /* Ethernet minimum size */ + VNET_HLEN);
 	while (current_size < size && elem_cnt < max_elem &&
 	       current_iov < max_in_sg) {
 		int ret;
@@ -261,29 +262,27 @@ int vu_send_single(const struct ctx *c, const void *buf, size_t size)
 		return -1;
 	}
 
-	size += VNET_HLEN;
 	elem_cnt = vu_collect(vdev, vq, elem, ARRAY_SIZE(elem), in_sg,
-			      ARRAY_SIZE(in_sg), &in_total, size, &total);
-	if (elem_cnt == 0 || total < size) {
+			      ARRAY_SIZE(in_sg), &in_total, VNET_HLEN + size, &total);
+	if (elem_cnt == 0 || total < VNET_HLEN + size) {
 		debug("vu_send_single: no space to send the data "
 		      "elem_cnt %d size %zu", elem_cnt, total);
 		goto err;
 	}
 
-	total -= VNET_HLEN;
-
 	/* copy data from the buffer to the iovec */
-	iov_from_buf(in_sg, in_total, VNET_HLEN, buf, total);
+	iov_from_buf(in_sg, in_total, VNET_HLEN, buf, size);
 
 	if (*c->pcap)
 		pcap_iov(in_sg, in_total, VNET_HLEN, size);
 
+	vu_pad(in_sg, in_total, VNET_HLEN + size);
 	vu_flush(vdev, vq, elem, elem_cnt, VNET_HLEN + size);
 	vu_queue_notify(vdev, vq);
 
-	trace("vhost-user sent %zu", total);
+	trace("vhost-user sent %zu", size);
 
-	return total;
+	return size;
 err:
 	for (i = 0; i < elem_cnt; i++)
 		vu_queue_detach_element(vq);
@@ -292,15 +291,15 @@ err:
 }
 
 /**
- * vu_pad() - Pad 802.3 frame to minimum length (60 bytes) if needed
- * @iov:	Buffer in iovec array where end of 802.3 frame is stored
- * @l2len:	Layer-2 length already filled in frame
+ * vu_pad() - Pad short frames to minimum Ethernet length and truncate iovec
+ * @iov:	Pointer to iovec array
+ * @cnt:	Number of entries in @iov
+ * @frame_len:	Data length in @iov (including virtio-net header)
  */
-void vu_pad(struct iovec *iov, size_t l2len)
+void vu_pad(const struct iovec *iov, size_t cnt, size_t frame_len)
 {
-	if (l2len >= ETH_ZLEN)
-		return;
+	size_t min_frame_len = ETH_ZLEN + VNET_HLEN;
 
-	memset((char *)iov->iov_base + iov->iov_len, 0, ETH_ZLEN - l2len);
-	iov->iov_len += ETH_ZLEN - l2len;
+	if (frame_len < min_frame_len)
+		iov_memset(iov, cnt, frame_len, 0, min_frame_len - frame_len);
 }

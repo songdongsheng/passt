@@ -44,6 +44,6 @@ void vu_flush(const struct vu_dev *vdev, struct vu_virtq *vq,
 void vu_kick_cb(struct vu_dev *vdev, union epoll_ref ref,
 		const struct timespec *now);
 int vu_send_single(const struct ctx *c, const void *buf, size_t size);
-void vu_pad(struct iovec *iov, size_t l2len);
+void vu_pad(const struct iovec *iov, size_t cnt, size_t frame_len);
 
 #endif /* VU_COMMON_H */

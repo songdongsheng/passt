@@ -67,7 +67,7 @@ static size_t udp_vu_hdrlen(bool v6)
 static ssize_t udp_vu_sock_recv(struct iovec *iov, size_t *cnt, int s, bool v6)
 {
 	struct msghdr msg  = { 0 };
-	size_t hdrlen, l2len;
+	size_t hdrlen, iov_used;
 	ssize_t dlen;
 
 	/* compute L2 header length */
@@ -90,11 +90,12 @@ static ssize_t udp_vu_sock_recv(struct iovec *iov, size_t *cnt, int s, bool v6)
 	iov[0].iov_base = (char *)iov[0].iov_base - hdrlen;
 	iov[0].iov_len += hdrlen;
 
-	*cnt = iov_truncate(iov, *cnt, dlen + hdrlen);
-
-	/* pad frame to 60 bytes: first buffer is at least ETH_ZLEN long */
-	l2len = dlen + hdrlen - VNET_HLEN;
-	vu_pad(&iov[0], l2len);
+	iov_used = iov_skip_bytes(iov, *cnt,
+				  MAX(dlen + hdrlen, VNET_HLEN + ETH_ZLEN),
+				  NULL);
+	if (iov_used < *cnt)
+		iov_used++;
+	*cnt = iov_used; /* one iovec per element */
 
 	return dlen;
 }
@@ -231,6 +232,7 @@ void udp_vu_sock_to_tap(const struct ctx *c, int s, int n, flow_sidx_t tosidx)
 				pcap_iov(iov_vu, iov_cnt, VNET_HLEN,
 					 hdrlen + dlen - VNET_HLEN);
 			}
+			vu_pad(iov_vu, iov_cnt, hdrlen + dlen);
 			vu_flush(vdev, vq, elem, elem_used, hdrlen + dlen);
 			vu_queue_notify(vdev, vq);
 		}
