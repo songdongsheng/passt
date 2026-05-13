@@ -171,6 +171,33 @@ size_t iov_truncate(struct iovec *iov, size_t iov_cnt, size_t size)
 }
 
 /**
+ * iov_memset() - Set bytes of an IO vector to a given value
+ * @iov:	IO vector
+ * @iov_cnt:	Number of elements in @iov
+ * @offset:	Byte offset in the iovec at which to start
+ * @c:		Byte value to fill with
+ * @length:	Number of bytes to set
+ * 		Will write less than @length bytes if it runs out of space in
+ * 		the iov
+ */
+/* cppcheck-suppress unusedFunction */
+void iov_memset(const struct iovec *iov, size_t iov_cnt, size_t offset, int c,
+		size_t length)
+{
+	size_t i;
+
+	i = iov_skip_bytes(iov, iov_cnt, offset, &offset);
+
+	for ( ; i < iov_cnt && length; i++) {
+		size_t n = MIN(iov[i].iov_len - offset, length);
+
+		memset((char *)iov[i].iov_base + offset, c, n);
+		offset = 0;
+		length -= n;
+	}
+}
+
+/**
  * iov_tail_prune() - Remove any unneeded buffers from an IOV tail
  * @tail:	IO vector tail (modified)
  *
