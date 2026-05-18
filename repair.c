@@ -99,6 +99,10 @@ int repair_listen_handler(struct ctx *c, uint32_t events)
 		return EEXIST;
 	}
 
+	/* We want the accepted socket to be blocking; we use it during
+	 * migration which is a synchronous interruption to our normal
+	 * non-blocking behaviour.
+	 */
 	if ((c->fd_repair = accept4(c->fd_repair_listen, NULL, NULL,
 				    SOCK_CLOEXEC)) < 0) {
 		rc = errno;

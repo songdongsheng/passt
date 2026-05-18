@@ -1492,6 +1492,11 @@ void tap_listen_handler(struct ctx *c, uint32_t events)
 		return;
 	}
 
+	/* Because we generally only access the accepted socket from epoll
+	 * events, it usually doesn't matter if it's blocking or non-blocking.
+	 * However, in rare cases when the socket buffer fills we need (briefly,
+	 * we hope) blocking writes (write_remainder() in send_frames_passt()).
+	 */
 	c->fd_tap = accept4(c->fd_tap_listen, NULL, NULL, SOCK_CLOEXEC);
 	if (c->fd_tap < 0) {
 		warn_perror("Error accepting tap client");
