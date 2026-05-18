@@ -1493,6 +1493,10 @@ void tap_listen_handler(struct ctx *c, uint32_t events)
 	}
 
 	c->fd_tap = accept4(c->fd_tap_listen, NULL, NULL, SOCK_CLOEXEC);
+	if (c->fd_tap < 0) {
+		warn_perror("Error accepting tap client");
+		return;
+	}
 
 	if (!getsockopt(c->fd_tap, SOL_SOCKET, SO_PEERCRED, &ucred, &len))
 		info("accepted connection from PID %i", ucred.pid);
