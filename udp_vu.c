@@ -66,29 +66,24 @@ static size_t udp_vu_hdrlen(bool v6)
  */
 static ssize_t udp_vu_sock_recv(struct iovec *iov, size_t *cnt, int s, bool v6)
 {
+	struct iovec msg_iov[VIRTQUEUE_MAX_SIZE];
 	struct msghdr msg  = { 0 };
+	struct iov_tail payload;
 	size_t hdrlen, iov_used;
 	ssize_t dlen;
 
 	/* compute L2 header length */
 	hdrlen = udp_vu_hdrlen(v6);
 
-	/* reserve space for the headers */
-	assert(iov[0].iov_len >= MAX(hdrlen, ETH_ZLEN + VNET_HLEN));
-	iov[0].iov_base = (char *)iov[0].iov_base + hdrlen;
-	iov[0].iov_len -= hdrlen;
+	payload = IOV_TAIL(iov, *cnt, hdrlen);
+
+	msg.msg_iov = msg_iov;
+	msg.msg_iovlen = iov_tail_clone(msg.msg_iov, payload.cnt, &payload);
 
 	/* read data from the socket */
-	msg.msg_iov = iov;
-	msg.msg_iovlen = *cnt;
-
 	dlen = recvmsg(s, &msg, 0);
 	if (dlen < 0)
 		return -1;
-
-	/* restore the pointer to the headers address */
-	iov[0].iov_base = (char *)iov[0].iov_base - hdrlen;
-	iov[0].iov_len += hdrlen;
 
 	iov_used = iov_skip_bytes(iov, *cnt,
 				  MAX(dlen + hdrlen, VNET_HLEN + ETH_ZLEN),
@@ -202,7 +197,7 @@ void udp_vu_sock_to_tap(const struct ctx *c, int s, int n, flow_sidx_t tosidx)
 	}
 
 	for (i = 0; i < n; i++) {
-		unsigned elem_cnt, elem_used;
+		unsigned elem_cnt, elem_used, j, k;
 		size_t iov_cnt;
 		ssize_t dlen;
 
@@ -212,15 +207,21 @@ void udp_vu_sock_to_tap(const struct ctx *c, int s, int n, flow_sidx_t tosidx)
 		if (elem_cnt == 0)
 			break;
 
-		assert((size_t)elem_cnt == iov_cnt);	/* one iovec per element */
-
 		dlen = udp_vu_sock_recv(iov_vu, &iov_cnt, s, v6);
 		if (dlen < 0) {
 			vu_queue_rewind(vq, elem_cnt);
 			break;
 		}
 
-		elem_used = iov_cnt; /* one iovec per element */
+		elem_used = 0;
+		for (j = 0, k = 0; k < iov_cnt && j < elem_cnt; j++) {
+			size_t iov_still_needed = iov_cnt - k;
+
+			if (elem[j].in_num > iov_still_needed)
+				elem[j].in_num = iov_still_needed;
+			k += elem[j].in_num;
+			elem_used++;
+		}
 
 		/* release unused buffers */
 		vu_queue_rewind(vq, elem_cnt - elem_used);
