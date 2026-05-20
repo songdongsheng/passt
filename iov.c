@@ -208,7 +208,6 @@ void iov_memset(const struct iovec *iov, size_t iov_cnt, size_t offset, int c,
  *
  * Return: total number of bytes copied
  */
-/* cppcheck-suppress unusedFunction */
 size_t iov_memcpy(struct iovec *dst_iov, size_t dst_iov_cnt, size_t dst_offset,
 		  const struct iovec *src_iov, size_t src_iov_cnt,
 		  size_t src_offset, size_t length)

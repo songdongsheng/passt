@@ -75,6 +75,43 @@ static size_t tcp_vu_hdrlen(bool v6)
 }
 
 /**
+ * tcp_vu_send_dup() - Duplicate a frame into a new virtqueue element
+ * @c:		Execution context
+ * @vq:		Receive virtqueue
+ * @dest_elem:	Destination virtqueue element to collect
+ * @dest_iov:	Destination iovec array for collected buffers
+ * @max_dest_iov: Maximum number of entries in @dest_iov
+ * @src_iov:	Source iovec array containing the frame to duplicate
+ * @src_cnt:	Number of entries in @src_iov
+ * @vnlen:	Total frame length including virtio-net header
+ *
+ * Return: number of virtqueue elements collected (0 if none available)
+ */
+static int tcp_vu_send_dup(const struct ctx *c, struct vu_virtq *vq,
+			   struct vu_virtq_element *dest_elem,
+			   struct iovec *dest_iov, size_t max_dest_iov,
+			   const struct iovec *src_iov, size_t src_cnt,
+			   size_t vnlen)
+{
+	const struct vu_dev *vdev = c->vdev;
+	size_t dest_cnt;
+	int elem_cnt;
+
+	elem_cnt = vu_collect(vdev, vq, dest_elem, 1, dest_iov, max_dest_iov,
+			      &dest_cnt, vnlen, NULL);
+	if (elem_cnt == 0)
+		return 0;
+
+	iov_memcpy(dest_iov, dest_cnt, 0, src_iov, src_cnt, 0,
+		   MAX(VNET_HLEN + ETH_ZLEN, vnlen));
+
+	if (*c->pcap)
+		pcap_iov(dest_iov, dest_cnt, VNET_HLEN, vnlen - VNET_HLEN);
+
+	return elem_cnt;
+}
+
+/**
  * tcp_vu_send_flag() - Send segment with flags to vhost-user (no payload)
  * @c:		Execution context
  * @conn:	Connection pointer
@@ -88,97 +125,86 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 {
 	struct vu_dev *vdev = c->vdev;
 	struct vu_virtq *vq = &vdev->vq[VHOST_USER_RX_QUEUE];
+	size_t optlen, hdrlen, iov_cnt, iov_used;
 	struct vu_virtq_element flags_elem[2];
-	size_t optlen, hdrlen, l2len;
-	struct ipv6hdr *ip6h = NULL;
-	struct iphdr *ip4h = NULL;
-	struct iovec flags_iov[2];
-	struct tcp_syn_opts *opts;
-	struct iov_tail payload;
-	struct tcphdr *th;
-	struct ethhdr *eh;
+	struct iov_tail payload, l2frame;
+	int elem_cnt, dup_elem_cnt = 0;
+	struct iovec flags_iov[64];
+	struct tcp_syn_opts opts;
+	struct tcphdr th = { 0 };
+	struct ipv6hdr ip6h;
+	struct iphdr ip4h;
+	struct ethhdr eh;
 	uint32_t seq;
-	int elem_cnt;
 	int ret;
 
 	hdrlen = tcp_vu_hdrlen(CONN_V6(conn));
 
 	elem_cnt = vu_collect(vdev, vq, &flags_elem[0], 1,
-			      &flags_iov[0], 1, NULL,
-			      hdrlen + sizeof(*opts), NULL);
-	if (elem_cnt != 1)
+			      flags_iov, ARRAY_SIZE(flags_iov), &iov_cnt,
+			      hdrlen + sizeof(opts), NULL);
+	if (elem_cnt == 0)
 		return -EAGAIN;
 
-	assert(flags_elem[0].in_num == 1);
-	assert(flags_elem[0].in_sg[0].iov_len >=
-	       MAX(hdrlen + sizeof(*opts), ETH_ZLEN + VNET_HLEN));
+	memcpy(eh.h_dest, c->guest_mac, sizeof(eh.h_dest));
 
-	eh = vu_eth(flags_elem[0].in_sg[0].iov_base);
-
-	memcpy(eh->h_dest, c->guest_mac, sizeof(eh->h_dest));
-	memcpy(eh->h_source, c->our_tap_mac, sizeof(eh->h_source));
-
-	if (CONN_V4(conn)) {
-		eh->h_proto = htons(ETH_P_IP);
-
-		ip4h = vu_ip(flags_elem[0].in_sg[0].iov_base);
-		*ip4h = (struct iphdr)L2_BUF_IP4_INIT(IPPROTO_TCP);
-
-		th = vu_payloadv4(flags_elem[0].in_sg[0].iov_base);
-	} else {
-		eh->h_proto = htons(ETH_P_IPV6);
-
-		ip6h = vu_ip(flags_elem[0].in_sg[0].iov_base);
-		*ip6h = (struct ipv6hdr)L2_BUF_IP6_INIT(IPPROTO_TCP);
-		th = vu_payloadv6(flags_elem[0].in_sg[0].iov_base);
-	}
-
-	memset(th, 0, sizeof(*th));
-	th->doff = sizeof(*th) / 4;
-	th->ack = 1;
+	if (CONN_V4(conn))
+		ip4h = (struct iphdr)L2_BUF_IP4_INIT(IPPROTO_TCP);
+	else
+		ip6h = (struct ipv6hdr)L2_BUF_IP6_INIT(IPPROTO_TCP);
 
 	seq = conn->seq_to_tap;
-	opts = (struct tcp_syn_opts *)(th + 1);
-	ret = tcp_prepare_flags(c, conn, flags, th, opts, &optlen);
+	ret = tcp_prepare_flags(c, conn, flags, &th, &opts, &optlen);
 	if (ret <= 0) {
-		vu_queue_rewind(vq, 1);
+		vu_queue_rewind(vq, elem_cnt);
 		return ret;
 	}
-
-	payload = IOV_TAIL(flags_elem[0].in_sg, 1, hdrlen);
 
 	if (flags & KEEPALIVE)
 		seq--;
 
-	tcp_fill_headers(c, conn, eh, ip4h, ip6h, th, &payload,
+	iov_used = iov_skip_bytes(flags_iov, iov_cnt,
+				  MAX(optlen + hdrlen, VNET_HLEN + ETH_ZLEN),
+				  NULL);
+	if (iov_used < iov_cnt)
+		iov_used++;
+	iov_cnt = iov_used;
+
+	payload = IOV_TAIL(flags_elem[0].in_sg, iov_cnt, hdrlen);
+	iov_from_buf(payload.iov, payload.cnt, payload.off, &opts, optlen);
+	tcp_fill_headers(c, conn, &eh, CONN_V4(conn) ? &ip4h : NULL,
+			 CONN_V6(conn) ? &ip6h : NULL, &th, &payload,
 			 optlen, IP4_CSUM | (*c->pcap ? TCP_CSUM : 0), seq);
 
-	vu_pad(flags_elem[0].in_sg, 1, hdrlen + optlen);
-	vu_flush(vdev, vq, flags_elem, 1, hdrlen + optlen);
+	vu_pad(flags_elem[0].in_sg, iov_cnt, hdrlen + optlen);
 
-	l2len = hdrlen + optlen - VNET_HLEN;
+	/* write headers */
+	l2frame = IOV_TAIL(flags_elem[0].in_sg, iov_cnt, VNET_HLEN);
+
+	IOV_PUSH_HEADER(&l2frame, eh);
+	if (CONN_V4(conn))
+		IOV_PUSH_HEADER(&l2frame, ip4h);
+	else
+		IOV_PUSH_HEADER(&l2frame, ip6h);
+	IOV_PUSH_HEADER(&l2frame, th);
+
 	if (*c->pcap)
-		pcap_iov(&flags_elem[0].in_sg[0], 1, VNET_HLEN, l2len);
+		pcap_iov(flags_elem[0].in_sg, iov_cnt, VNET_HLEN,
+			 hdrlen + optlen - VNET_HLEN);
 
 	if (flags & DUP_ACK) {
-		elem_cnt = vu_collect(vdev, vq, &flags_elem[1], 1,
-				      &flags_iov[1], 1, NULL,
-				      hdrlen + optlen, NULL);
-		if (elem_cnt == 1 &&
-		    flags_elem[1].in_sg[0].iov_len >=
-		    flags_elem[0].in_sg[0].iov_len) {
-			memcpy(flags_elem[1].in_sg[0].iov_base,
-			       flags_elem[0].in_sg[0].iov_base,
-			       flags_elem[0].in_sg[0].iov_len);
-
-			vu_flush(vdev, vq, &flags_elem[1], 1, hdrlen + optlen);
-
-			if (*c->pcap) {
-				pcap_iov(&flags_elem[1].in_sg[0], 1, VNET_HLEN,
-					 l2len);
-			}
-		}
+		dup_elem_cnt = tcp_vu_send_dup(c, vq, &flags_elem[elem_cnt],
+					       &flags_iov[iov_cnt],
+					       ARRAY_SIZE(flags_iov) - iov_cnt,
+					       flags_elem[0].in_sg, iov_cnt,
+					       hdrlen + optlen);
 	}
+	vu_flush(vdev, vq, flags_elem, elem_cnt, hdrlen + optlen);
+	if (dup_elem_cnt) {
+		vu_flush(vdev, vq, &flags_elem[elem_cnt], dup_elem_cnt,
+			 hdrlen + optlen);
+	}
+
 	vu_queue_notify(vdev, vq);
 
 	return 0;
