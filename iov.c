@@ -360,6 +360,37 @@ void *iov_peek_header_(struct iov_tail *tail, void *v, size_t len, size_t align)
 }
 
 /**
+ * iov_push_header_() - Write a new header to an IOV tail
+ * @tail:	IOV tail to write header to
+ * @v:		Pointer to header data to write
+ * @len:	Length of header to write, in bytes
+ *
+ * Return: number of bytes written
+ */
+/* cppcheck-suppress unusedFunction */
+size_t iov_push_header_(struct iov_tail *tail, const void *v, size_t len)
+{
+	size_t l;
+
+	if (!iov_tail_prune(tail))
+		return 0; /* No space */
+
+	if ((char *)tail->iov[0].iov_base + tail->off == v) /* already in place */
+		l = len;
+	else
+		l = iov_from_buf(tail->iov, tail->cnt, tail->off, v, len);
+
+	if (l != len) {
+		warn("iov_push_header_(): Not enough space to store header"
+		     " (%zu != %zu)", l, len);
+	}
+
+	tail->off = tail->off + l;
+
+	return l;
+}
+
+/**
  * iov_remove_header_() - Remove a header from an IOV tail
  * @tail:	IOV tail to remove header from (modified)
  * @v:		Temporary memory to use if the memory in @tail
