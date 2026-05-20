@@ -298,49 +298,41 @@ static void tcp_vu_prepare(const struct ctx *c, struct tcp_tap_conn *conn,
 	bool v6 = !(inany_v4(&toside->eaddr) && inany_v4(&toside->oaddr));
 	size_t hdrlen = tcp_vu_hdrlen(v6);
 	struct iov_tail payload = IOV_TAIL(iov, iov_cnt, hdrlen);
-	char *base = iov[0].iov_base;
-	struct ipv6hdr *ip6h = NULL;
-	struct iphdr *ip4h = NULL;
-	struct tcphdr *th;
-	struct ethhdr *eh;
+	struct tcphdr th = {
+		.doff = sizeof(th) / 4,
+		.ack = 1,
+		.psh = push,
+	};
+	struct iov_tail l2frame;
+	struct ipv6hdr ip6h;
+	struct iphdr ip4h;
+	struct ethhdr eh;
 
-	/* we guess the first iovec provided by the guest can embed
-	 * all the headers needed by L2 frame, including any padding
-	 */
-	assert(iov[0].iov_len >= hdrlen);
-
-	eh = vu_eth(base);
-
-	memcpy(eh->h_dest, c->guest_mac, sizeof(eh->h_dest));
+	memcpy(eh.h_dest, c->guest_mac, sizeof(eh.h_dest));
 
 	/* initialize header */
 
-	if (!v6) {
-		eh->h_proto = htons(ETH_P_IP);
+	if (!v6)
+		ip4h = (struct iphdr)L2_BUF_IP4_INIT(IPPROTO_TCP);
+	else
+		ip6h = (struct ipv6hdr)L2_BUF_IP6_INIT(IPPROTO_TCP);
 
-		ip4h = vu_ip(base);
-		*ip4h = (struct iphdr)L2_BUF_IP4_INIT(IPPROTO_TCP);
-		th = vu_payloadv4(base);
-	} else {
-		eh->h_proto = htons(ETH_P_IPV6);
-
-		ip6h = vu_ip(base);
-		*ip6h = (struct ipv6hdr)L2_BUF_IP6_INIT(IPPROTO_TCP);
-
-		th = vu_payloadv6(base);
-	}
-
-	memset(th, 0, sizeof(*th));
-	th->doff = sizeof(*th) / 4;
-	th->ack = 1;
-	th->psh = push;
-
-	tcp_fill_headers(c, conn, eh, ip4h, ip6h, th, &payload, dlen,
-			 *csum_flags, conn->seq_to_tap);
+	tcp_fill_headers(c, conn, &eh, v6 ? NULL : &ip4h, v6 ? &ip6h : NULL, &th,
+			 &payload, dlen, *csum_flags, conn->seq_to_tap);
 
 	/* Preserve TCP_CSUM, overwrite IP4_CSUM as we set the checksum */
-	if (ip4h)
-		*csum_flags = (*csum_flags & TCP_CSUM) | ip4h->check;
+	if (!v6)
+		*csum_flags = (*csum_flags & TCP_CSUM) | ip4h.check;
+
+	/* write headers */
+	l2frame = IOV_TAIL(iov, iov_cnt, VNET_HLEN);
+
+	IOV_PUSH_HEADER(&l2frame, eh);
+	if (!v6)
+		IOV_PUSH_HEADER(&l2frame, ip4h);
+	else
+		IOV_PUSH_HEADER(&l2frame, ip6h);
+	IOV_PUSH_HEADER(&l2frame, th);
 }
 
 /**
