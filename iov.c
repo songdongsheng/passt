@@ -367,7 +367,6 @@ void *iov_peek_header_(struct iov_tail *tail, void *v, size_t len, size_t align)
  *
  * Return: number of bytes written
  */
-/* cppcheck-suppress unusedFunction */
 size_t iov_push_header_(struct iov_tail *tail, const void *v, size_t len)
 {
 	size_t l;
