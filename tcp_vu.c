@@ -136,7 +136,7 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 		seq--;
 
 	tcp_fill_headers(c, conn, eh, ip4h, ip6h, th, &payload,
-			 optlen, NULL, seq, !*c->pcap);
+			 optlen, IP4_CSUM | (*c->pcap ? TCP_CSUM : 0), seq);
 
 	vu_pad(flags_elem[0].in_sg, 1, hdrlen + optlen);
 	vu_flush(vdev, vq, flags_elem, 1, hdrlen + optlen);
@@ -284,13 +284,15 @@ static ssize_t tcp_vu_sock_recv(const struct ctx *c, struct vu_virtq *vq,
  * @iov:		Pointer to the array of IO vectors
  * @iov_cnt:		Number of entries in @iov
  * @dlen:		Data length
- * @check:		Checksum, if already known
- * @no_tcp_csum:	Do not set TCP checksum
+ * @csum_flags:		Pointer to checksum flags (input/output)
+ * 			TCP_CSUM if TCP checksum must be computed,
+ * 			IP4_CSUM if IPv4 checksum must be computed,
+ * 			otherwise IPv4 checksum is provided in IP4_CMASK
  * @push:		Set PSH flag, last segment in a batch
  */
 static void tcp_vu_prepare(const struct ctx *c, struct tcp_tap_conn *conn,
 			   struct iovec *iov, size_t iov_cnt, size_t dlen,
-			   const uint16_t **check, bool no_tcp_csum, bool push)
+			   uint32_t *csum_flags, bool push)
 {
 	const struct flowside *toside = TAPFLOW(conn);
 	bool v6 = !(inany_v4(&toside->eaddr) && inany_v4(&toside->oaddr));
@@ -334,9 +336,11 @@ static void tcp_vu_prepare(const struct ctx *c, struct tcp_tap_conn *conn,
 	th->psh = push;
 
 	tcp_fill_headers(c, conn, eh, ip4h, ip6h, th, &payload, dlen,
-			 *check, conn->seq_to_tap, no_tcp_csum);
+			 *csum_flags, conn->seq_to_tap);
+
+	/* Preserve TCP_CSUM, overwrite IP4_CSUM as we set the checksum */
 	if (ip4h)
-		*check = &ip4h->check;
+		*csum_flags = (*csum_flags & TCP_CSUM) | ip4h->check;
 }
 
 /**
@@ -352,12 +356,11 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 	uint32_t wnd_scaled = conn->wnd_from_tap << conn->ws_from_tap;
 	struct vu_dev *vdev = c->vdev;
 	struct vu_virtq *vq = &vdev->vq[VHOST_USER_RX_QUEUE];
+	uint32_t already_sent, check;
 	ssize_t len, previous_dlen;
 	int i, iov_cnt, head_cnt;
 	size_t hdrlen, fillsize;
 	int v6 = CONN_V6(conn);
-	uint32_t already_sent;
-	const uint16_t *check;
 
 	if (!vu_queue_enabled(vq) || !vu_queue_started(vq)) {
 		debug("Got packet, but RX virtqueue not usable yet");
@@ -444,7 +447,10 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 	 */
 
 	hdrlen = tcp_vu_hdrlen(v6);
-	for (i = 0, previous_dlen = -1, check = NULL; i < head_cnt; i++) {
+	check = IP4_CSUM;
+	if (*c->pcap)
+		check |= TCP_CSUM;
+	for (i = 0, previous_dlen = -1; i < head_cnt; i++) {
 		struct iovec *iov = &elem[head[i]].in_sg[0];
 		int buf_cnt = head[i + 1] - head[i];
 		size_t frame_size = iov_size(iov, buf_cnt);
@@ -460,10 +466,10 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 
 		/* The IPv4 header checksum varies only with dlen */
 		if (previous_dlen != dlen)
-			check = NULL;
+			check |= IP4_CSUM;
 		previous_dlen = dlen;
 
-		tcp_vu_prepare(c, conn, iov, buf_cnt, dlen, &check, !*c->pcap, push);
+		tcp_vu_prepare(c, conn, iov, buf_cnt, dlen, &check, push);
 
 		vu_pad(elem[head[i]].in_sg, buf_cnt, dlen + hdrlen);
 		vu_flush(vdev, vq, &elem[head[i]], buf_cnt, dlen + hdrlen);
