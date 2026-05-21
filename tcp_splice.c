@@ -478,11 +478,12 @@ void tcp_splice_conn_from_sock(const struct ctx *c, union flow *flow, int s0)
  * @c:		Execution context
  * @ref:	epoll reference
  * @events:	epoll events bitmap
+ * @now:	Current timestamp
  *
  * #syscalls:pasta splice
  */
 void tcp_splice_sock_handler(struct ctx *c, union epoll_ref ref,
-			     uint32_t events)
+			     uint32_t events, const struct timespec *now)
 {
 	struct tcp_splice_conn *conn = conn_at_sidx(ref.flowside);
 	unsigned evsidei = ref.flowside.sidei, fromsidei;
@@ -499,18 +500,25 @@ void tcp_splice_sock_handler(struct ctx *c, union epoll_ref ref,
 		socklen_t sl = sizeof(err);
 
 		rc = getsockopt(ref.fd, SOL_SOCKET, SO_ERROR, &err, &sl);
-		if (rc)
+		if (rc) {
 			flow_perror(conn, "Error retrieving SO_ERROR");
-		else
-			flow_trace(conn, "Error event on socket: %s",
-				   strerror_(err));
-
+		} else {
+			flow_dbg_ratelimit(conn, now,
+					   "Error event on %s socket: %s",
+					   pif_name(conn->f.pif[evsidei]),
+					   strerror_(err));
+		}
 		goto reset;
 	}
 
 	if (conn->events == SPLICE_CONNECT) {
-		if (!(events & EPOLLOUT))
+		if (!(events & EPOLLOUT)) {
+			flow_err_ratelimit(
+				conn, now,
+				"Unexpected events 0x%x during connect",
+				events);
 			goto reset;
+		}
 		if (tcp_splice_connect_finish(c, conn))
 			goto reset;
 	}
@@ -545,8 +553,12 @@ retry:
 					 SPLICE_F_MOVE | SPLICE_F_NONBLOCK);
 		while (readlen < 0 && errno == EINTR);
 
-		if (readlen < 0 && errno != EAGAIN)
+		if (readlen < 0 && errno != EAGAIN) {
+			flow_perror_ratelimit(
+				conn, now, "Splicing from %s socket",
+				pif_name(conn->f.pif[fromsidei]));
 			goto reset;
+		}
 
 		flow_trace(conn, "%zi from read-side call", readlen);
 
@@ -569,8 +581,12 @@ retry:
 					 SPLICE_F_MOVE | more | SPLICE_F_NONBLOCK);
 		while (written < 0 && errno == EINTR);
 
-		if (written < 0 && errno != EAGAIN)
+		if (written < 0 && errno != EAGAIN) {
+			flow_perror_ratelimit(
+				conn, now, "Splicing to %s socket",
+				pif_name(conn->f.pif[!fromsidei]));
 			goto reset;
+		}
 
 		flow_trace(conn, "%zi from write-side call (passed %zi)",
 			   written, c->tcp.pipe_size);
@@ -627,8 +643,12 @@ retry:
 		flow_foreach_sidei(sidei) {
 			if ((conn->events & FIN_RCVD(sidei)) &&
 			    !(conn->events & FIN_SENT(!sidei))) {
-				if (shutdown(conn->s[!sidei], SHUT_WR) < 0)
+				if (shutdown(conn->s[!sidei], SHUT_WR) < 0) {
+					flow_perror_ratelimit(
+						conn, now, "shutdown() on %s",
+						pif_name(conn->f.pif[!sidei]));
 					goto reset;
+				}
 				conn_event(conn, FIN_SENT(!sidei));
 			}
 		}
@@ -647,8 +667,11 @@ retry:
 		goto swap;
 	}
 
-	if (events & EPOLLHUP)
+	if (events & EPOLLHUP) {
+		flow_dbg_ratelimit(conn, now, "Hangup from %s socket",
+				   pif_name(conn->f.pif[evsidei]));
 		goto reset;
+	}
 
 	return;
 
