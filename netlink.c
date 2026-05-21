@@ -56,10 +56,12 @@
 #define NLBUFSIZ 65536
 
 /* Socket in init, in target namespace, sequence (just needs to be monotonic) */
-int nl_sock		 = -1;
-int nl_sock_ns		 = -1;
-static int nl_sock_neigh = -1;
-static int nl_seq	 = 1;
+int nl_sock			= -1;
+int nl_sock_ns			= -1;
+static int nl_seq		=  1;
+
+/* Socket for neighbour event notifier */
+static int nl_sock_neigh	= -1;
 
 /**
  * nl_sock_init_do() - Set up netlink sockets in init or target namespace
