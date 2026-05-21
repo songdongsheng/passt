@@ -612,7 +612,7 @@ retry:
 				}
 			}
 
-			break;
+			continue;
 		}
 
 		conn->read[fromsidei]    += readlen > 0 ? readlen : 0;
