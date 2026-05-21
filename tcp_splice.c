@@ -292,7 +292,7 @@ bool tcp_splice_flow_defer(struct tcp_splice_conn *conn)
 			conn->s[sidei] = -1;
 		}
 
-		conn->read[sidei] = conn->written[sidei] = 0;
+		conn->pending[sidei] = 0;
 	}
 
 	conn->events = SPLICE_CLOSED;
@@ -494,7 +494,7 @@ static int tcp_splice_forward(struct ctx *c,
 	int eof = 0;
 
 	while (1) {
-		ssize_t readlen, written, pending;
+		ssize_t readlen, written;
 		int more = 0;
 
 retry:
@@ -543,7 +543,7 @@ retry:
 		flow_trace(conn, "%zi from write-side call (passed %zi)",
 			   written, c->tcp.pipe_size);
 
-		/* Most common case: skip updating counters. */
+		/* Most common case: skip updating count of pending bytes */
 		if (readlen > 0 && readlen == written) {
 			if (readlen >= (long)c->tcp.pipe_size * 10 / 100)
 				continue;
@@ -567,11 +567,11 @@ retry:
 			continue;
 		}
 
-		conn->read[fromsidei]    += readlen > 0 ? readlen : 0;
-		conn->written[fromsidei] += written > 0 ? written : 0;
+		conn->pending[fromsidei] += readlen > 0 ? readlen : 0;
+		conn->pending[fromsidei] -= written > 0 ? written : 0;
 
 		if (written < 0) {
-			if (conn->read[fromsidei] == conn->written[fromsidei])
+			if (!conn->pending[fromsidei])
 				break;
 
 			conn_event(conn, OUT_WAIT(!fromsidei));
@@ -581,15 +581,15 @@ retry:
 		if (never_read && written == (long)(c->tcp.pipe_size))
 			goto retry;
 
-		pending = conn->read[fromsidei] - conn->written[fromsidei];
-		if (!never_read && written > 0 && written < pending)
+		if (!never_read && written > 0 &&
+		    written < conn->pending[fromsidei])
 			goto retry;
 
 		if (eof)
 			break;
 	}
 
-	if (conn->read[fromsidei] == conn->written[fromsidei] && eof) {
+	if (!conn->pending[fromsidei] && eof) {
 		unsigned sidei;
 
 		flow_foreach_sidei(sidei) {
