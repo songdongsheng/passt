@@ -476,13 +476,11 @@ static int tcp_splice_forward(struct ctx *c,
 {
 	uint8_t lowat_set_flag = RCVLOWAT_SET(fromsidei);
 	uint8_t lowat_act_flag = RCVLOWAT_ACT(fromsidei);
-	int never_read = 1;
 
 	while (1) {
 		ssize_t readlen, written;
 		int more = 0;
 
-retry:
 		do
 			readlen = splice(conn->s[fromsidei], NULL,
 					 conn->pipe[fromsidei][1], NULL,
@@ -502,8 +500,6 @@ retry:
 		if (!readlen) {
 			conn_event(conn, FIN_RCVD(fromsidei));
 		} else if (readlen > 0) {
-			never_read = 0;
-
 			if (readlen >= (long)c->tcp.pipe_size * 90 / 100)
 				more = SPLICE_F_MORE;
 
@@ -546,13 +542,6 @@ retry:
 		if (conn->events & FIN_RCVD(fromsidei) &&
 		    !conn->pending[fromsidei])
 			break;
-
-		if (never_read && written == (long)(c->tcp.pipe_size))
-			goto retry;
-
-		if (!never_read && written > 0 &&
-		    written < conn->pending[fromsidei])
-			goto retry;
 	}
 
 	if (!conn->pending[fromsidei] &&
