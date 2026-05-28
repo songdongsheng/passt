@@ -530,28 +530,8 @@ retry:
 			   written, c->tcp.pipe_size);
 
 		/* Most common case: skip updating count of pending bytes */
-		if (readlen > 0 && readlen == written) {
-			if (readlen >= (long)c->tcp.pipe_size * 10 / 100)
-				continue;
-
-			if (!(conn->flags & lowat_set_flag) &&
-			    readlen > (long)c->tcp.pipe_size / 10) {
-				int lowat = c->tcp.pipe_size / 4;
-
-				if (setsockopt(conn->s[fromsidei], SOL_SOCKET,
-					       SO_RCVLOWAT,
-					       &lowat, sizeof(lowat))) {
-					flow_trace(conn,
-						   "Setting SO_RCVLOWAT %i: %s",
-						   lowat, strerror_(errno));
-				} else {
-					conn_flag(conn, lowat_set_flag);
-					conn_flag(conn, lowat_act_flag);
-				}
-			}
-
+		if (readlen > 0 && readlen == written)
 			continue;
-		}
 
 		conn->pending[fromsidei] += readlen > 0 ? readlen : 0;
 		conn->pending[fromsidei] -= written > 0 ? written : 0;
