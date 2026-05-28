@@ -477,7 +477,6 @@ static int tcp_splice_forward(struct ctx *c,
 	uint8_t lowat_set_flag = RCVLOWAT_SET(fromsidei);
 	uint8_t lowat_act_flag = RCVLOWAT_ACT(fromsidei);
 	int never_read = 1;
-	int eof = 0;
 
 	while (1) {
 		ssize_t readlen, written;
@@ -501,7 +500,7 @@ retry:
 		flow_trace(conn, "%zi from read-side call", readlen);
 
 		if (!readlen) {
-			eof = 1;
+			conn_event(conn, FIN_RCVD(fromsidei));
 		} else if (readlen > 0) {
 			never_read = 0;
 
@@ -551,11 +550,12 @@ retry:
 		    written < conn->pending[fromsidei])
 			goto retry;
 
-		if (eof)
+		if (conn->events & FIN_RCVD(fromsidei))
 			break;
 	}
 
-	if (!conn->pending[fromsidei] && eof) {
+	if (!conn->pending[fromsidei] &&
+	    conn->events & FIN_RCVD(fromsidei)) {
 		unsigned sidei;
 
 		flow_foreach_sidei(sidei) {
@@ -620,17 +620,13 @@ void tcp_splice_sock_handler(struct ctx *c, union epoll_ref ref,
 			goto reset;
 	}
 
-	if (events & EPOLLRDHUP)
-		/* For side 0 this is fake, but implied */
-		conn_event(conn, FIN_RCVD(evsidei));
-
 	if (events & EPOLLOUT) {
 		if (tcp_splice_forward(c, conn, !evsidei, now))
 			goto reset;
 		conn_event(conn, ~OUT_WAIT(evsidei));
 	}
 
-	if (events & EPOLLIN) {
+	if (events & (EPOLLIN | EPOLLRDHUP)) {
 		if (tcp_splice_forward(c, conn, evsidei, now))
 			goto reset;
 	}
