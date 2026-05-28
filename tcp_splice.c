@@ -543,15 +543,16 @@ retry:
 			break;
 		}
 
+		if (conn->events & FIN_RCVD(fromsidei) &&
+		    !conn->pending[fromsidei])
+			break;
+
 		if (never_read && written == (long)(c->tcp.pipe_size))
 			goto retry;
 
 		if (!never_read && written > 0 &&
 		    written < conn->pending[fromsidei])
 			goto retry;
-
-		if (conn->events & FIN_RCVD(fromsidei))
-			break;
 	}
 
 	if (!conn->pending[fromsidei] &&
