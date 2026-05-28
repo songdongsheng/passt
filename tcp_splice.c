@@ -500,6 +500,8 @@ static int tcp_splice_forward(struct ctx *c,
 		if (!readlen) {
 			conn_event(conn, FIN_RCVD(fromsidei));
 		} else if (readlen > 0) {
+			conn->pending[fromsidei] += readlen;
+
 			if (readlen >= (long)c->tcp.pipe_size * 90 / 100)
 				more = SPLICE_F_MORE;
 
@@ -524,15 +526,10 @@ static int tcp_splice_forward(struct ctx *c,
 		flow_trace(conn, "%zi from write-side call (passed %zi)",
 			   written, c->tcp.pipe_size);
 
-		/* Most common case: skip updating count of pending bytes */
-		if (readlen > 0 && readlen == written)
-			continue;
-
-		conn->pending[fromsidei] += readlen > 0 ? readlen : 0;
-		conn->pending[fromsidei] -= written > 0 ? written : 0;
-
 		if (written < 0)
 			break;
+
+		conn->pending[fromsidei] -= written;
 
 		if (conn->events & FIN_RCVD(fromsidei) &&
 		    !conn->pending[fromsidei])
