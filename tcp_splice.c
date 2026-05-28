@@ -544,22 +544,15 @@ static int tcp_splice_forward(struct ctx *c,
 			break;
 	}
 
-	if (!conn->pending[fromsidei] &&
-	    conn->events & FIN_RCVD(fromsidei)) {
-		unsigned sidei;
-
-		flow_foreach_sidei(sidei) {
-			if ((conn->events & FIN_RCVD(sidei)) &&
-			    !(conn->events & FIN_SENT(!sidei))) {
-				if (shutdown(conn->s[!sidei], SHUT_WR) < 0) {
-					flow_perror_ratelimit(
-						conn, now, "shutdown() on %s",
-						pif_name(conn->f.pif[!sidei]));
-					return -1;
-				}
-				conn_event(conn, FIN_SENT(!sidei));
-			}
+	if ((conn->events & FIN_RCVD(fromsidei)) &&
+	    !(conn->events & FIN_SENT(!fromsidei)) &&
+	    !conn->pending[fromsidei]) {
+		if (shutdown(conn->s[!fromsidei], SHUT_WR) < 0) {
+			flow_perror_ratelimit(conn, now, "shutdown() on %s",
+					      pif_name(conn->f.pif[!fromsidei]));
+			return -1;
 		}
+		conn_event(conn, FIN_SENT(!fromsidei));
 	}
 
 	return 0;
