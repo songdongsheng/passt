@@ -531,18 +531,21 @@ static int tcp_splice_forward(struct ctx *c,
 		conn->pending[fromsidei] += readlen > 0 ? readlen : 0;
 		conn->pending[fromsidei] -= written > 0 ? written : 0;
 
-		if (written < 0) {
-			if (!conn->pending[fromsidei])
-				break;
-
-			conn_event(conn, OUT_WAIT(!fromsidei));
+		if (written < 0)
 			break;
-		}
 
 		if (conn->events & FIN_RCVD(fromsidei) &&
 		    !conn->pending[fromsidei])
 			break;
 	}
+
+	/* We need write-side wakeups if and only if we have data in the pipe to
+	 * drain.
+	 */
+	if (conn->pending[fromsidei])
+		conn_event(conn, OUT_WAIT(!fromsidei));
+	else
+		conn_event(conn, ~OUT_WAIT(!fromsidei));
 
 	if ((conn->events & FIN_RCVD(fromsidei)) &&
 	    !(conn->events & FIN_SENT(!fromsidei)) &&
@@ -606,7 +609,6 @@ void tcp_splice_sock_handler(struct ctx *c, union epoll_ref ref,
 	if (events & EPOLLOUT) {
 		if (tcp_splice_forward(c, conn, !evsidei, now))
 			goto reset;
-		conn_event(conn, ~OUT_WAIT(evsidei));
 	}
 
 	if (events & (EPOLLIN | EPOLLRDHUP)) {
