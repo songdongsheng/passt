@@ -497,9 +497,17 @@ static int tcp_splice_forward(struct ctx *c,
 
 		flow_trace(conn, "%zi from read-side call", readlen);
 
-		if (!readlen) {
-			conn_event(conn, FIN_RCVD(fromsidei));
-		} else if (readlen > 0) {
+		if (readlen <= 0) {
+			if (!readlen) /* EOF */
+				conn_event(conn, FIN_RCVD(fromsidei));
+
+			/* We're either blocked or at EOF on the read side, and
+			 * there's nothing in the pipe so there's nothing to do
+			 * write side either.
+			 */
+			if (!conn->pending[fromsidei])
+				break;
+		} else {
 			conn->pending[fromsidei] += readlen;
 
 			if (readlen >= (long)c->tcp.pipe_size * 90 / 100)
@@ -531,9 +539,12 @@ static int tcp_splice_forward(struct ctx *c,
 
 		conn->pending[fromsidei] -= written;
 
-		if (conn->events & FIN_RCVD(fromsidei) &&
-		    !conn->pending[fromsidei])
+		if (!conn->pending[fromsidei] && readlen <= 0) {
+			/* Read side is EOF or EAGAIN, and we emptied the pipe.
+			 * No more we can do for now.
+			 */
 			break;
+		}
 	}
 
 	/* We need write-side wakeups if and only if we have data in the pipe to
