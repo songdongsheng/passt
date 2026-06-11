@@ -771,7 +771,8 @@ resume:
 			continue;
 		}
 
-		if (iph->saddr && c->ip4.addr_seen.s_addr != iph->saddr)
+		if (!c->ip4.addr_fixed &&
+		    iph->saddr && c->ip4.addr_seen.s_addr != iph->saddr)
 			c->ip4.addr_seen.s_addr = iph->saddr;
 
 		if (!iov_drop_header(&data, hlen))
@@ -1014,13 +1015,15 @@ resume:
 		if (IN6_IS_ADDR_LINKLOCAL(saddr)) {
 			c->ip6.addr_ll_seen = *saddr;
 
-			if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr_seen)) {
+			if (!c->ip6.addr_fixed &&
+			    IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr_seen)) {
 				c->ip6.addr_seen = *saddr;
 			}
 
 			if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr))
 				c->ip6.addr = *saddr;
-		} else if (!IN6_IS_ADDR_UNSPECIFIED(saddr)){
+		} else if (!c->ip6.addr_fixed &&
+			   !IN6_IS_ADDR_UNSPECIFIED(saddr)) {
 			c->ip6.addr_seen = *saddr;
 		}
 
