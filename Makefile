@@ -208,8 +208,7 @@ CPPCHECK_FLAGS = --std=c11 --error-exitcode=1 --enable=all --force	\
 	else								\
 		echo "";						\
 	fi)								\
-	--suppress=missingIncludeSystem					\
-	 -D CPPCHECK_6936
+	--suppress=missingIncludeSystem
 
 cppcheck: passt.cppcheck passt-repair.cppcheck pesto.cppcheck
 
