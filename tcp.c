@@ -4069,9 +4069,8 @@ int tcp_prepare_iov(struct msghdr *msg, struct iovec *iov,
 		msg->msg_iov = iov + DISCARD_IOV_NUM;
 		msg->msg_iovlen = payload_iov_cnt;
 	} else {
-		int discard_cnt, discard_iov_rem;
+		unsigned discard_cnt, discard_iov_rem, i;
 		struct iovec *iov_start;
-		int i;
 
 		discard_cnt = DIV_ROUND_UP(already_sent, BUF_DISCARD_SIZE);
 		if (discard_cnt > DISCARD_IOV_NUM) {
