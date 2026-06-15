@@ -1840,20 +1840,19 @@ static int tcp_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 	uint32_t wnd_scaled = conn->wnd_from_tap << conn->ws_from_tap;
 	uint32_t already_sent;
 
-	/* How much have we read/sent since last received ack ? */
-	already_sent = conn->seq_to_tap - conn->seq_ack_from_tap;
-
-	if (SEQ_LT(already_sent, 0)) {
+	if (SEQ_LT(conn->seq_to_tap, conn->seq_ack_from_tap)) {
 		/* RFC 761, section 2.1. */
 		flow_trace(conn, "ACK sequence gap: ACK for %u, sent: %u",
 			   conn->seq_ack_from_tap, conn->seq_to_tap);
 		conn->seq_to_tap = conn->seq_ack_from_tap;
-		already_sent = 0;
 		if (tcp_set_peek_offset(conn, 0)) {
 			tcp_rst(c, conn);
 			return -1;
 		}
 	}
+
+	/* How much have we read/sent since last received ack ? */
+	already_sent = conn->seq_to_tap - conn->seq_ack_from_tap;
 
 	if (!wnd_scaled || already_sent >= wnd_scaled) {
 		conn_flag(c, conn, ACK_FROM_TAP_BLOCKS);
@@ -1997,37 +1996,34 @@ static int tcp_data_from_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 		if (!len)
 			continue;
 
-		seq_offset = seq_from_tap - seq;
 		/* Use data from this buffer only in these two cases:
 		 *
 		 *      , seq_from_tap           , seq_from_tap
 		 * |--------| <-- len            |--------| <-- len
-		 * '----' <-- offset             ' <-- offset
 		 * ^ seq                         ^ seq
-		 *    (offset >= 0, seq + len > seq_from_tap)
+		 *    (seq_from_tap >= seq, seq + len > seq_from_tap)
 		 *
 		 * discard in these two cases:
-		 *          , seq_from_tap                , seq_from_tap
+		 *          , seq_from_tap                   , seq_from_tap
 		 * |--------| <-- len            |--------| <-- len
-		 * '--------' <-- offset            '-----| <- offset
-		 * ^ seq                            ^ seq
-		 *    (offset >= 0, seq + len <= seq_from_tap)
+		 * ^ seq                         ^ seq
+		 *    (seq_from_tap >= seq, seq + len <= seq_from_tap)
 		 *
 		 * keep, look for another buffer, then go back, in this case:
 		 *      , seq_from_tap
 		 *          |--------| <-- len
-		 *      '===' <-- offset
 		 *          ^ seq
-		 *    (offset < 0)
+		 *    (seq_from_tap < seq)
 		 */
-		if (SEQ_GE(seq_offset, 0) && SEQ_LE(seq + len, seq_from_tap))
+		if (SEQ_GE(seq_from_tap, seq) && SEQ_LE(seq + len, seq_from_tap))
 			continue;
 
-		if (SEQ_LT(seq_offset, 0)) {
+		if (SEQ_LT(seq_from_tap, seq)) {
 			if (keep == -1)
 				keep = i;
 			continue;
 		}
+		seq_offset = seq_from_tap - seq;
 
 		iov_drop_header(&data, seq_offset);
 		size = len - seq_offset;
