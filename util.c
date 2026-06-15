@@ -713,8 +713,10 @@ int __clone2(int (*fn)(void *), void *stack_base, size_t stack_size, int flags,
  *
  * Return: thread ID of child, -1 on failure
  */
-int do_clone(int (*fn)(void *), char *stack_area, size_t stack_size, int flags,
-	     void *arg)
+int do_clone(int (*fn)(void *),
+/* false positive, see https://trac.cppcheck.net/ticket/14847 */
+/* cppcheck-suppress [funcArgNamesDifferentUnnamed,unmatchedSuppression] */
+	     char *stack_area, size_t stack_size, int flags, void *arg)
 {
 #ifdef __ia64__
 	return __clone2(fn, stack_area + stack_size / 2, stack_size / 2,
