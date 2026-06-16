@@ -2761,44 +2761,6 @@ void tcp_sock_handler(const struct ctx *c, union epoll_ref ref,
 }
 
 /**
- * tcp_listen() - Create listening socket
- * @c:		Execution context
- * @pif:	Interface to open the socket for (PIF_HOST or PIF_SPLICE)
- * @rule:	Index of relevant forwarding rule
- * @addr:	Pointer to address for binding, NULL for any
- * @ifname:	Name of interface to bind to, NULL for any
- * @port:	Port, host order
- *
- * Return: socket fd on success, negative error code on failure
- */
-int tcp_listen(const struct ctx *c, uint8_t pif, unsigned rule,
-	       const union inany_addr *addr, const char *ifname, in_port_t port)
-{
-	int s;
-
-	assert(!c->no_tcp);
-
-	if (!c->ifi4) {
-		if (!addr)
-			/* Restrict to v6 only */
-			addr = &inany_any6;
-		else if (inany_v4(addr))
-			return -EAFNOSUPPORT;
-	}
-	if (!c->ifi6) {
-		if (!addr)
-			/* Restrict to v4 only */
-			addr = &inany_any4;
-		else if (!inany_v4(addr))
-			return -EAFNOSUPPORT;
-	}
-
-	s = pif_listen(c, EPOLL_TYPE_TCP_LISTEN, pif, addr, ifname, port, rule);
-
-	return s;
-}
-
-/**
  * tcp_sock_refill_pool() - Refill one pool of pre-opened sockets
  * @pool:	Pool of sockets to refill
  * @af:		Address family to use
