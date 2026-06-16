@@ -169,13 +169,6 @@ static int sock_l4_(const struct ctx *c, enum epoll_type type,
 		}
 	}
 
-	if (type == EPOLL_TYPE_TCP_LISTEN && listen(fd, 128) < 0) {
-		ret = -errno;
-		warn("TCP socket listen: %s", strerror_(-ret));
-		close(fd);
-		return ret;
-	}
-
 	return fd;
 }
 

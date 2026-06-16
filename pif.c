@@ -125,11 +125,17 @@ int pif_listen(const struct ctx *c, uint8_t proto, uint8_t pif,
 	ref.listen.pif = pif;
 	ref.listen.rule = rule;
 
-	ret = epoll_add(c->epollfd, EPOLLIN, ref);
-	if (ret < 0) {
-		close(ref.fd);
-		return ret;
+	if (proto == IPPROTO_TCP && listen(ref.fd, 128) < 0) {
+		ret = -errno;
+		goto fail;
 	}
 
+	ret = epoll_add(c->epollfd, EPOLLIN, ref);
+	if (ret < 0)
+		goto fail;
+
 	return ref.fd;
+fail:
+	close(ref.fd);
+	return ret;
 }
