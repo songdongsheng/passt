@@ -716,7 +716,8 @@ static int tap4_handler(struct ctx *c, const struct pool *in,
 	i = 0;
 resume:
 	for (seq_count = 0, seq = NULL; i < in->count; i++) {
-		size_t l3len, hlen, l4len;
+		struct iovec trim_iov[UIO_MAXIOV];
+		size_t l3len, hlen, l4len, check;
 		struct ethhdr eh_storage;
 		struct iphdr iph_storage;
 		struct udphdr uh_storage;
@@ -775,7 +776,17 @@ resume:
 
 		if (!iov_drop_header(&data, hlen))
 			continue;
-		if (iov_tail_size(&data) != l4len)
+
+		check = iov_tail_size(&data);
+		if (check < l4len)
+			continue;
+
+		/* Drivers modelled on real hardware (Plan 9's virtio, for
+		 * one) pad short frames to the 60 byte Ethernet minimum:
+		 * trim trailing padding instead of dropping the packet.
+		 */
+		if (check > l4len &&
+		    !iov_tail_trim(&data, l4len, trim_iov, ARRAY_SIZE(trim_iov)))
 			continue;
 
 		if (iph->protocol == IPPROTO_ICMP) {
