@@ -1089,16 +1089,18 @@ static int flow_migrate_repair_all(struct ctx *c, bool enable)
  * @c:		Execution context
  * @stage:	Migration stage information (unused)
  * @fd:		Migration file descriptor (unused)
+ * @now:	Current timestamp
  *
  * Return: 0 on success, positive error code on failure
  */
 int flow_migrate_source_pre(struct ctx *c, const struct migrate_stage *stage,
-			    int fd)
+			    int fd, const struct timespec *now)
 {
 	int rc;
 
 	(void)stage;
 	(void)fd;
+	(void)now;
 
 	if (flow_migrate_need_repair())
 		repair_wait(c);
@@ -1114,11 +1116,12 @@ int flow_migrate_source_pre(struct ctx *c, const struct migrate_stage *stage,
  * @c:		Execution context (unused)
  * @stage:	Migration stage information (unused)
  * @fd:		Migration file descriptor
+ * @now:	Current timestamp
  *
  * Return: 0 on success, positive error code on failure
  */
 int flow_migrate_source(struct ctx *c, const struct migrate_stage *stage,
-			int fd)
+			int fd, const struct timespec *now)
 {
 	uint32_t count = 0;
 	bool first = true;
@@ -1189,7 +1192,7 @@ int flow_migrate_source(struct ctx *c, const struct migrate_stage *stage,
 	 * as EIO).
 	 */
 	foreach_established_tcp_flow(flow) {
-		rc = tcp_flow_migrate_source_ext(c, fd, &flow->tcp);
+		rc = tcp_flow_migrate_source_ext(c, fd, &flow->tcp, now);
 		if (rc) {
 			flow_err(flow, "Can't send extended data: %s",
 				 strerror_(-rc));
@@ -1207,11 +1210,12 @@ int flow_migrate_source(struct ctx *c, const struct migrate_stage *stage,
  * @c:		Execution context
  * @stage:	Migration stage information (unused)
  * @fd:		Migration file descriptor
+ * @now:	Current timestamp
  *
  * Return: 0 on success, positive error code on failure
  */
 int flow_migrate_target(struct ctx *c, const struct migrate_stage *stage,
-			int fd)
+			int fd, const struct timespec *now)
 {
 	uint32_t count;
 	unsigned i;
@@ -1248,7 +1252,7 @@ int flow_migrate_target(struct ctx *c, const struct migrate_stage *stage,
 	repair_flush(c);
 
 	for (i = 0; i < count; i++) {
-		rc = tcp_flow_migrate_target_ext(c, &flowtab[i].tcp, fd);
+		rc = tcp_flow_migrate_target_ext(c, &flowtab[i].tcp, fd, now);
 		if (rc) {
 			flow_dbg(FLOW(i), "Migration data failure, abort: %s",
 				 strerror_(-rc));

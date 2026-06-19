@@ -274,11 +274,11 @@ void flow_defer_handler(const struct ctx *c, const struct timespec *now);
 int flow_migrate_source_early(struct ctx *c, const struct migrate_stage *stage,
 			      int fd);
 int flow_migrate_source_pre(struct ctx *c, const struct migrate_stage *stage,
-			    int fd);
+			    int fd, const struct timespec *now);
 int flow_migrate_source(struct ctx *c, const struct migrate_stage *stage,
-			int fd);
+			int fd, const struct timespec *now);
 int flow_migrate_target(struct ctx *c, const struct migrate_stage *stage,
-			int fd);
+			int fd, const struct timespec *now);
 
 void flow_log__(const struct flow_common *f, int pri, bool perror, bool details,
 		enum flow_state state, const char *fmt, ...)

@@ -539,6 +539,7 @@ static int udp_pktinfo(struct msghdr *msg, union inany_addr *dst)
  * @pif:	Interface on which the error occurred
  *              (only used if @sidx == FLOW_SIDX_NONE)
  * @port:	Local port number of @s (only used if @sidx == FLOW_SIDX_NONE)
+ * @now:	Current timestamp
  *
  * Return: 1 if error received and processed, 0 if no more errors in queue, < 0
  *         if there was an error reading the queue
@@ -546,7 +547,8 @@ static int udp_pktinfo(struct msghdr *msg, union inany_addr *dst)
  * #syscalls recvmsg
  */
 static int udp_sock_recverr(const struct ctx *c, int s, flow_sidx_t sidx,
-			    uint8_t pif, in_port_t port)
+			    uint8_t pif, in_port_t port,
+			    const struct timespec *now)
 {
 	char buf[PKTINFO_SPACE + RECVERR_SPACE];
 	const struct sock_extended_err *ee;
@@ -664,12 +666,14 @@ static int udp_sock_recverr(const struct ctx *c, int s, flow_sidx_t sidx,
 	}
 
 fail:
-	flow_dbg(uflow, "Can't propagate %s error from %s %s to %s %s",
-		 str_ee_origin(ee),
-		 pif_name(pif),
-		 sockaddr_ntop(SO_EE_OFFENDER(ee), sastr, sizeof(sastr)),
-		 pif_name(topif),
-		 inany_ntop(&toside->eaddr, astr, sizeof(astr)));
+	flow_warn_ratelimit(uflow, now,
+			    "Can't propagate %s error from %s %s to %s %s",
+			    str_ee_origin(ee),
+			    pif_name(pif),
+			    sockaddr_ntop(SO_EE_OFFENDER(ee),
+					  sastr, sizeof(sastr)),
+			    pif_name(topif),
+			    inany_ntop(&toside->eaddr, astr, sizeof(astr)));
 	return 1;
 }
 
@@ -681,11 +685,13 @@ fail:
  * @pif:	Interface on which the error occurred
  *              (only used if @sidx == FLOW_SIDX_NONE)
  * @port:	Local port number of @s (only used if @sidx == FLOW_SIDX_NONE)
+ * @now:	Current timestamp
  *
  * Return: number of errors handled, or < 0 if we have an unrecoverable error
  */
 static int udp_sock_errs(const struct ctx *c, int s, flow_sidx_t sidx,
-			 uint8_t pif, in_port_t port)
+			 uint8_t pif, in_port_t port,
+			 const struct timespec *now)
 {
 	unsigned n_err = 0;
 	socklen_t errlen;
@@ -694,7 +700,7 @@ static int udp_sock_errs(const struct ctx *c, int s, flow_sidx_t sidx,
 	assert(!c->no_udp);
 
 	/* Empty the error queue */
-	while ((rc = udp_sock_recverr(c, s, sidx, pif, port)) > 0)
+	while ((rc = udp_sock_recverr(c, s, sidx, pif, port, now)) > 0)
 		n_err += rc;
 
 	if (rc < 0)
@@ -869,7 +875,7 @@ void udp_sock_fwd(const struct ctx *c, int s, int rule_hint,
 			      strerror_(-rc));
 			/* Clear errors & carry on */
 			if (udp_sock_errs(c, s, FLOW_SIDX_NONE,
-					  frompif, port) < 0) {
+					  frompif, port, now) < 0) {
 				err_ratelimit(now,
 "UDP: Unrecoverable error on listening socket: (%s port %hu)",
 				    pif_name(frompif), port);
@@ -892,9 +898,10 @@ void udp_sock_fwd(const struct ctx *c, int s, int rule_hint,
 		} else if (flow_sidx_valid(tosidx)) {
 			struct udp_flow *uflow = udp_at_sidx(tosidx);
 
-			flow_err(uflow,
-				 "No support for forwarding UDP from %s to %s",
-				 pif_name(frompif), pif_name(topif));
+			flow_err_ratelimit(
+				uflow, now,
+				"No support for forwarding UDP from %s to %s",
+				pif_name(frompif), pif_name(topif));
 			discard = true;
 		} else {
 			warn_ratelimit(now, "Discarding datagram without flow");
@@ -942,8 +949,11 @@ void udp_sock_handler(const struct ctx *c, union epoll_ref ref,
 	assert(!c->no_udp && uflow);
 
 	if (events & EPOLLERR) {
-		if (udp_sock_errs(c, ref.fd, ref.flowside, PIF_NONE, 0) < 0) {
-			flow_err(uflow, "Unrecoverable error on flow socket");
+		if (udp_sock_errs(c, ref.fd, ref.flowside,
+				  PIF_NONE, 0, now) < 0) {
+			flow_err_ratelimit(
+				uflow, now,
+				"Unrecoverable error on flow socket");
 			goto fail;
 		}
 	}
@@ -974,7 +984,7 @@ void udp_sock_handler(const struct ctx *c, union epoll_ref ref,
 				udp_buf_sock_to_tap(c, s, n, tosidx);
 			}
 		} else {
-			flow_err(uflow,
+			flow_err_ratelimit(uflow, now,
 				 "No support for forwarding UDP from %s to %s",
 				 pif_name(pif_at_sidx(ref.flowside)),
 				 pif_name(topif));
@@ -1052,8 +1062,9 @@ int udp_tap_handler(const struct ctx *c, uint8_t pif,
 		flow_sidx_t fromsidx = flow_sidx_opposite(tosidx);
 		uint8_t frompif = pif_at_sidx(fromsidx);
 
-		flow_err(uflow, "No support for forwarding UDP from %s to %s",
-			 pif_name(frompif), pif_name(topif));
+		flow_err_ratelimit(uflow, now,
+				   "No support for forwarding UDP from %s to %s",
+				   pif_name(frompif), pif_name(topif));
 		return 1;
 	}
 	toside = flowside_at_sidx(tosidx);
