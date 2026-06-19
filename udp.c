@@ -693,6 +693,7 @@ static int udp_sock_errs(const struct ctx *c, int s, flow_sidx_t sidx,
 			 uint8_t pif, in_port_t port,
 			 const struct timespec *now)
 {
+	struct udp_flow *uflow = udp_at_sidx(sidx);
 	unsigned n_err = 0;
 	socklen_t errlen;
 	int rc, err;
@@ -709,18 +710,20 @@ static int udp_sock_errs(const struct ctx *c, int s, flow_sidx_t sidx,
 	errlen = sizeof(err);
 	if (getsockopt(s, SOL_SOCKET, SO_ERROR, &err, &errlen) < 0 ||
 	    errlen != sizeof(err)) {
-		err_perror("Error reading SO_ERROR");
+		flow_perror_ratelimit(uflow, now, "Error reading SO_ERROR");
 		return -1;  /* error reading error, unrecoverable */
 	}
 
 	if (err) {
-		debug("Unqueued error on UDP socket %i: %s", s, strerror_(err));
+		flow_dbg(uflow, "Unqueued error on UDP socket: %s",
+			 strerror_(err));
 		n_err++;
 	}
 
 	if (!n_err) {
 		/* EPOLLERR, but no errors to clear !? */
-		err("EPOLLERR event without reported errors on socket %i", s);
+		flow_err_ratelimit(uflow, now,
+				   "EPOLLERR event without reported errors");
 		return -1; /* no way to clear, unrecoverable */
 	}
 
