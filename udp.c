@@ -943,8 +943,7 @@ void udp_sock_handler(const struct ctx *c, union epoll_ref ref,
 
 	if (events & EPOLLERR) {
 		if (udp_sock_errs(c, ref.fd, ref.flowside, PIF_NONE, 0) < 0) {
-			flow_log(uflow, LOG_ERR, false, true,
-				 "Unrecoverable error on flow socket");
+			flow_err(uflow, "Unrecoverable error on flow socket");
 			goto fail;
 		}
 	}
@@ -975,7 +974,7 @@ void udp_sock_handler(const struct ctx *c, union epoll_ref ref,
 				udp_buf_sock_to_tap(c, s, n, tosidx);
 			}
 		} else {
-			flow_log(uflow, LOG_ERR, false, true,
+			flow_err(uflow,
 				 "No support for forwarding UDP from %s to %s",
 				 pif_name(pif_at_sidx(ref.flowside)),
 				 pif_name(topif));

@@ -554,7 +554,7 @@ norule:
 	/* This shouldn't happen, because if there's no rule for it we should
 	 * have no listening socket that would let us get here
 	 */
-	flow_log(flow, LOG_DEBUG, false, true, "Missing forward rule");
+	flow_dbg(flow, "Missing forward rule");
 
 nofwd:
 	flow_err(flow, "No rules to forward %s %s [%s]:%hu -> [%s]:%hu",

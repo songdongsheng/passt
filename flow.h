@@ -284,19 +284,19 @@ void flow_log__(const struct flow_common *f, int pri, bool perror, bool details,
 		enum flow_state state, const char *fmt, ...)
 	__attribute__((format(printf, 6, 7)));
 
-#define flow_log_(f_, pri_, perror_, details_, ...)			\
-	flow_log__((f_), (pri_), (perror_), (details_), (f_)->state,	\
-		   __VA_ARGS__)
+#define flow_log_(f_, pri_, perror_, ...)				\
+	flow_log__((f_), (pri_), (perror_), (pri_) > LOG_DEBUG,		\
+		   (f_)->state, __VA_ARGS__)
 
-#define flow_log(flow_, pri_, perror_, details_, ...)			\
-	flow_log_(&(flow_)->f, (pri_), (perror_), (details_), __VA_ARGS__)
+#define flow_log(flow_, pri_, perror_, ...)				\
+	flow_log_(&(flow_)->f, (pri_), (perror_), __VA_ARGS__)
 
 #define flow_dbg(flow_, ...)						\
-	flow_log((flow_), LOG_DEBUG, false, false, __VA_ARGS__)
+	flow_log((flow_), LOG_DEBUG, false, __VA_ARGS__)
 #define flow_warn(flow_, ...)						\
-	flow_log((flow_), LOG_WARNING, false, false, __VA_ARGS__)
+	flow_log((flow_), LOG_WARNING, false, __VA_ARGS__)
 #define flow_err(flow_, ...)						\
-	flow_log((flow_), LOG_ERR, false, false, __VA_ARGS__)
+	flow_log((flow_), LOG_ERR, false, __VA_ARGS__)
 #define flow_trace(flow_, ...)						\
 	do {								\
 		if (log_trace)						\
@@ -304,11 +304,11 @@ void flow_log__(const struct flow_common *f, int pri, bool perror, bool details,
 	} while (0)
 
 #define flow_dbg_perror(flow_, ...) \
-	flow_log((flow_), LOG_DEBUG, true, false, __VA_ARGS__)
+	flow_log((flow_), LOG_DEBUG, true, __VA_ARGS__)
 #define flow_warn_perror(flow_, ...) \
-	flow_log((flow_), LOG_WARNING, true, false, __VA_ARGS__)
+	flow_log((flow_), LOG_WARNING, true, __VA_ARGS__)
 #define flow_perror(flow_, ...) \
-	flow_log((flow_), LOG_ERR, true, false, __VA_ARGS__)
+	flow_log((flow_), LOG_ERR, true, __VA_ARGS__)
 
 #define flow_dbg_ratelimit(flow_, now_, ...)				\
 	logmsg_ratelimit(flow_dbg, debug, (now_), (flow_), __VA_ARGS__)
