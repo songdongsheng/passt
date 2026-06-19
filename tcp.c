@@ -1404,8 +1404,8 @@ void tcp_linger0_(const struct flow_common *f, int s)
 	 */
 	if (setsockopt(s, SOL_SOCKET, SO_LINGER,
 		       &linger0, sizeof(linger0)) < 0) {
-		flow_log_perror_(f, LOG_DEBUG,
-				 "SO_LINGER failed, may not send RST to peer");
+		flow_log_(f, LOG_DEBUG, true, false,
+			  "SO_LINGER failed, may not send RST to peer");
 	}
 }
 

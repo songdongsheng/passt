@@ -269,17 +269,25 @@ int flowside_connect(const struct ctx *c, int s,
 	return connect(s, &sa.sa, socklen_inany(&sa));
 }
 
-/** flow_log_ - Log flow-related message
+/** flow_log__ - Log flow-related message, internal helper
  * @f:		flow the message is related to
- * @newline:	Append newline at the end of the message, if missing
  * @pri:	Log priority
+ * @perror:	Append strerror(errno) output
+ * @details:	Add lines with flow addresses
+ * @state:	State to display details for (used during state changes)
  * @fmt:	Format string
  * @...:	printf-arguments
+ *
+ * NOTE: This function is, technically speaking, recursive.  However it recurses
+ * at most one layer, and as a tail call.  clang-tidy doesn't like it, hence the
+ * suppression below.
  */
-void flow_log_(const struct flow_common *f, bool newline, int pri,
-	       const char *fmt, ...)
+/* NOLINTNEXTLINE(misc-no-recursion) */
+void flow_log__(const struct flow_common *f, int pri, bool perror, bool details,
+		enum flow_state state, const char *fmt, ...)
 {
 	const char *type_or_state;
+	int errno_ = errno;
 	char msg[BUFSIZ];
 	va_list args;
 
@@ -293,45 +301,41 @@ void flow_log_(const struct flow_common *f, bool newline, int pri,
 	else
 		type_or_state = FLOW_TYPE(f);
 
-	logmsg(newline, false, pri,
+	logmsg(!perror, false, pri,
 	       "Flow %u (%s): %s", flow_idx(f), type_or_state, msg);
-}
 
-/** flow_log_details_() - Log the details of a flow
- * @f:		flow to log
- * @pri:	Log priority
- * @state:	State to log details according to
- *
- * Logs the details of the flow: endpoints, interfaces, type etc.
- */
-void flow_log_details_(const struct flow_common *f, int pri,
-		       enum flow_state state)
-{
-	char estr0[INANY_ADDRSTRLEN], fstr0[INANY_ADDRSTRLEN];
-	char estr1[INANY_ADDRSTRLEN], fstr1[INANY_ADDRSTRLEN];
-	const struct flowside *ini = &f->side[INISIDE];
-	const struct flowside *tgt = &f->side[TGTSIDE];
+	if (perror)
+		logmsg(true, true, pri, ": %s", strerror_(errno_));
 
-	if (state >= FLOW_STATE_TGT)
-		flow_log_(f, true, pri,
-			  "%s [%s]:%hu -> [%s]:%hu => %s [%s]:%hu -> [%s]:%hu",
-			  pif_name(f->pif[INISIDE]),
-			  inany_ntop(&ini->eaddr, estr0, sizeof(estr0)),
-			  ini->eport,
-			  inany_ntop(&ini->oaddr, fstr0, sizeof(fstr0)),
-			  ini->oport,
-			  pif_name(f->pif[TGTSIDE]),
-			  inany_ntop(&tgt->oaddr, fstr1, sizeof(fstr1)),
-			  tgt->oport,
-			  inany_ntop(&tgt->eaddr, estr1, sizeof(estr1)),
-			  tgt->eport);
-	else if (state >= FLOW_STATE_INI)
-		flow_log_(f, true, pri, "%s [%s]:%hu -> [%s]:%hu => ?",
-			  pif_name(f->pif[INISIDE]),
-			  inany_ntop(&ini->eaddr, estr0, sizeof(estr0)),
-			  ini->eport,
-			  inany_ntop(&ini->oaddr, fstr0, sizeof(fstr0)),
-			  ini->oport);
+	if (details) {
+		char estr0[INANY_ADDRSTRLEN], fstr0[INANY_ADDRSTRLEN];
+		char estr1[INANY_ADDRSTRLEN], fstr1[INANY_ADDRSTRLEN];
+		const struct flowside *ini = &f->side[INISIDE];
+		const struct flowside *tgt = &f->side[TGTSIDE];
+
+		if (state >= FLOW_STATE_TGT) {
+			flow_log__(f, pri, false, false, state,
+"%s [%s]:%hu -> [%s]:%hu => %s [%s]:%hu -> [%s]:%hu",
+				  pif_name(f->pif[INISIDE]),
+				  inany_ntop(&ini->eaddr, estr0, sizeof(estr0)),
+				  ini->eport,
+				  inany_ntop(&ini->oaddr, fstr0, sizeof(fstr0)),
+				  ini->oport,
+				  pif_name(f->pif[TGTSIDE]),
+				  inany_ntop(&tgt->oaddr, fstr1, sizeof(fstr1)),
+				  tgt->oport,
+				  inany_ntop(&tgt->eaddr, estr1, sizeof(estr1)),
+				  tgt->eport);
+		} else if (state >= FLOW_STATE_INI) {
+			flow_log__(f, pri, false, false, state,
+				  "%s [%s]:%hu -> [%s]:%hu => ?",
+				  pif_name(f->pif[INISIDE]),
+				  inany_ntop(&ini->eaddr, estr0, sizeof(estr0)),
+				  ini->eport,
+				  inany_ntop(&ini->oaddr, fstr0, sizeof(fstr0)),
+				  ini->oport);
+		}
+	}
 }
 
 /**
@@ -347,10 +351,9 @@ static void flow_set_state(struct flow_common *f, enum flow_state state)
 	assert(oldstate < FLOW_NUM_STATES);
 
 	f->state = state;
-	flow_log_(f, true, LOG_DEBUG, "%s -> %s", flow_state_str[oldstate],
+	flow_log__(f, LOG_DEBUG, false, true, MAX(state, oldstate),
+		   "%s -> %s", flow_state_str[oldstate],
 		  FLOW_STATE(f));
-
-	flow_log_details_(f, LOG_DEBUG, MAX(state, oldstate));
 }
 
 /**
@@ -551,8 +554,7 @@ norule:
 	/* This shouldn't happen, because if there's no rule for it we should
 	 * have no listening socket that would let us get here
 	 */
-	flow_dbg(flow, "Missing forward rule");
-	flow_log_details_(f, LOG_DEBUG, f->state);
+	flow_log(flow, LOG_DEBUG, false, true, "Missing forward rule");
 
 nofwd:
 	flow_err(flow, "No rules to forward %s %s [%s]:%hu -> [%s]:%hu",
