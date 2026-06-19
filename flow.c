@@ -258,7 +258,7 @@ int flowside_sock_l4(const struct ctx *c, enum epoll_type type, uint8_t pif,
  *
  * Connect @s to the endpoint address and port from @tgt.
  *
- * Return: 0 on success, negative on error
+ * Return: 0 on success, negative on error (setting errno)
  */
 int flowside_connect(const struct ctx *c, int s,
 		     uint8_t pif, const struct flowside *tgt)
