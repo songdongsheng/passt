@@ -315,7 +315,7 @@ void flow_log__(const struct flow_common *f, int pri, bool perror, bool details,
 
 		if (state >= FLOW_STATE_TGT) {
 			flow_log__(f, pri, false, false, state,
-"%s [%s]:%hu -> [%s]:%hu => %s [%s]:%hu -> [%s]:%hu",
+"    %s [%s]:%hu -> [%s]:%hu => %s [%s]:%hu -> [%s]:%hu",
 				  pif_name(f->pif[INISIDE]),
 				  inany_ntop(&ini->eaddr, estr0, sizeof(estr0)),
 				  ini->eport,
@@ -328,7 +328,7 @@ void flow_log__(const struct flow_common *f, int pri, bool perror, bool details,
 				  tgt->eport);
 		} else if (state >= FLOW_STATE_INI) {
 			flow_log__(f, pri, false, false, state,
-				  "%s [%s]:%hu -> [%s]:%hu => ?",
+				  "    %s [%s]:%hu -> [%s]:%hu => ?",
 				  pif_name(f->pif[INISIDE]),
 				  inany_ntop(&ini->eaddr, estr0, sizeof(estr0)),
 				  ini->eport,
