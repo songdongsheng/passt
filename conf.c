@@ -350,9 +350,9 @@ static void conf_pasta_ns(int *netns_only, char *userns, char *netns,
 /** conf_ip4_prefix() - Parse an IPv4 prefix length or netmask
  * @arg:	Netmask in dotted decimal or prefix length
  *
- * Return: validated prefix length on success, -1 on failure
+ * Return: validated prefix length; dies on bad argument
  */
-static int conf_ip4_prefix(const char *arg)
+static uint8_t conf_ip4_prefix(const char *arg)
 {
 	struct in_addr mask;
 	unsigned long len;
@@ -360,16 +360,16 @@ static int conf_ip4_prefix(const char *arg)
 	if (inet_pton(AF_INET, arg, &mask)) {
 		in_addr_t hmask = ntohl(mask.s_addr);
 		len = __builtin_popcount(hmask);
-		if ((hmask << len) != 0)
-			return -1;
+		if ((hmask << len) == 0)
+			return len;
 	} else {
 		errno = 0;
 		len = strtoul(arg, NULL, 0);
-		if (len > 32 || errno)
-			return -1;
+		if (!errno && len <= 32)
+			return len;
 	}
 
-	return len;
+	die("Invalid prefix length: %s", arg);
 }
 
 /**
@@ -1606,20 +1606,13 @@ void conf(struct ctx *c, int argc, char **argv)
 			}
 			break;
 		}
-		case 'n': {
-			int plen;
-
+		case 'n':
 			if (addr_has_prefix_len)
 				die("Redundant prefix length specification");
 
-			plen = conf_ip4_prefix(optarg);
-			if (plen < 0)
-				die("Invalid prefix length: %s", optarg);
-
-			prefix_len_from_opt = plen + 96;
-			c->ip4.prefix_len = plen;
+			c->ip4.prefix_len = conf_ip4_prefix(optarg);
+			prefix_len_from_opt = c->ip4.prefix_len + 96;
 			break;
-		}
 		case 'M':
 			parse_mac(c->our_tap_mac, optarg);
 			break;
