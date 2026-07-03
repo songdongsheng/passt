@@ -1154,6 +1154,24 @@ static void conf_sock_listen(const struct ctx *c)
 }
 
 /**
+ * conf_tap_fd() - Read tap fd as supplied by -F command line option
+ * @arg:	Argument to -F command line option
+ */
+int conf_tap_fd(const char *arg)
+{
+	long val;
+
+	errno = 0;
+	val = strtol(arg, NULL, 0);
+
+	if (errno || (val != STDIN_FILENO && val <= STDERR_FILENO) ||
+	    val > INT_MAX)
+		die("Invalid --fd: %s", arg);
+
+	return val;
+}
+
+/**
  * conf() - Process command-line arguments and set configuration
  * @c:		Execution context
  * @argc:	Argument count
@@ -1253,7 +1271,6 @@ void conf(struct ctx *c, int argc, char **argv)
 	const char *logfile = NULL;
 	char *runas = NULL;
 	size_t logsize = 0;
-	long fd_tap_opt;
 	int name, ret;
 	uid_t uid;
 	gid_t gid;
@@ -1506,15 +1523,7 @@ void conf(struct ctx *c, int argc, char **argv)
 			c->fd_control_listen = c->fd_control = -1;
 			break;
 		case 'F':
-			errno = 0;
-			fd_tap_opt = strtol(optarg, NULL, 0);
-
-			if (errno ||
-			    (fd_tap_opt != STDIN_FILENO && fd_tap_opt <= STDERR_FILENO) ||
-			    fd_tap_opt > INT_MAX)
-				die("Invalid --fd: %s", optarg);
-
-			c->fd_tap = fd_tap_opt;
+			c->fd_tap = conf_tap_fd(optarg);
 			c->one_off = true;
 			*c->sock_path = 0;
 			break;
