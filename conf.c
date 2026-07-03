@@ -1203,13 +1203,11 @@ static bool conf_addr(struct ctx *c, char *arg, uint8_t opt_n)
 		c->ip4.addr = *inany_v4(&addr);
 		c->ip4.prefix_len = prefix_len - 96;
 		c->ip4.addr_fixed = true;
-		if (c->mode == MODE_PASTA)
-			c->ip4.no_copy_addrs = true;
+		c->ip4.no_copy_addrs = true;
 	} else {
 		c->ip6.addr = addr.a6;
 		c->ip6.addr_fixed = true;
-		if (c->mode == MODE_PASTA)
-			c->ip6.no_copy_addrs = true;
+		c->ip6.no_copy_addrs = true;
 	}
 
 	return is_prefix;
