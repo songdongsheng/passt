@@ -368,53 +368,6 @@ int fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new)
 }
 
 /**
- * port_range() - Represents a non-empty range of ports
- * @first:	First port number in the range
- * @last:	Last port number in the range (inclusive)
- *
- * Invariant:	@last >= @first
- */
-struct port_range {
-	in_port_t first, last;
-};
-
-/**
- * parse_port_range() - Parse a range of port numbers '<first>[-<last>]'
- * @s:		String to parse
- * @endptr:	Update to the character after the parsed range (similar to
- *		strtol() etc.)
- * @range:	Update with the parsed values on success
- *
- * Return: -EINVAL on parsing error, -ERANGE on out of range port
- *	   numbers, 0 on success
- */
-static int parse_port_range(const char *s, const char **endptr,
-			    struct port_range *range)
-{
-	unsigned long first, last;
-	char *ep;
-
-	last = first = strtoul(s, &ep, 10);
-	if (ep == s) /* Parsed nothing */
-		return -EINVAL;
-	if (*ep == '-') { /* we have a last value too */
-		const char *lasts = ep + 1;
-		last = strtoul(lasts, &ep, 10);
-		if (ep == lasts) /* Parsed nothing */
-			return -EINVAL;
-	}
-
-	if ((last < first) || (last >= NUM_PORTS))
-		return -ERANGE;
-
-	range->first = first;
-	range->last = last;
-	*endptr = ep;
-
-	return 0;
-}
-
-/**
  * fwd_rule_range_except() - Set up forwarding for a range of ports minus a
  *                           bitmap of exclusions
  * @fwd:	Forwarding table to be updated
@@ -550,7 +503,7 @@ static void fwd_rule_parse_ports(struct fwd_table *fwd, bool del, uint8_t proto,
 		if (!parse_literal(&p, "~"))
 			goto bad;
 
-		if (parse_port_range(p, &p, &xrange))
+		if (!parse_port_range(&p, &xrange))
 			goto bad;
 		if (p != ep) /* Garbage after the range */
 			goto bad;
@@ -577,12 +530,12 @@ static void fwd_rule_parse_ports(struct fwd_table *fwd, bool del, uint8_t proto,
 			/* Already parsed */
 			continue;
 
-		if (parse_port_range(p, &p, &orig_range))
+		if (!parse_port_range(&p, &orig_range))
 			goto bad;
 
 		if (parse_literal(&p, ":")) {
 			/* There's a range to map to as well */
-			if (parse_port_range(p, &p, &mapped_range))
+			if (!parse_port_range(&p, &mapped_range))
 				goto bad;
 			if ((mapped_range.last - mapped_range.first) !=
 			    (orig_range.last - orig_range.first))

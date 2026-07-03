@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "common.h"
 #include "parse.h"
 
 /**
@@ -80,6 +81,33 @@ bool parse_unsigned(const char **cursor, int base, unsigned long *valp)
 	if (errno || p == *cursor)
 		return false;
 	*valp = val;
+	*cursor = p;
+	return true;
+}
+
+/**
+ * parse_port_range() - Parse a range of port numbers '<first>[-<last>]'
+ * @range:	Update with the parsed values on success
+ */
+bool parse_port_range(const char **cursor, struct port_range *range)
+{
+	unsigned long first, last;
+	const char *p = *cursor;
+
+	if (!parse_unsigned(&p, 10, &first))
+		return false;
+
+	last = first;
+
+	if (parse_literal(&p, "-"))
+		if (!parse_unsigned(&p, 10, &last))
+			return false;
+
+	if ((last < first) || (last >= NUM_PORTS))
+		return false;
+
+	range->first = first;
+	range->last = last;
 	*cursor = p;
 	return true;
 }

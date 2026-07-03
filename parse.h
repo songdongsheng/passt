@@ -7,9 +7,22 @@
 #define PARSE_H
 
 #include <stdbool.h>
+#include <netinet/in.h>
+
+/**
+ * port_range() - Represents a non-empty range of ports
+ * @first:	First port number in the range
+ * @last:	Last port number in the range (inclusive)
+ *
+ * Invariant:	@last >= @first
+ */
+struct port_range {
+	in_port_t first, last;
+};
 
 bool parse_literal(const char **cursor, const char *lit);
 bool parse_eoi(const char *cursor);
 bool parse_unsigned(const char **cursor, int base, unsigned long *valp);
+bool parse_port_range(const char **cursor, struct port_range *range);
 
 #endif /* _PARSE_H */
