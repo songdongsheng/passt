@@ -471,20 +471,13 @@ static void fwd_rule_parse_ports(struct fwd_table *fwd, bool del, uint8_t proto,
 	uint8_t flags = 0;
 	unsigned i;
 
-	if (!strcmp(spec, "all")) {
-		/* Treat "all" as equivalent to "": all non-ephemeral ports */
-		spec = "";
-	}
-
 	/* Parse excluded ranges and "auto" in the first pass */
 	for_each_chunk(p, ep, spec, ",") {
 		struct port_range xrange;
 
-		if (isdigit(*p)) {
-			/* Include range, parse later */
-			exclude_only = false;
+		/* Include range, parse later */
+		if (parse_literal(&p, "all") || isdigit(*p))
 			continue;
-		}
 
 		if (parse_literal(&p, "auto")) {
 			if (p != ep) /* Garbage after the keyword */
@@ -512,19 +505,17 @@ static void fwd_rule_parse_ports(struct fwd_table *fwd, bool del, uint8_t proto,
 			bitmap_set(exclude, i);
 	}
 
-	if (exclude_only) {
-		/* Exclude ephemeral ports */
-		fwd_port_map_ephemeral(exclude);
-
-		fwd_rule_range_except(fwd, del, proto, addr, ifname,
-				      1, NUM_PORTS - 1, exclude,
-				      1, flags | FWD_WEAK);
-		return;
-	}
-
 	/* Now process base ranges, skipping exclusions */
 	for_each_chunk(p, ep, spec, ",") {
 		struct port_range orig_range, mapped_range;
+
+		/* Handle "all" like exclude only */
+		if (parse_literal(&p, "all")) {
+			if (p != ep) /* Garbage after the keyword */
+				goto bad;
+
+			continue;
+		}
 
 		if (!isdigit(*p))
 			/* Already parsed */
@@ -532,6 +523,8 @@ static void fwd_rule_parse_ports(struct fwd_table *fwd, bool del, uint8_t proto,
 
 		if (!parse_port_range(&p, &orig_range))
 			goto bad;
+
+		exclude_only = false;
 
 		if (parse_literal(&p, ":")) {
 			/* There's a range to map to as well */
@@ -553,6 +546,14 @@ static void fwd_rule_parse_ports(struct fwd_table *fwd, bool del, uint8_t proto,
 				      mapped_range.first, flags);
 	}
 
+	/* Finally handle "all" and exclude only specs */
+	if (exclude_only) {
+		fwd_port_map_ephemeral(exclude);
+
+		fwd_rule_range_except(fwd, del, proto, addr, ifname,
+				      1, NUM_PORTS - 1, exclude,
+				      1, flags | FWD_WEAK);
+	}
 	return;
 bad:
 	die("Invalid port specifier '%s'", spec);
