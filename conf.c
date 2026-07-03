@@ -1169,6 +1169,53 @@ int conf_tap_fd(const char *arg)
 }
 
 /**
+ * conf_addr() - Configure guest address with -a option
+ * @c:		Execution context
+ * @arg:	-a command line argument
+ * @opt_n:	Value from -n option, if any
+ */
+static bool conf_addr(struct ctx *c, char *arg, uint8_t opt_n)
+{
+	union inany_addr addr;
+	const char *p = arg;
+	uint8_t prefix_len;
+	bool is_prefix;
+
+	is_prefix = inany_prefix_pton(arg, &addr, &prefix_len);
+
+	if (is_prefix && opt_n)
+		die("Redundant prefix length specification");
+
+	if (!is_prefix &&
+	    !(parse_inany(&p, &addr) && parse_eoi(p)))
+		die("Invalid address: %s", arg);
+
+	if (opt_n && inany_v4(&addr))
+		prefix_len = opt_n;
+	else if (!is_prefix)
+		prefix_len = inany_default_prefix_len(&addr);
+
+	if (inany_is_unspecified(&addr) || inany_is_multicast(&addr) ||
+	    inany_is_loopback(&addr) || IN6_IS_ADDR_V4COMPAT(&addr.a6))
+		die("Invalid address: %s", arg);
+
+	if (inany_v4(&addr)) {
+		c->ip4.addr = *inany_v4(&addr);
+		c->ip4.prefix_len = prefix_len - 96;
+		c->ip4.addr_fixed = true;
+		if (c->mode == MODE_PASTA)
+			c->ip4.no_copy_addrs = true;
+	} else {
+		c->ip6.addr = addr.a6;
+		c->ip6.addr_fixed = true;
+		if (c->mode == MODE_PASTA)
+			c->ip6.no_copy_addrs = true;
+	}
+
+	return is_prefix;
+}
+
+/**
  * conf() - Process command-line arguments and set configuration
  * @c:		Execution context
  * @argc:	Argument count
@@ -1262,12 +1309,12 @@ void conf(struct ctx *c, int argc, char **argv)
 	unsigned dns4_idx = 0, dns6_idx = 0;
 	unsigned long max_mtu = IP_MAX_MTU;
 	struct fqdn *dnss = c->dns_search;
-	bool addr_has_prefix_len = false;
-	uint8_t prefix_len_from_opt = 0;
 	unsigned int ifi4 = 0, ifi6 = 0;
+	bool opt_a_is_prefix = false;
 	const char *logfile = NULL;
 	char *runas = NULL;
 	size_t logsize = 0;
+	uint8_t opt_n = 0;
 	int name, ret;
 	uid_t uid;
 	gid_t gid;
@@ -1567,52 +1614,15 @@ void conf(struct ctx *c, int argc, char **argv)
 			c->mtu = mtu;
 			break;
 		}
-		case 'a': {
-			union inany_addr addr;
-			uint8_t prefix_len;
-
-			addr_has_prefix_len = inany_prefix_pton(optarg, &addr,
-								&prefix_len);
-
-			if (addr_has_prefix_len && prefix_len_from_opt)
-				die("Redundant prefix length specification");
-
-			p = optarg;
-			if (!addr_has_prefix_len &&
-			    !(parse_inany(&p, &addr) && parse_eoi(p)))
-				die("Invalid address: %s", optarg);
-
-			if (prefix_len_from_opt && inany_v4(&addr))
-				prefix_len = prefix_len_from_opt;
-			else if (!addr_has_prefix_len)
-				prefix_len = inany_default_prefix_len(&addr);
-
-			if (inany_is_unspecified(&addr) ||
-			    inany_is_multicast(&addr) ||
-			    inany_is_loopback(&addr) ||
-			    IN6_IS_ADDR_V4COMPAT(&addr.a6))
-				die("Invalid address: %s", optarg);
-
-			if (inany_v4(&addr)) {
-				c->ip4.addr = *inany_v4(&addr);
-				c->ip4.prefix_len = prefix_len - 96;
-				c->ip4.addr_fixed = true;
-				if (c->mode == MODE_PASTA)
-					c->ip4.no_copy_addrs = true;
-			} else {
-				c->ip6.addr = addr.a6;
-				c->ip6.addr_fixed = true;
-				if (c->mode == MODE_PASTA)
-					c->ip6.no_copy_addrs = true;
-			}
+		case 'a':
+			opt_a_is_prefix = conf_addr(c, optarg, opt_n);
 			break;
-		}
 		case 'n':
-			if (addr_has_prefix_len)
+			if (opt_a_is_prefix)
 				die("Redundant prefix length specification");
 
 			c->ip4.prefix_len = conf_ip4_prefix(optarg);
-			prefix_len_from_opt = c->ip4.prefix_len + 96;
+			opt_n = c->ip4.prefix_len + 96;
 			break;
 		case 'M':
 			parse_mac(c->our_tap_mac, optarg);
