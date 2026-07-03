@@ -27,6 +27,9 @@ bool parse_eoi(const char *cursor);
 bool parse_unsigned(const char **cursor, int base, unsigned long *valp);
 bool parse_port_range(const char **cursor, struct port_range *range);
 bool parse_ipv4(const char **cursor, struct in_addr *abuf);
-bool parse_inany(const char **cursor, union inany_addr *addr);
+bool parse_inany_(const char **cursor, union inany_addr *addr,
+		  sa_family_t *parse_af);
+
+#define parse_inany(cursor, addr)	parse_inany_((cursor), (addr), NULL)
 
 #endif /* _PARSE_H */

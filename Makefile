@@ -223,7 +223,6 @@ passt-repair.cppcheck: $(PASST_REPAIR_SRCS) $(PASST_REPAIR_HEADERS) seccomp_repa
 pesto.cppcheck: BASE_CPPFLAGS += -DPESTO
 pesto.cppcheck: CPPCHECK_FLAGS += --suppress=unusedFunction:bitmap.c
 pesto.cppcheck: CPPCHECK_FLAGS += --suppress=unusedFunction:inany.h
-pesto.cppcheck: CPPCHECK_FLAGS += --suppress=unusedFunction:inany.c
 pesto.cppcheck: CPPCHECK_FLAGS += --suppress=unusedFunction:ip.h
 pesto.cppcheck: CPPCHECK_FLAGS += --suppress=unusedFunction:serialise.c
 pesto.cppcheck: CPPCHECK_FLAGS += --suppress=staticFunction:fwd_rule.c

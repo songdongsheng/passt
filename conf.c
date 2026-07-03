@@ -1176,31 +1176,45 @@ int conf_tap_fd(const char *arg)
  */
 static bool conf_addr(struct ctx *c, char *arg, uint8_t opt_n)
 {
+	unsigned long prefix_len;
+	const struct in_addr *a4;
 	union inany_addr addr;
+	sa_family_t parse_af;
 	const char *p = arg;
-	uint8_t prefix_len;
 	bool is_prefix;
 
-	is_prefix = inany_prefix_pton(arg, &addr, &prefix_len);
+	if (!parse_inany_(&p, &addr, &parse_af))
+		goto bad;
+	a4 = inany_v4(&addr);
 
-	if (is_prefix && opt_n)
-		die("Redundant prefix length specification");
+	if ((is_prefix = parse_literal(&p, "/"))) {
+		/* Prefix length included in -a option */
+		if (!parse_unsigned(&p, 10, &prefix_len))
+			goto bad;
+		if (opt_n)
+			die("Redundant prefix length specification");
+		if (parse_af == AF_INET) {
+			if (prefix_len > 32)
+				goto bad_prefix;
+			prefix_len += 96;
+		} else if (prefix_len > 128) {
+			goto bad_prefix;
+		}
+	} else {
+		/* Get prefix length from elsewhere */
+		if (opt_n && a4)
+			prefix_len = opt_n;
+		else
+			prefix_len = inany_default_prefix_len(&addr);
+	}
 
-	if (!is_prefix &&
-	    !(parse_inany(&p, &addr) && parse_eoi(p)))
-		die("Invalid address: %s", arg);
+	if (!parse_eoi(p)		||
+	    !inany_is_unicast(&addr)	||
+	    inany_is_loopback(&addr))
+		goto bad;
 
-	if (opt_n && inany_v4(&addr))
-		prefix_len = opt_n;
-	else if (!is_prefix)
-		prefix_len = inany_default_prefix_len(&addr);
-
-	if (inany_is_unspecified(&addr) || inany_is_multicast(&addr) ||
-	    inany_is_loopback(&addr) || IN6_IS_ADDR_V4COMPAT(&addr.a6))
-		die("Invalid address: %s", arg);
-
-	if (inany_v4(&addr)) {
-		c->ip4.addr = *inany_v4(&addr);
+	if (a4) {
+		c->ip4.addr = *a4;
 		c->ip4.prefix_len = prefix_len - 96;
 		c->ip4.addr_fixed = true;
 		c->ip4.no_copy_addrs = true;
@@ -1211,6 +1225,11 @@ static bool conf_addr(struct ctx *c, char *arg, uint8_t opt_n)
 	}
 
 	return is_prefix;
+
+bad_prefix:
+	die("Invalid prefix length: %s", arg);
+bad:
+	die("Invalid guest address: %s", arg);
 }
 
 /**

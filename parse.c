@@ -185,18 +185,29 @@ static bool parse_ipv6(const char **cursor, struct in6_addr *abuf)
 }
 
 /**
- * parse_inany() - Parse an IPv4 or IPv6 address from a string
+ * parse_inany_() - Parse an IPv4 or IPv6 address from a string
  * @addr:	On success, updated with parsed address
+ * @parse_af:	On success, updated with the format of the parsed address
+ *
+ * @parseaf is updated to reflect the string format, not the final address
+ * family.  So "::ffff:192.0.1.1", will set @parseaf to AF_INET6, despite being
+ * a IPv4-mapped address.
  */
-bool parse_inany(const char **cursor, union inany_addr *addr)
+bool parse_inany_(const char **cursor, union inany_addr *addr,
+		  sa_family_t *parse_af)
 {
 	struct in_addr a4;
 
-	if (parse_ipv6(cursor, &addr->a6))
+	if (parse_ipv6(cursor, &addr->a6)) {
+		if (parse_af)
+			*parse_af = AF_INET6;
 		return true;
+	}
 
 	if (parse_ipv4(cursor, &a4)) {
 		*addr = inany_from_v4(a4);
+		if (parse_af)
+			*parse_af = AF_INET;
 		return true;
 	}
 
