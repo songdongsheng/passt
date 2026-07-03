@@ -52,6 +52,7 @@
 #include "conf.h"
 #include "pesto.h"
 #include "serialise.h"
+#include "parse.h"
 
 #define NETNS_RUN_DIR	"/run/netns"
 
@@ -1028,7 +1029,9 @@ static void conf_ugid(char *runas, uid_t *uid, gid_t *gid)
 static void conf_nat(const char *arg, struct in_addr *addr4,
 		     struct in6_addr *addr6, int *no_map_gw)
 {
-	if (strcmp(arg, "none") == 0) {
+	const char *p = arg;
+
+	if (parse_literal(&p, "none") && parse_eoi(p)) {
 		*addr4 = in4addr_any;
 		*addr6 = in6addr_any;
 		if (no_map_gw)

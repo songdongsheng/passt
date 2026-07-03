@@ -24,6 +24,7 @@
 #include "fwd_rule.h"
 #include "lineread.h"
 #include "log.h"
+#include "parse.h"
 #include "serialise.h"
 
 /* Ephemeral port range: values from RFC 6335 */
@@ -428,28 +429,6 @@ static int parse_port_range(const char *s, const char **endptr,
 }
 
 /**
- * parse_keyword() - Parse a literal keyword
- * @s:		String to parse
- * @endptr:	Update to the character after the keyword
- * @kw:		Keyword to accept
- *
- * Return: 0, if @s starts with @kw, -EINVAL if it does not
- */
-static int parse_keyword(const char *s, const char **endptr, const char *kw)
-{
-	size_t len = strlen(kw);
-
-	if (strlen(s) < len)
-		return -EINVAL;
-
-	if (memcmp(s, kw, len))
-		return -EINVAL;
-
-	*endptr = s + len;
-	return 0;
-}
-
-/**
  * fwd_rule_range_except() - Set up forwarding for a range of ports minus a
  *                           bitmap of exclusions
  * @fwd:	Forwarding table to be updated
@@ -568,7 +547,7 @@ static void fwd_rule_parse_ports(struct fwd_table *fwd, bool del, uint8_t proto,
 			continue;
 		}
 
-		if (parse_keyword(p, &p, "auto") == 0) {
+		if (parse_literal(&p, "auto")) {
 			if (p != ep) /* Garbage after the keyword */
 				goto bad;
 
@@ -582,9 +561,8 @@ static void fwd_rule_parse_ports(struct fwd_table *fwd, bool del, uint8_t proto,
 		}
 
 		/* Should be an exclude range */
-		if (*p != '~')
+		if (!parse_literal(&p, "~"))
 			goto bad;
-		p++;
 
 		if (parse_port_range(p, &p, &xrange))
 			goto bad;
@@ -616,8 +594,9 @@ static void fwd_rule_parse_ports(struct fwd_table *fwd, bool del, uint8_t proto,
 		if (parse_port_range(p, &p, &orig_range))
 			goto bad;
 
-		if (*p == ':') { /* There's a range to map to as well */
-			if (parse_port_range(p + 1, &p, &mapped_range))
+		if (parse_literal(&p, ":")) {
+			/* There's a range to map to as well */
+			if (parse_port_range(p, &p, &mapped_range))
 				goto bad;
 			if ((mapped_range.last - mapped_range.first) !=
 			    (orig_range.last - orig_range.first))
