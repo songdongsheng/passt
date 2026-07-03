@@ -55,6 +55,7 @@ PASST_HEADERS = arch.h arp.h bitmap.h checksum.h conf.h dhcp.h dhcpv6.h \
 	virtio.h vu_common.h
 QRAP_HEADERS = arp.h ip.h passt.h util.h
 PASST_REPAIR_HEADERS = linux_dep.h
+PESTO_HEADERS = bitmap.h common.h fwd_rule.h inany.h ip.h log.h pesto.h serialise.h
 
 C := \#include <sys/random.h>\nint main(){int a=getrandom(0, 0, 0);}
 ifeq ($(shell printf "$(C)" | $(CC) -S -xc - -o - >/dev/null 2>&1; echo $$?),0)
@@ -203,7 +204,8 @@ CPPCHECK_FLAGS = --std=c11 --error-exitcode=1 --enable=all --force	\
 	else								\
 		echo "";						\
 	fi)								\
-	--suppress=missingIncludeSystem
+	--suppress=missingIncludeSystem					\
+	--suppress=unusedStructMember
 
 cppcheck: passt.cppcheck passt-repair.cppcheck pesto.cppcheck
 
@@ -212,10 +214,8 @@ cppcheck: passt.cppcheck passt-repair.cppcheck pesto.cppcheck
 	$(CPPCHECK) $(CPPCHECK_FLAGS) $(BASE_CPPFLAGS) $^
 
 passt.cppcheck: BASE_CPPFLAGS += -UPESTO
-passt.cppcheck: CPPCHECK_FLAGS += --suppress=unusedStructMember
 passt.cppcheck: $(PASST_SRCS) $(PASST_HEADERS) seccomp.h
 
-passt-repair.cppcheck: CPPCHECK_FLAGS += --suppress=unusedStructMember
 passt-repair.cppcheck: $(PASST_REPAIR_SRCS) $(PASST_REPAIR_HEADERS) seccomp_repair.h
 
 pesto.cppcheck: BASE_CPPFLAGS += -DPESTO
