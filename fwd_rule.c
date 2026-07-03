@@ -41,10 +41,11 @@ static in_port_t fwd_ephemeral_max = NUM_PORTS - 1;
  */
 void fwd_probe_ephemeral(void)
 {
-	char *line, *tab, *end;
+	unsigned long min, max;
 	struct lineread lr;
-	long min, max;
+	const char *p;
 	ssize_t len;
+	char *line;
 	int fd;
 
 	fd = open(PORT_RANGE_SYSCTL, O_RDONLY | O_CLOEXEC);
@@ -57,35 +58,20 @@ void fwd_probe_ephemeral(void)
 	len = lineread_get(&lr, &line);
 	close(fd);
 
-	if (len < 0)
-		goto parse_err;
-
-	tab = strchr(line, '\t');
-	if (!tab)
-		goto parse_err;
-	*tab = '\0';
-
-	errno = 0;
-	min = strtol(line, &end, 10);
-	if (*end || errno)
-		goto parse_err;
-
-	errno = 0;
-	max = strtol(tab + 1, &end, 10);
-	if (*end || errno)
-		goto parse_err;
-
-	if (min < 0 || min >= (long)NUM_PORTS ||
-	    max < 0 || max >= (long)NUM_PORTS)
-		goto parse_err;
+	p = line;
+	if (len < 0				||
+	    !parse_unsigned(&p, 10, &min)	||
+	    !parse_literal(&p, "\t")		||
+	    !parse_unsigned(&p, 10, &max)	||
+	    !parse_eoi(p)			||
+	    min >= NUM_PORTS			||
+	    max >= NUM_PORTS) {
+		warn("Unable to parse %s", PORT_RANGE_SYSCTL);
+		return;
+	}
 
 	fwd_ephemeral_min = min;
 	fwd_ephemeral_max = max;
-
-	return;
-
-parse_err:
-	warn("Unable to parse %s", PORT_RANGE_SYSCTL);
 }
 
 /**

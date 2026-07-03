@@ -10,5 +10,6 @@
 
 bool parse_literal(const char **cursor, const char *lit);
 bool parse_eoi(const char *cursor);
+bool parse_unsigned(const char **cursor, int base, unsigned long *valp);
 
 #endif /* _PARSE_H */

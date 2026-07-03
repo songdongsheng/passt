@@ -321,17 +321,16 @@ static void conf_pasta_ns(int *netns_only, char *userns, char *netns,
 		die("Both --netns and PID or command given");
 
 	if (optind + 1 == argc) {
-		char *endptr;
-		long pidval;
+		const char *p = argv[optind];
+		unsigned long pidval;
 
-		pidval = strtol(argv[optind], &endptr, 10);
-		if (!*endptr) {
+		if (parse_unsigned(&p, 10, &pidval) && parse_eoi(p)) {
 			/* Looks like a pid */
-			if (pidval < 0 || pidval > INT_MAX)
+			if (pidval > INT_MAX)
 				die("Invalid PID %s", argv[optind]);
 
 			if (snprintf_check(netns, PATH_MAX,
-					   "/proc/%ld/ns/net", pidval))
+					   "/proc/%lu/ns/net", pidval))
 				die_perror("Can't build netns path");
 
 			if (!*userns) {
@@ -354,6 +353,7 @@ static void conf_pasta_ns(int *netns_only, char *userns, char *netns,
  */
 static uint8_t conf_ip4_prefix(const char *arg)
 {
+	const char *p = arg;
 	struct in_addr mask;
 	unsigned long len;
 
@@ -362,11 +362,9 @@ static uint8_t conf_ip4_prefix(const char *arg)
 		len = __builtin_popcount(hmask);
 		if ((hmask << len) == 0)
 			return len;
-	} else {
-		errno = 0;
-		len = strtoul(arg, NULL, 0);
-		if (!errno && len <= 32)
-			return len;
+	} else if (parse_unsigned(&p, 0, &len) && parse_eoi(p) &&
+		   len <= 32) {
+		return len;
 	}
 
 	die("Invalid prefix length: %s", arg);
@@ -1159,13 +1157,12 @@ static void conf_sock_listen(const struct ctx *c)
  */
 int conf_tap_fd(const char *arg)
 {
-	long val;
+	const char *p = arg;
+	unsigned long val;
 
-	errno = 0;
-	val = strtol(arg, NULL, 0);
-
-	if (errno || (val != STDIN_FILENO && val <= STDERR_FILENO) ||
-	    val > INT_MAX)
+	if (!parse_unsigned(&p, 0, &val) || !parse_eoi(p)	||
+	    val > INT_MAX					||
+	    (val != STDIN_FILENO && val <= STDERR_FILENO))
 		die("Invalid --fd: %s", arg);
 
 	return val;
@@ -1288,6 +1285,8 @@ void conf(struct ctx *c, int argc, char **argv)
 
 	optind = 0;
 	do {
+		const char *p;
+
 		name = getopt_long(argc, argv, optstring, options, NULL);
 
 		switch (name) {
@@ -1368,14 +1367,17 @@ void conf(struct ctx *c, int argc, char **argv)
 		case 12:
 			runas = optarg;
 			break;
-		case 13:
-			errno = 0;
-			logsize = strtol(optarg, NULL, 0);
+		case 13: {
+			unsigned long val;
 
-			if (logsize < LOGFILE_SIZE_MIN || errno)
+			p = optarg;
+			if (!parse_unsigned(&p, 0, &val) || !parse_eoi(p) ||
+			    val < LOGFILE_SIZE_MIN)
 				die("Invalid --log-size: %s", optarg);
 
+			logsize = val;
 			break;
+		}
 		case 14:
 			FPRINTF(stdout,
 				c->mode == MODE_PASTA ? "pasta " : "passt ");
@@ -1552,12 +1554,9 @@ void conf(struct ctx *c, int argc, char **argv)
 			break;
 		case 'm': {
 			unsigned long mtu;
-			char *e;
 
-			errno = 0;
-			mtu = strtoul(optarg, &e, 0);
-
-			if (errno || *e)
+			p = optarg;
+			if (!parse_unsigned(&p, 0, &mtu) || !parse_eoi(p))
 				die("Invalid MTU: %s", optarg);
 
 			if (mtu > max_mtu) {

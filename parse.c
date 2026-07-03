@@ -12,14 +12,12 @@
  * Author: David Gibson <david@gibson.dropbear.id.au>
  */
 
-#include <assert.h>
+#include <errno.h>
 #include <stddef.h>
-#include <fcntl.h>
+#include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
-#include <unistd.h>
 
-#include "common.h"
+#include "parse.h"
 
 /**
  * DOC: Theory of Operation
@@ -65,4 +63,23 @@ bool parse_literal(const char **cursor, const char *lit)
 bool parse_eoi(const char *cursor)
 {
 	return !(*cursor);
+}
+
+/*
+ * parse_unsigned() - Parse an unsigned integer
+ * @base:	Numeric base for string as strtoul(3)
+ * @valp:	On success, updated with parsed value
+ */
+bool parse_unsigned(const char **cursor, int base, unsigned long *valp)
+{
+	const char *p = *cursor;
+	unsigned long val;
+
+	errno = 0;
+	val = strtoul(p, (char **)&p, base);
+	if (errno || p == *cursor)
+		return false;
+	*valp = val;
+	*cursor = p;
+	return true;
 }
