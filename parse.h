@@ -9,6 +9,8 @@
 #include <stdbool.h>
 #include <netinet/in.h>
 
+union inany_addr;
+
 /**
  * port_range() - Represents a non-empty range of ports
  * @first:	First port number in the range
@@ -24,5 +26,7 @@ bool parse_literal(const char **cursor, const char *lit);
 bool parse_eoi(const char *cursor);
 bool parse_unsigned(const char **cursor, int base, unsigned long *valp);
 bool parse_port_range(const char **cursor, struct port_range *range);
+bool parse_ipv4(const char **cursor, struct in_addr *abuf);
+bool parse_inany(const char **cursor, union inany_addr *addr);
 
 #endif /* _PARSE_H */

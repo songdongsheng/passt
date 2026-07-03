@@ -357,7 +357,7 @@ static uint8_t conf_ip4_prefix(const char *arg)
 	struct in_addr mask;
 	unsigned long len;
 
-	if (inet_pton(AF_INET, arg, &mask)) {
+	if (parse_ipv4(&p, &mask) && parse_eoi(p)) {
 		in_addr_t hmask = ntohl(mask.s_addr);
 		len = __builtin_popcount(hmask);
 		if ((hmask << len) == 0)
@@ -1577,7 +1577,9 @@ void conf(struct ctx *c, int argc, char **argv)
 			if (addr_has_prefix_len && prefix_len_from_opt)
 				die("Redundant prefix length specification");
 
-			if (!addr_has_prefix_len && !inany_pton(optarg, &addr))
+			p = optarg;
+			if (!addr_has_prefix_len &&
+			    !(parse_inany(&p, &addr) && parse_eoi(p)))
 				die("Invalid address: %s", optarg);
 
 			if (prefix_len_from_opt && inany_v4(&addr))

@@ -595,6 +595,8 @@ void fwd_rule_parse(char optname, bool del, const char *optarg,
 	strncpy(buf, optarg, sizeof(buf) - 1);
 
 	if ((spec = strchr(buf, '/'))) {
+		const char *p = buf;
+
 		*spec = 0;
 		spec++;
 
@@ -616,22 +618,11 @@ void fwd_rule_parse(char optname, bool del, const char *optarg,
 			}
 		}
 
-		if (ifname == buf + 1) {	/* Interface without address */
+		if (ifname == buf + 1 || /* Interface without address */
+		    !strcmp(buf, "*")) /* Explicit wildcard address */
 			addr = NULL;
-		} else {
-			char *p = buf;
-
-			/* Allow square brackets for IPv4 too for convenience */
-			if (*p == '[' && p[strlen(p) - 1] == ']') {
-				p[strlen(p) - 1] = '\0';
-				p++;
-			}
-
-			if (strcmp(p, "*") == 0)
-				addr = NULL;
-			else if (!inany_pton(p, &addr_buf))
-				die("Bad forwarding address '%s'", p);
-		}
+		else if (!parse_inany(&p, &addr_buf) && parse_eoi(p))
+			die("Bad forwarding address '%s'", buf);
 	} else {
 		spec = buf;
 

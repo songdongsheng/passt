@@ -27,6 +27,7 @@
 #include "ip.h"
 #include "inany.h"
 #include "fwd.h"
+#include "parse.h"
 
 const union inany_addr inany_loopback4 = INANY_INIT4(IN4ADDR_LOOPBACK_INIT);
 const union inany_addr inany_any4 = INANY_INIT4(IN4ADDR_ANY_INIT);
@@ -70,26 +71,6 @@ const char *inany_ntop(const union inany_addr *src, char *dst, socklen_t size)
 	return inet_ntop(AF_INET6, &src->a6, dst, size);
 }
 
-/** inany_pton - Parse an IPv[46] address from text format
- * @src:	IPv[46] address
- * @dst:	output buffer, filled with parsed address
- *
- * Return: on success, 1, if no parseable address is found, 0
- */
-int inany_pton(const char *src, union inany_addr *dst)
-{
-	if (inet_pton(AF_INET, src, &dst->v4mapped.a4)) {
-		memset(&dst->v4mapped.zero, 0, sizeof(dst->v4mapped.zero));
-		memset(&dst->v4mapped.one, 0xff, sizeof(dst->v4mapped.one));
-		return 1;
-	}
-
-	if (inet_pton(AF_INET6, src, &dst->a6))
-		return 1;
-
-	return 0;
-}
-
 /**
  * inany_prefix_pton() - Parse an IPv[46] address with prefix length
  * @src:	IPv[46] address and prefix length string in CIDR format
@@ -104,6 +85,7 @@ int inany_prefix_pton(const char *src, union inany_addr *dst,
 	char astr[INANY_ADDRSTRLEN] = { 0 };
 	size_t alen = strcspn(src, "/");
 	const char *pstr = &src[alen + 1];
+	const char *p = astr;
 	unsigned long plen;
 	char *end;
 
@@ -129,7 +111,7 @@ int inany_prefix_pton(const char *src, union inany_addr *dst,
 		return 1;
 	}
 
-	if (inany_pton(astr, dst)) {
+	if (parse_inany(&p, dst) && parse_eoi(p)) {
 		if (plen > 32)
 			return 0;
 		*prefix_len = plen + 96;
