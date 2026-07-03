@@ -1049,7 +1049,7 @@ static void conf_nat(const char *arg, struct in_addr *addr4,
 	    !IN4_IS_ADDR_MULTICAST(addr4))
 		return;
 
-	die("Invalid address to remap to host: %s", optarg);
+	die("Invalid address to remap to host: %s", arg);
 }
 
 /**
