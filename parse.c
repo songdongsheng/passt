@@ -18,6 +18,7 @@
 #include <string.h>
 #include <limits.h>
 #include <arpa/inet.h>
+#include <net/if.h>
 
 #include "common.h"
 #include "parse.h"
@@ -212,4 +213,32 @@ bool parse_inany_(const char **cursor, union inany_addr *addr,
 	}
 
 	return false;
+}
+
+/**
+ * parse_ifspec() - Parse a interface name specifier (starting with %)
+ * @ifname:	On success updated with parsed name (must have IFNAMSIZ space)
+ *
+ * This will accept a missing specifier (empty string), setting ifname to ""
+ */
+bool parse_ifspec(const char **cursor, char *ifname)
+{
+	const char *p = *cursor;
+	size_t len;
+
+	if (!parse_literal(&p, "%")) {
+		/* No interface specifier */
+		ifname[0] = '\0';
+		return true;
+	}
+
+	/* ifnames can have anything that's not '/', or whitespace */
+	len = strcspn(p, "/ \f\n\r\t\v");
+	if (!len || len >= IFNAMSIZ)
+		return false;
+
+	memcpy(ifname, p, len);
+	ifname[len] = '\0';
+	*cursor = p + len;
+	return true;
 }

@@ -32,4 +32,6 @@ bool parse_inany_(const char **cursor, union inany_addr *addr,
 
 #define parse_inany(cursor, addr)	parse_inany_((cursor), (addr), NULL)
 
+bool parse_ifspec(const char **cursor, char *ifname);
+
 #endif /* _PARSE_H */
