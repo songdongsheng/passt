@@ -449,12 +449,15 @@ interface name (since Linux 5.7) can be specified.
 
 \fIports\fR is a comma-separated list of entries which may be any of:
 .TP
-\fIfirst\fR[\fB-\fR\fIlast\fR][\fB:\fR\fItofirst\fR[\fB-\fR\fItolast\fR]]
+\fIfirst\fR[\fB-\fR\fIlast\fR][\fB:\fR[\fItoaddr\fR\fB/\fR]\fItofirst\fR[\fB-\fR\fItolast\fR]]
+.TP
+\fIfirst\fR[\fB-\fR\fIlast\fR][\fB:\fR\fItoaddr\fR]
 Include range. Forward port numbers between \fIfirst\fR and \fIlast\fR
-(inclusive) to ports between \fItofirst\fR and \fItolast\fR.  If
-\fItofirst\fR and \fItolast\fR are omitted, assume the same as
-\fIfirst\fR and \fIlast\fR.  If \fIlast\fR is omitted, assume the same
-as \fIfirst\fR.
+(inclusive) to ports between \fItofirst\fR and \fItolast\fR to address
+\fItoaddr\fR.  If \fItoaddr\fR is omitted, automatically determine the
+guest or namespace address.  If \fItofirst\fR and \fItolast\fR are
+omitted, assume the same as \fIfirst\fR and \fIlast\fR.  If \fIlast\fR
+is omitted, assume the same as \fIfirst\fR.
 
 .TP
 \fB~\fR\fIfirst\fR[\fB-\fR\fIlast\fR]
@@ -462,11 +465,13 @@ Exclude range.  Don't forward port numbers between \fIfirst\fR and
 \fIlast\fR.  This takes precedences over include ranges.
 
 .TP
-.BR all
+.BR all\fR[\fB:\fItoaddr\fR]
 Forward all unbound, non-ephemeral ports, not covered by exclude
-ranges above, as permitted by current capabilities.  For low (< 1024)
-ports, see \fBNOTES\fR. No failures are reported for unavailable
-ports, unless no ports could be forwarded at all.
+ranges above, as permitted by current capabilities, to the
+corresponding ports on address \fItoaddr\fR.  If \fItoaddr\fR is
+omitted, automatically determine the guest or namespace address.  For
+low (< 1024) ports, see \fBNOTES\fR. No failures are reported for
+unavailable ports, unless no ports could be forwarded at all.
 
 .TP
 .BR auto
@@ -515,6 +520,14 @@ Forward local port 22, bound to 192.0.2.1 and interface eth0, to port 22
 .TP
 -t %eth0/22
 Forward local port 22, bound to any address on interface eth0, to port 22
+.TP
+-t 0.0.0.0/5000:192.0.2.5/6000
+Forward local port 5000, bound to any IPv4 address, to port 6000 on address 192.0.2.5.
+.TP
+-t 127.0.0.6/all:192.0.2.6
+For the local address 127.0.0.6, forward all unbound, non-ephemeral
+ports as permitted by current capabilities to the corresponding port
+on 192.0.2.6.
 .TP
 -t 2000-5000,~3000-3010
 Forward local ports between 2000 and 5000, except for those between 3000 and

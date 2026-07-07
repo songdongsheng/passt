@@ -378,14 +378,17 @@ int fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new)
  * @first:	First port to forward
  * @last:	Last port to forward
  * @exclude:	Bitmap of ports to exclude (may be NULL)
- * @to:		Port to translate @first to when forwarding
+ * @tgt_addr:	Destination address on the target side
+ * @tgt_first:	Destination port to use for @first on the target side
  * @flags:	Flags for forwarding entries
  */
 static void fwd_rule_range_except(struct fwd_table *fwd, bool del,
 				  uint8_t proto, const union inany_addr *addr,
 				  const char *ifname,
 				  uint16_t first, uint16_t last,
-				  const uint8_t *exclude, uint16_t to,
+				  const uint8_t *exclude,
+				  const union inany_addr *tgt_addr,
+				  uint16_t tgt_first,
 				  uint8_t flags)
 {
 	struct fwd_rule rule = {
@@ -394,9 +397,17 @@ static void fwd_rule_range_except(struct fwd_table *fwd, bool del,
 		.proto = proto,
 		.flags = flags,
 	};
+	unsigned delta = tgt_first - first;
 	char rulestr[FWD_RULE_STRLEN];
-	unsigned delta = to - first;
 	unsigned base, i;
+
+	if (tgt_addr && !inany_is_unspecified(tgt_addr)) {
+		char astr[INANY_ADDRSTRLEN];
+
+		info("Target address: %s",
+		     inany_ntop(tgt_addr, astr, sizeof(astr)));
+		die("Target address remapping not yet implemented");
+	}
 
 	if (!addr)
 		rule.flags |= FWD_DUAL_STACK_ANY;
@@ -458,19 +469,31 @@ enum fwd_port_chunk_kind {
  * @cursor:	Parsing point (see parse.c)
  * @kindp:	Updated with kind of chunk we parsed
  * @lrange:	Updated with listening port range (for INCLUDE & EXCLUDE)
+ * @taddr:	Updated with target address (for INCLUDE & ALL)
  * @trange:	Updated with target port range (for INCLUDE)
  */
 static bool parse_port_chunk(const char **cursor,
 			     enum fwd_port_chunk_kind *kindp,
 			     struct port_range *lrange,
+			     union inany_addr *taddr,
 			     struct port_range *trange)
 {
 	struct port_range lr = { 0 }, tr = { 0 };
+	union inany_addr taddr_tmp = inany_any6;
 	enum fwd_port_chunk_kind kind;
 	const char *p = *cursor;
 
 	if (parse_literal(&p, "all")) {
+		const char *tgtspec = p;
+
 		kind = CHUNK_ALL;
+		if (p = tgtspec,
+		    parse_literal(&p, ":")		&&
+		    parse_inany(&p, &taddr_tmp)) {
+			/* Target address */
+		} else {
+			p = tgtspec;
+		}
 	} else if (parse_literal(&p, "auto")) {
 		kind = CHUNK_AUTO;
 	} else if (parse_literal(&p, "~")) {
@@ -478,12 +501,29 @@ static bool parse_port_chunk(const char **cursor,
 		if (!parse_port_range(&p, &lr))
 			return false;
 	} else if (parse_port_range(&p, &lr)) {
-		kind = CHUNK_INCLUDE;
+		const char *tgtspec = p;
 
-		if (parse_literal(&p, ":")) {
-			if (!parse_port_range(&p, &tr))
-				return false;
+		kind = CHUNK_INCLUDE;
+		if (p = tgtspec,
+		    parse_literal(&p, ":")		&&
+		    parse_inany(&p, &taddr_tmp)		&&
+		    parse_literal(&p, "/")		&&
+		    parse_port_range(&p, &tr)) {
+			/* Target address & range */
+		} else if (p = tgtspec,
+			   parse_literal(&p, ":")	&&
+			   parse_inany(&p, &taddr_tmp)) {
+			/* Target address only */
+			tr = lr;
+		} else if (p = tgtspec,
+			   parse_literal(&p, ":")	&&
+			   parse_port_range(&p, &tr)) {
+			/* Target range only */
+			taddr_tmp = inany_any6;
 		} else {
+			p = tgtspec;
+			/* No target specification */
+			taddr_tmp = inany_any6;
 			tr = lr;
 		}
 	} else {
@@ -492,6 +532,8 @@ static bool parse_port_chunk(const char **cursor,
 
 	*kindp = kind;
 	*lrange = lr;
+	if (taddr)
+		*taddr = taddr_tmp;
 	if (trange)
 		*trange = tr;
 	*cursor = p;
@@ -551,6 +593,7 @@ static void fwd_rule_parse_ports(struct fwd_table *fwd, bool del, uint8_t proto,
 				 const char *spec)
 {
 	uint8_t exclude[PORT_BITMAP_SIZE] = { 0 };
+	union inany_addr all_taddr = inany_any6;
 	enum fwd_port_chunk_kind kind;
 	struct port_range lrange;
 	bool exclude_only = true;
@@ -561,7 +604,7 @@ static void fwd_rule_parse_ports(struct fwd_table *fwd, bool del, uint8_t proto,
 	/* Consider excluded ranges and "auto" in the first pass */
 	p = spec;
 	do {
-		if (!parse_port_chunk(&p, &kind, &lrange, NULL))
+		if (!parse_port_chunk(&p, &kind, &lrange, NULL, NULL))
 			goto bad;
 
 		switch (kind) {
@@ -586,14 +629,19 @@ static void fwd_rule_parse_ports(struct fwd_table *fwd, bool del, uint8_t proto,
 	p = spec;
 	do {
 		struct port_range trange;
+		union inany_addr taddr;
 
-		if (!parse_port_chunk(&p, &kind, &lrange, &trange))
+		if (!parse_port_chunk(&p, &kind, &lrange, &taddr, &trange))
 			goto bad;
 
 		switch (kind) {
-		case CHUNK_AUTO:	/* already handled */
-		case CHUNK_EXCLUDE:	/* already handled */
-		case CHUNK_ALL:		/* handled later */
+		case CHUNK_AUTO:
+		case CHUNK_EXCLUDE:
+			continue; /* already handled */
+
+		case CHUNK_ALL:
+			/* Save the address to use later */
+			all_taddr = taddr;
 			continue;
 
 		case CHUNK_INCLUDE:
@@ -604,7 +652,8 @@ static void fwd_rule_parse_ports(struct fwd_table *fwd, bool del, uint8_t proto,
 
 			fwd_rule_range_except(fwd, del, proto, addr, ifname,
 					      lrange.first, lrange.last,
-					      exclude, trange.first, flags);
+					      exclude, &taddr, trange.first,
+					      flags);
 			break;
 		default:
 			goto bad;
@@ -620,7 +669,7 @@ static void fwd_rule_parse_ports(struct fwd_table *fwd, bool del, uint8_t proto,
 
 		fwd_rule_range_except(fwd, del, proto, addr, ifname,
 				      1, NUM_PORTS - 1, exclude,
-				      1, flags | FWD_WEAK);
+				      &all_taddr, 1, flags | FWD_WEAK);
 	}
 	return;
 bad:
