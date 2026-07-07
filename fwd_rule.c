@@ -115,10 +115,15 @@ __attribute__((noinline))
 const char *fwd_rule_fmt(const struct fwd_rule *rule, char *dst, size_t size)
 {
 	const char *percent = *rule->ifname ? "%" : "";
+	char taddr[INANY_ADDRSTRLEN] = { 0 };
 	const char *weak = "", *scan = "";
 	char addr[INANY_ADDRSTRLEN];
 	int len;
 
+	if (!inany_is_unspecified(&rule->taddr)) {
+		(void)snprintf(taddr, sizeof(taddr), "%s:",
+			       inany_ntop(&rule->taddr, addr, sizeof(addr)));
+	}
 	inany_ntop(fwd_rule_addr(rule), addr, sizeof(addr));
 	if (rule->flags & FWD_WEAK)
 		weak = " (best effort)";
@@ -127,16 +132,17 @@ const char *fwd_rule_fmt(const struct fwd_rule *rule, char *dst, size_t size)
 
 	if (rule->first == rule->last) {
 		len = snprintf(dst, size,
-			       "%s [%s]%s%s:%hu  =>  %hu %s%s",
+			       "%s [%s]%s%s:%hu  =>  %s%hu %s%s",
 			       ipproto_name(rule->proto), addr, percent,
-			       rule->ifname, rule->first, rule->to, weak, scan);
+			       rule->ifname, rule->first,
+			       taddr, rule->to, weak, scan);
 	} else {
 		in_port_t tolast = rule->last - rule->first + rule->to;
 		len = snprintf(dst, size,
-			       "%s [%s]%s%s:%hu-%hu  =>  %hu-%hu %s%s",
+			       "%s [%s]%s%s:%hu-%hu  =>  %s%hu-%hu %s%s",
 			       ipproto_name(rule->proto), addr, percent,
 			       rule->ifname, rule->first, rule->last,
-			       rule->to, tolast, weak, scan);
+			       taddr, rule->to, tolast, weak, scan);
 	}
 
 	if (len < 0 || (size_t)len >= size)
@@ -325,6 +331,36 @@ int fwd_rule_add(struct fwd_table *fwd, const struct fwd_rule *new)
 		return -EINVAL;
 	}
 
+	if (!inany_is_unspecified(&new->taddr)) {
+		char tastr[INANY_ADDRSTRLEN];
+
+		if (inany_is_multicast(&new->taddr)) {
+			warn("Multicast target address %s for forwarding rule",
+			     inany_ntop(&new->taddr, tastr, sizeof(tastr)));
+			return -EINVAL;
+		}
+
+		if (new->flags & FWD_DUAL_STACK_ANY) {
+			warn("Dual stack forward to %s address %s unsupported",
+			     inany_v4(&new->taddr) ? "IPv4" : "IPv6",
+			     inany_ntop(&new->taddr, tastr, sizeof(tastr)));
+			warn("Did you mean %s/... instead?",
+			     inany_v4(&new->taddr) ? "0.0.0.0" : "[::]");
+			return -EINVAL;
+		}
+
+		if (!!inany_v4(&new->addr) != !!inany_v4(&new->taddr)) {
+			char lastr[INANY_ADDRSTRLEN];
+
+			warn("Forward from %s (%s) to %s (%s) unsupported",
+			     inany_v4(&new->addr) ? "IPv4" : "IPv6",
+			     inany_ntop(&new->addr, lastr, sizeof(lastr)),
+			     inany_v4(&new->taddr) ? "IPv4" : "IPv6",
+			     inany_ntop(&new->taddr, tastr, sizeof(tastr)));
+			return -EINVAL;
+		}
+	}
+
 	for (i = 0; i < fwd->count; i++) {
 		char newstr[FWD_RULE_STRLEN], rulestr[FWD_RULE_STRLEN];
 
@@ -393,6 +429,7 @@ static void fwd_rule_range_except(struct fwd_table *fwd, bool del,
 {
 	struct fwd_rule rule = {
 		.addr = addr ? *addr : inany_any6,
+		.taddr = tgt_addr ? *tgt_addr : inany_any6,
 		.ifname = { 0 },
 		.proto = proto,
 		.flags = flags,
@@ -400,14 +437,6 @@ static void fwd_rule_range_except(struct fwd_table *fwd, bool del,
 	unsigned delta = tgt_first - first;
 	char rulestr[FWD_RULE_STRLEN];
 	unsigned base, i;
-
-	if (tgt_addr && !inany_is_unspecified(tgt_addr)) {
-		char astr[INANY_ADDRSTRLEN];
-
-		info("Target address: %s",
-		     inany_ntop(tgt_addr, astr, sizeof(astr)));
-		die("Target address remapping not yet implemented");
-	}
 
 	if (!addr)
 		rule.flags |= FWD_DUAL_STACK_ANY;
