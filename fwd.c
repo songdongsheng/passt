@@ -1006,6 +1006,24 @@ bool nat_inbound(const struct ctx *c, const union inany_addr *addr,
 }
 
 /**
+ * fwd_default_guest_addr() - Get appropriate guest address to send to
+ * @c:		Execution context
+ * @template:	Address to match IP version and scope of
+ *
+ * Return: the address of the guest, which best matches the IP version and scope
+ *         of @template
+ */
+static union inany_addr fwd_default_guest_addr(const struct ctx *c,
+					       const union inany_addr *template)
+{
+	if (inany_v4(template))
+		return inany_from_v4(c->ip4.addr_seen);
+	if (inany_is_linklocal6(template))
+		return inany_from_v6(c->ip6.addr_ll_seen);
+	return inany_from_v6(c->ip6.addr_seen);
+}
+
+/**
  * fwd_nat_from_host() - Determine to forward a flow from the host interface
  * @c:		Execution context
  * @rule:	Forwarding rule to apply
@@ -1040,13 +1058,9 @@ uint8_t fwd_nat_from_host(const struct ctx *c,
 		 */
 		if (c->host_lo_to_ns_lo && inany_is_loopback(&ini->oaddr))
 			tgt->eaddr = ini->oaddr;
-		else if (inany_v4(&ini->eaddr))
-			tgt->eaddr = inany_from_v4(c->ip4.addr_seen);
-		else
-			tgt->eaddr.a6 = c->ip6.addr_seen;
 
 		/* Let the kernel pick source address and port */
-		if (inany_v4(&tgt->eaddr))
+		if (inany_v4(&ini->eaddr))
 			tgt->oaddr = inany_any4;
 		else
 			tgt->oaddr = inany_any6;
@@ -1056,6 +1070,9 @@ uint8_t fwd_nat_from_host(const struct ctx *c,
 			/* But for UDP preserve the source port */
 			tgt->oport = ini->eport;
 
+		/* Use guest address as destination, if otherwise unspecified */
+		if (inany_is_unspecified(&tgt->eaddr))
+			tgt->eaddr = fwd_default_guest_addr(c, &tgt->oaddr);
 		return PIF_SPLICE;
 	}
 
@@ -1074,16 +1091,12 @@ uint8_t fwd_nat_from_host(const struct ctx *c,
 	}
 	tgt->oport = ini->eport;
 
-	if (!inany_is_unspecified(&rule->taddr)) {
+	if (!inany_is_unspecified(&rule->taddr))
 		tgt->eaddr = rule->taddr;
-	} else if (inany_v4(&tgt->oaddr)) {
-		tgt->eaddr = inany_from_v4(c->ip4.addr_seen);
-	} else {
-		if (inany_is_linklocal6(&tgt->oaddr))
-			tgt->eaddr.a6 = c->ip6.addr_ll_seen;
-		else
-			tgt->eaddr.a6 = c->ip6.addr_seen;
-	}
+
+	/* Use guest address as destination, if otherwise unspecified */
+	if (inany_is_unspecified(&tgt->eaddr))
+		tgt->eaddr = fwd_default_guest_addr(c, &tgt->oaddr);
 
 	return PIF_TAP;
 }
