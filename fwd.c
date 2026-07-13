@@ -1038,8 +1038,12 @@ uint8_t fwd_nat_from_host(const struct ctx *c,
 			  const struct fwd_rule *rule, uint8_t proto,
 			  const struct flowside *ini, struct flowside *tgt)
 {
-	/* Common for spliced and non-spliced cases */
+	/* DNAPT: Common for splice and non-spliced where possible */
 	tgt->eport = rule->to + (ini->oport - rule->first);
+	if (!inany_is_unspecified(&rule->taddr))
+		tgt->eaddr = rule->taddr;
+	else if (c->host_lo_to_ns_lo && inany_is_loopback(&ini->oaddr))
+		tgt->eaddr = ini->oaddr;
 
 	/* TODO: Allow splicing with specified target address */
 	if (!c->no_splice && inany_is_unspecified(&rule->taddr) &&
@@ -1056,10 +1060,8 @@ uint8_t fwd_nat_from_host(const struct ctx *c,
 		 * In either case, let the kernel pick the source address to
 		 * match.
 		 */
-		if (c->host_lo_to_ns_lo && inany_is_loopback(&ini->oaddr))
-			tgt->eaddr = ini->oaddr;
 
-		/* Let the kernel pick source address and port */
+		/* SNAT: (implicit) let the kernel pick source addr/port */
 		if (inany_v4(&ini->eaddr))
 			tgt->oaddr = inany_any4;
 		else
@@ -1079,6 +1081,7 @@ uint8_t fwd_nat_from_host(const struct ctx *c,
 	if (c->splice_only)
 		return PIF_NONE;
 
+	/* SNAT: translate source address if necessary */
 	if (!nat_inbound(c, &ini->eaddr, &tgt->oaddr)) {
 		if (inany_v4(&ini->eaddr)) {
 			if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.our_tap_addr))
@@ -1090,9 +1093,6 @@ uint8_t fwd_nat_from_host(const struct ctx *c,
 		}
 	}
 	tgt->oport = ini->eport;
-
-	if (!inany_is_unspecified(&rule->taddr))
-		tgt->eaddr = rule->taddr;
 
 	/* Use guest address as destination, if otherwise unspecified */
 	if (inany_is_unspecified(&tgt->eaddr))
