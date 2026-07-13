@@ -1042,7 +1042,8 @@ uint8_t fwd_nat_from_host(const struct ctx *c,
 	tgt->eport = rule->to + (ini->oport - rule->first);
 	if (!inany_is_unspecified(&rule->taddr))
 		tgt->eaddr = rule->taddr;
-	else if (c->host_lo_to_ns_lo && inany_is_loopback(&ini->oaddr))
+	else if (inany_is_multicast(&ini->oaddr) ||
+		 (c->host_lo_to_ns_lo && inany_is_loopback(&ini->oaddr)))
 		tgt->eaddr = ini->oaddr;
 
 	/* TODO: Allow splicing with specified target address */
