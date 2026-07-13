@@ -1038,21 +1038,19 @@ uint8_t fwd_nat_from_host(const struct ctx *c,
 		 * In either case, let the kernel pick the source address to
 		 * match.
 		 */
-		if (inany_v4(&ini->eaddr)) {
-			if (c->host_lo_to_ns_lo)
-				tgt->eaddr = inany_loopback4;
-			else
-				tgt->eaddr = inany_from_v4(c->ip4.addr_seen);
-			tgt->oaddr = inany_any4;
-		} else {
-			if (c->host_lo_to_ns_lo)
-				tgt->eaddr = inany_loopback6;
-			else
-				tgt->eaddr.a6 = c->ip6.addr_seen;
-			tgt->oaddr = inany_any6;
-		}
+		if (c->host_lo_to_ns_lo && inany_is_loopback(&ini->oaddr))
+			tgt->eaddr = ini->oaddr;
+		else if (inany_v4(&ini->eaddr))
+			tgt->eaddr = inany_from_v4(c->ip4.addr_seen);
+		else
+			tgt->eaddr.a6 = c->ip6.addr_seen;
 
-		/* Let the kernel pick source port */
+		/* Let the kernel pick source address and port */
+		if (inany_v4(&tgt->eaddr))
+			tgt->oaddr = inany_any4;
+		else
+			tgt->oaddr = inany_any6;
+
 		tgt->oport = 0;
 		if (proto == IPPROTO_UDP)
 			/* But for UDP preserve the source port */
