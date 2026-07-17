@@ -344,7 +344,8 @@ int main(int argc, char **argv)
 
 	arch_avx2_exec(argv);
 
-	isolate_initial(argc, argv);
+	isolate_initial();
+	isolate_fds(argc, argv);
 
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
