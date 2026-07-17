@@ -248,7 +248,6 @@ void isolate_initial(void)
 	drop_caps_ep_except(keep);
 }
 
-
 /*
  * isolate_fds() - Close leaked files, but not --fd, stdin, stdout, stderr
  * @argc:	Argument count
@@ -256,27 +255,26 @@ void isolate_initial(void)
  *
  * Should:
  *  - close all open files except for standard streams and the one from --fd
+ *  - move the --fd descriptor out of the range 0-2
  *
- * Return: fd number from --fd, or -1 if not specified
+ * Return: new fd number for descriptor from --fd, or -1 if not specified
  */
 int isolate_fds(int argc, char **argv)
 {
-	int fd, rc;
+	int fd, close_from = STDERR_FILENO + 1;
 
 	fd = conf_tap_fd(argc, argv);
 
-	if (fd == -1) {
-		rc = close_range(STDERR_FILENO + 1, ~0U, CLOSE_RANGE_UNSHARE);
-	} else if (fd == STDERR_FILENO + 1) { /* Still a single range */
-		rc = close_range(STDERR_FILENO + 2, ~0U, CLOSE_RANGE_UNSHARE);
-	} else {
-		rc = close_range(STDERR_FILENO + 1, fd - 1,
-				 CLOSE_RANGE_UNSHARE);
-		if (!rc)
-			rc = close_range(fd + 1, ~0U, CLOSE_RANGE_UNSHARE);
+	if (fd >= 0) {
+		/* Move the passed fd to a more convenient location */
+		if (fd != close_from			&&
+		    (dup2(fd, close_from) != close_from	||
+		     close(fd)))
+			die_perror("Could not move --fd descriptor");
+		fd = close_from++;
 	}
 
-	if (rc) {
+	if (close_range(close_from, ~0U, CLOSE_RANGE_UNSHARE)) {
 		if (errno == ENOSYS || errno == EINVAL) {
 			/* This probably means close_range() or the
 			 * CLOSE_RANGE_UNSHARE flag is not supported by the

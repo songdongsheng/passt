@@ -1177,9 +1177,7 @@ int conf_tap_fd(int argc, char **argv)
 		return -1;
 
 	p = fdarg;
-	if (!parse_unsigned(&p, 0, &val) || !parse_eoi(p)	||
-	    val > INT_MAX					||
-	    (val != STDIN_FILENO && val <= STDERR_FILENO))
+	if (!parse_unsigned(&p, 0, &val) || !parse_eoi(p) || val > INT_MAX)
 		die("Invalid --fd: %s", fdarg);
 
 	return val;
