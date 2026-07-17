@@ -63,7 +63,6 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <getopt.h>
 #include <grp.h>
 #include <inttypes.h>
 #include <limits.h>
@@ -262,17 +261,9 @@ void isolate_initial(void)
  */
 int isolate_fds(int argc, char **argv)
 {
-	const struct option optfd[] = { { "fd", required_argument, NULL, 'F' },
-					{ 0 }, };
-	long fd = -1;
-	int name, rc;
+	int fd, rc;
 
-	do {
-		name = getopt_long(argc, argv, "-:F:", optfd, NULL);
-
-		if (name == 'F')
-			fd = conf_tap_fd(optarg);
-	} while (name != -1);
+	fd = conf_tap_fd(argc, argv);
 
 	if (fd == -1) {
 		rc = close_range(STDERR_FILENO + 1, ~0U, CLOSE_RANGE_UNSHARE);
