@@ -333,8 +333,8 @@ static void passt_worker(void *opaque, int nfds, struct epoll_event *events)
 int main(int argc, char **argv)
 {
 	struct epoll_event events[NUM_EPOLL_EVENTS];
+	int nfds, devnull_fd = -1, fd;
 	struct ctx *c = &passt_ctx;
-	int nfds, devnull_fd = -1;
 	struct rlimit limit;
 	struct timespec now;
 	struct sigaction sa;
@@ -346,6 +346,15 @@ int main(int argc, char **argv)
 
 	isolate_initial();
 	c->fd_tap = isolate_fds(argc, argv);
+
+	if ((devnull_fd = open("/dev/null", O_RDWR | O_CLOEXEC)) < 0)
+		die_perror("Failed to open /dev/null");
+	/* Ensure fds 0-2 are populated */
+	for (fd = 0; fd <= STDERR_FILENO; fd++) {
+		if (fcntl(fd, F_GETFD) < 0 &&
+		    dup2(devnull_fd, fd) < 0)
+			die_perror("Failed to populate fd %d", fd);
+	}
 
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
@@ -414,11 +423,6 @@ int main(int argc, char **argv)
 	fwd_neigh_table_init(c);
 	nl_neigh_notify_init(c);
 
-	if (!c->foreground) {
-		if ((devnull_fd = open("/dev/null", O_RDWR | O_CLOEXEC)) < 0)
-			die_perror("Failed to open /dev/null");
-	}
-
 	if (isolate_prefork(c))
 		die("Failed to sandbox process, exiting");
 
@@ -433,6 +437,9 @@ int main(int argc, char **argv)
 		close(c->pidfile_fd);
 		c->pidfile_fd = -1;
 	}
+
+	if (devnull_fd > STDERR_FILENO)
+		close(devnull_fd);
 
 	if (pasta_child_pid) {
 		kill(pasta_child_pid, SIGUSR1);

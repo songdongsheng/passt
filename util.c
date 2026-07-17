@@ -522,8 +522,7 @@ int __daemon(int pidfile_fd, int devnull_fd)
 	if (setsid()				< 0 ||
 	    dup2(devnull_fd, STDIN_FILENO)	< 0 ||
 	    dup2(devnull_fd, STDOUT_FILENO)	< 0 ||
-	    dup2(devnull_fd, STDERR_FILENO)	< 0 ||
-	    close(devnull_fd))
+	    dup2(devnull_fd, STDERR_FILENO)	< 0)
 		passt_exit(EXIT_FAILURE);
 
 	return 0;
