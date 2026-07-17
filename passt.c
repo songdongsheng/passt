@@ -423,11 +423,13 @@ int main(int argc, char **argv)
 
 	if (!c->foreground) {
 		__daemon(c->pidfile_fd, devnull_fd);
-		close(c->pidfile_fd);
-		c->pidfile_fd = -1;
 		log_stderr = false;
 	} else {
 		pidfile_write(c->pidfile_fd, getpid());
+	}
+
+	if (c->pidfile_fd >= 0) {
+		close(c->pidfile_fd);
 		c->pidfile_fd = -1;
 	}
 
