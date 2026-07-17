@@ -257,8 +257,10 @@ void isolate_initial(void)
  *
  * Should:
  *  - close all open files except for standard streams and the one from --fd
+ *
+ * Return: fd number from --fd, or -1 if not specified
  */
-void isolate_fds(int argc, char **argv)
+int isolate_fds(int argc, char **argv)
 {
 	const struct option optfd[] = { { "fd", required_argument, NULL, 'F' },
 					{ 0 }, };
@@ -296,6 +298,8 @@ void isolate_fds(int argc, char **argv)
 			die_perror("Failed to close files leaked by parent");
 		}
 	}
+
+	return fd;
 }
 
 /**

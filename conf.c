@@ -1593,7 +1593,7 @@ void conf(struct ctx *c, int argc, char **argv)
 			c->fd_control_listen = c->fd_control = -1;
 			break;
 		case 'F':
-			c->fd_tap = conf_tap_fd(optarg);
+			/* --fd was parsed early and c->fd_tap set in main() */
 			c->one_off = true;
 			*c->sock_path = 0;
 			break;
