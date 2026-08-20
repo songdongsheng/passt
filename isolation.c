@@ -293,6 +293,24 @@ int isolate_fds(int argc, char **argv)
 }
 
 /**
+ * enter_userns() - Enter a named user namespace
+ * @userns:	userns path to enter
+ */
+static void enter_userns(const char *userns)
+{
+	int ufd;
+
+	ufd = open(userns, O_RDONLY | O_CLOEXEC);
+	if (ufd < 0)
+		die_perror("Couldn't open user namespace %s", userns);
+
+	if (setns(ufd, CLONE_NEWUSER) != 0)
+		die_perror("Couldn't enter user namespace %s", userns);
+
+	close(ufd);
+}
+
+/**
  * isolate_user() - Switch to final UID/GID and move into userns
  * @c:		Execution context
  * @uid:	User ID to run as (in original userns)
@@ -325,17 +343,7 @@ void isolate_user(const struct ctx *c, uid_t uid, gid_t gid, bool use_userns,
 		die_perror("Can't set UID to %u", uid);
 
 	if (*userns) { /* If given a userns, join it */
-		int ufd;
-
-		ufd = open(userns, O_RDONLY | O_CLOEXEC);
-		if (ufd < 0)
-			die_perror("Couldn't open user namespace %s", userns);
-
-		if (setns(ufd, CLONE_NEWUSER) != 0)
-			die_perror("Couldn't enter user namespace %s", userns);
-
-		close(ufd);
-
+		enter_userns(userns);
 	} else if (use_userns) { /* Create and join a new userns */
 		if (unshare(CLONE_NEWUSER) != 0)
 			die_perror("Couldn't create user namespace");
