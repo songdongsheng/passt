@@ -260,21 +260,8 @@ void pasta_start_ns(struct ctx *c, uid_t uid, gid_t gid, bool config_idmaps,
 		c->quiet = 1;
 
 	/* Configure user and group mappings */
-	if (config_idmaps) {
-		char uidmap[BUFSIZ], gidmap[BUFSIZ];
-
-		if (snprintf_check(uidmap, BUFSIZ, "0 %u 1", uid))
-			die_perror("Can't build uidmap");
-
-		if (snprintf_check(gidmap, BUFSIZ, "0 %u 1", gid))
-			die_perror("Can't build gidmap");
-
-		if (write_file("/proc/self/uid_map", uidmap) ||
-		    write_file("/proc/self/setgroups", "deny") ||
-		    write_file("/proc/self/gid_map", gidmap)) {
-			warn("Couldn't configure user mappings");
-		}
-	}
+	if (config_idmaps)
+		make_ugid_map(0, uid, gid);
 
 	if (argc == 0) {
 		arg.exe = getenv("SHELL");
