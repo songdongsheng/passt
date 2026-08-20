@@ -46,6 +46,7 @@
 
 #include "util.h"
 #include "passt.h"
+#include "pasta.h"
 #include "isolation.h"
 #include "netlink.h"
 #include "log.h"
