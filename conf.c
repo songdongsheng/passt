@@ -1962,8 +1962,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		if (*netns) {
 			pasta_open_ns(c, netns);
 		} else {
-			pasta_start_ns(c, uid, gid, !netns_only,
-				       argc - optind, argv + optind);
+			pasta_start_ns(c, argc - optind, argv + optind);
 		}
 	}
 
