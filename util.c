@@ -964,7 +964,7 @@ void raw_random(void *buf, size_t buflen)
 {
 	size_t random_read = 0;
 #ifndef HAS_GETRANDOM
-	int fd = open(DEV_RANDOM, O_RDONLY);
+	int fd = open(DEV_RANDOM, O_RDONLY | O_CLOEXEC);
 
 	if (fd < 0)
 		die_perror("Couldn't open %s", DEV_RANDOM);
