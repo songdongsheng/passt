@@ -30,11 +30,8 @@
 #include "util.h"
 #include "iov.h"
 #include "passt.h"
-#include "packet.h"
 #include "log.h"
 #include "pcap.h"
-#include "epoll_ctl.h"
-#include "pasta.h"
 #include "serialise.h"
 #ifdef HAS_GETRANDOM
 #include <sys/random.h>

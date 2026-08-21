@@ -47,7 +47,6 @@
 #include "util.h"
 #include "passt.h"
 #include "pasta.h"
-#include "isolation.h"
 #include "netlink.h"
 #include "log.h"
 #include "epoll_ctl.h"
