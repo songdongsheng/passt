@@ -1072,7 +1072,7 @@ void passt_exit(int status)
 	/* Make sure we don't leave any messages incomplete */
 	(void)fflush(stderr);
 	(void)fflush(stdout);
-	
+
 	_exit(status);
 }
 
