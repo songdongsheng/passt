@@ -291,12 +291,69 @@ void pasta_start_ns(struct ctx *c, int argc, char *argv[])
 }
 
 /**
+ * pasta_conf_addrs() - Configure addresses for one address family in namespace
+ * @c:		Execution context
+ * @af:		Address family (AF_INET or AF_INET6)
+ * @ifi:	Host interface index for this address family
+ * @no_copy:	If true, set configured address; if false, copy from host
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+static int pasta_conf_addrs(struct ctx *c, sa_family_t af, int ifi,
+			    bool no_copy)
+{
+	if (!ifi)
+		return 0;
+
+	if (!no_copy)
+		return nl_addr_dup(nl_sock, ifi, nl_sock_ns, c->pasta_ifi, af);
+
+	if (af == AF_INET && !IN4_IS_ADDR_UNSPECIFIED(&c->ip4.addr))
+		return nl_addr_set(nl_sock_ns, c->pasta_ifi, AF_INET,
+				   &c->ip4.addr, c->ip4.prefix_len);
+	if (af == AF_INET6 && !IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr))
+		return nl_addr_set(nl_sock_ns, c->pasta_ifi, AF_INET6,
+				   &c->ip6.addr, 64);
+
+	return 0;
+}
+
+/**
+ * pasta_conf_routes() - Configure routes for one address family in namespace
+ * @c:		Execution context
+ * @af:		Address family (AF_INET or AF_INET6)
+ * @ifi:	Host interface index for this address family
+ * @no_copy:	If true, set default route; if false, copy routes from host
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+static int pasta_conf_routes(struct ctx *c, sa_family_t af, int ifi,
+			     bool no_copy)
+{
+	const void *gw;
+
+	if (af == AF_INET)
+		gw = &c->ip4.guest_gw;
+	else
+		gw = &c->ip6.guest_gw;
+
+	if (!ifi)
+		return 0;
+
+	if (!no_copy)
+		return nl_route_dup(nl_sock, ifi, nl_sock_ns, c->pasta_ifi, af);
+
+	return nl_route_set_def(nl_sock_ns, c->pasta_ifi, af, gw);
+}
+
+/**
  * pasta_ns_conf() - Set up loopback and tap interfaces in namespace as needed
  * @c:		Execution context
  */
 void pasta_ns_conf(struct ctx *c)
 {
-	int rc = 0;
+	unsigned int flags = IFF_UP;
+	int rc;
 
 	rc = nl_link_set_flags(nl_sock_ns, 1 /* lo */, IFF_UP, IFF_UP);
 	if (rc < 0)
@@ -315,116 +372,68 @@ void pasta_ns_conf(struct ctx *c)
 		die("Couldn't set MAC address in namespace: %s",
 		    strerror_(-rc));
 
-	if (c->pasta_conf_ns) {
-		unsigned int flags = IFF_UP;
+	proto_update_l2_buf(c->guest_mac);
 
-		if (c->mtu)
-			nl_link_set_mtu(nl_sock_ns, c->pasta_ifi, c->mtu);
+	if (!c->pasta_conf_ns)
+		return;
 
-		if (c->ifi6) /* Avoid duplicate address detection on link up */
-			flags |= IFF_NOARP;
+	if (c->mtu)
+		nl_link_set_mtu(nl_sock_ns, c->pasta_ifi, c->mtu);
 
-		nl_link_set_flags(nl_sock_ns, c->pasta_ifi, flags, flags);
+	if (c->ifi6) /* Avoid duplicate address detection on link up */
+		flags |= IFF_NOARP;
 
-		if (c->ifi4) {
-			if (c->ip4.no_copy_addrs) {
-				rc = nl_addr_set(nl_sock_ns, c->pasta_ifi,
-						 AF_INET,
-						 &c->ip4.addr,
-						 c->ip4.prefix_len);
-			} else {
-				rc = nl_addr_dup(nl_sock, c->ifi4,
-						 nl_sock_ns, c->pasta_ifi,
-						 AF_INET);
-			}
+	nl_link_set_flags(nl_sock_ns, c->pasta_ifi, flags, flags);
 
-			if (c->ifi4 == -1 && rc == -ENOTSUP) {
-				warn("IPv4 not supported, disabling");
-				c->ifi4 = 0;
-				goto ipv4_done;
-			}
-
-			if (rc < 0) {
-				die("Couldn't set IPv4 address(es) in namespace: %s",
-				    strerror_(-rc));
-			}
-
-			if (c->ip4.no_copy_routes) {
-				rc = nl_route_set_def(nl_sock_ns, c->pasta_ifi,
-						      AF_INET,
-						      &c->ip4.guest_gw);
-			} else {
-				rc = nl_route_dup(nl_sock, c->ifi4, nl_sock_ns,
-						  c->pasta_ifi, AF_INET);
-			}
-
-			if (rc < 0) {
+	if (c->ifi4) {
+		rc = pasta_conf_addrs(c, AF_INET, c->ifi4,
+				      c->ip4.no_copy_addrs);
+		if (c->ifi4 == -1 && rc == -ENOTSUP) {
+			warn("IPv4 not supported, disabling");
+			c->ifi4 = 0;
+		} else if (rc < 0) {
+			die("Couldn't set IPv4 address(es) in namespace: %s",
+			    strerror_(-rc));
+		} else {
+			rc = pasta_conf_routes(c, AF_INET, c->ifi4,
+					       c->ip4.no_copy_routes);
+			if (rc < 0)
 				die("Couldn't set IPv4 route(s) in guest: %s",
 				    strerror_(-rc));
-			}
-		}
-ipv4_done:
-
-		if (c->ifi6) {
-			rc = nl_addr_get_ll(nl_sock_ns, c->pasta_ifi,
-					    &c->ip6.addr_ll_seen);
-			if (rc < 0) {
-				warn("Can't get LL address from namespace: %s",
-				    strerror_(-rc));
-			}
-
-			rc = nl_addr_set_ll_nodad(nl_sock_ns, c->pasta_ifi);
-			if (rc < 0) {
-				warn("Can't set nodad for LL in namespace: %s",
-				    strerror_(-rc));
-			}
-
-			/* We dodged DAD: re-enable neighbour solicitations */
-			nl_link_set_flags(nl_sock_ns, c->pasta_ifi,
-					  0, IFF_NOARP);
-
-			if (c->ip6.no_copy_addrs) {
-				if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr)) {
-					rc = nl_addr_set(nl_sock_ns,
-							 c->pasta_ifi, AF_INET6,
-							 &c->ip6.addr, 64);
-				}
-			} else {
-				rc = nl_addr_dup(nl_sock, c->ifi6,
-						 nl_sock_ns, c->pasta_ifi,
-						 AF_INET6);
-			}
-
-			if (rc < 0) {
-				die("Couldn't set IPv6 address(es) in namespace: %s",
-				    strerror_(-rc));
-			}
-
-			if (c->ip6.no_copy_routes) {
-				rc = nl_route_set_def(nl_sock_ns, c->pasta_ifi,
-						      AF_INET6,
-						      &c->ip6.guest_gw);
-			} else {
-				rc = nl_route_dup(nl_sock, c->ifi6,
-						  nl_sock_ns, c->pasta_ifi,
-						  AF_INET6);
-			}
-
-			if (c->ifi6 == -1 && rc == -ENOTSUP) {
-				warn("IPv6 not supported, disabling");
-				c->ifi6 = 0;
-				goto ipv6_done;
-			}
-
-			if (rc < 0) {
-				die("Couldn't set IPv6 route(s) in guest: %s",
-				    strerror_(-rc));
-			}
 		}
 	}
-ipv6_done:
 
-	proto_update_l2_buf(c->guest_mac);
+	if (c->ifi6) {
+		rc = nl_addr_get_ll(nl_sock_ns, c->pasta_ifi,
+				    &c->ip6.addr_ll_seen);
+		if (rc < 0)
+			warn("Can't get LL address from namespace: %s",
+			     strerror_(-rc));
+
+		rc = nl_addr_set_ll_nodad(nl_sock_ns, c->pasta_ifi);
+		if (rc < 0)
+			warn("Can't set nodad for LL in namespace: %s",
+			     strerror_(-rc));
+
+		/* We dodged DAD: re-enable neighbour solicitations */
+		nl_link_set_flags(nl_sock_ns, c->pasta_ifi, 0, IFF_NOARP);
+
+		rc = pasta_conf_addrs(c, AF_INET6, c->ifi6,
+				      c->ip6.no_copy_addrs);
+		if (c->ifi6 == -1 && rc == -ENOTSUP) {
+			warn("IPv6 not supported, disabling");
+			c->ifi6 = 0;
+		} else if (rc < 0) {
+			die("Couldn't set IPv6 address(es) in namespace: %s",
+			    strerror_(-rc));
+		} else {
+			rc = pasta_conf_routes(c, AF_INET6, c->ifi6,
+					       c->ip6.no_copy_routes);
+			if (rc < 0)
+				die("Couldn't set IPv6 route(s) in guest: %s",
+				    strerror_(-rc));
+		}
+	}
 }
 
 /**
