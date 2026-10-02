@@ -488,6 +488,7 @@ static int tcp_splice_forward(struct ctx *c,
 {
 	uint8_t lowat_set_flag = RCVLOWAT_SET(fromsidei);
 	uint8_t lowat_act_flag = RCVLOWAT_ACT(fromsidei);
+	bool corked = false;
 
 	while (1) {
 		ssize_t readlen, written;
@@ -517,8 +518,17 @@ static int tcp_splice_forward(struct ctx *c,
 			 * there's nothing in the pipe so there's nothing to do
 			 * write side either.
 			 */
-			if (!conn->pending[fromsidei])
+			if (!conn->pending[fromsidei]) {
+				/* Setting TCP_NODELAY again flushes data held
+				 * back by SPLICE_F_MORE
+				 */
+				if (corked &&
+				    setsockopt(conn->s[!fromsidei], SOL_TCP,
+					       TCP_NODELAY, &((int){ 1 }),
+					       sizeof(int)))
+					flow_trace(conn, "failed to push data");
 				break;
+			}
 		} else {
 			conn->pending[fromsidei] += readlen;
 
@@ -548,6 +558,9 @@ static int tcp_splice_forward(struct ctx *c,
 
 		if (written < 0)
 			break;
+
+		if (written > 0)
+			corked = more;
 
 		conn->pending[fromsidei] -= written;
 
