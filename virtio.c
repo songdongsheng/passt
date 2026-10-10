@@ -409,6 +409,13 @@ static bool virtqueue_map_desc(const struct vu_dev *dev,
 	while (sz) {
 		uint64_t len = sz;
 
+		if (num_sg >= max_num_sg) {
+			debug(
+"vhost-user: Too many iovec entries for guest descriptor (%u >= %u), discard",
+			      num_sg, max_num_sg);
+			return false;
+		}
+
 		iov[num_sg].iov_base = vu_gpa_to_va(dev, &len, pa);
 		if (iov[num_sg].iov_base == NULL)
 			die("vhost-user: invalid address for buffers");
