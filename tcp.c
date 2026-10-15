@@ -2160,7 +2160,7 @@ out:
 	    conn->seq_ack_from_tap == conn->seq_to_tap)
 		conn_event(c, conn, TAP_FIN_ACKED, now);
 
-	if (fin && !partial_send) {
+	if (fin) {
 		conn->seq_from_tap++;
 
 		conn_event(c, conn, TAP_FIN_RCVD, now);
