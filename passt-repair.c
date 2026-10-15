@@ -95,6 +95,7 @@ static int wait_for_socket(struct sockaddr_un *a, const char *dir,
 			continue;
 		}
 
+		/* cppcheck-suppress [negativeIndex, unmatchedSuppression] */
 		buf[n - 1] = '\0';
 		for (p = buf; p < buf + n; p += sizeof(*ev) + ev->len) {
 			ev = (const struct inotify_event *)p;
